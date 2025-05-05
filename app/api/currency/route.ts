@@ -9,7 +9,11 @@ export async function GET() {
       if (!res.ok) throw new Error(`API response not ok for base ${base}`);
       const data = await res.json();
       if (!data.rates || !data.rates.TRY) throw new Error(`No TRY rate in response for base ${base}`);
-      return data.rates.TRY;
+      // API'den dönen oranı logla
+      console.log(`API ${base}/TRY oranı:`, data.rates.TRY);
+      // Eğer oran 1'in altındaysa ters çevir (ör: 0.03 ise 1/0.03 = 33.33)
+      const rate = data.rates.TRY < 1 ? 1 / data.rates.TRY : data.rates.TRY;
+      return Number(rate.toFixed(4));
     };
     const [usd, eur, gbp, sar] = await Promise.all([
       fetchRate("USD"),
@@ -19,10 +23,10 @@ export async function GET() {
     ]);
     const rates = [
       { code: "TRY", name: "Türk Lirası", buying: 1, selling: 1 },
-      { code: "USD", name: "Amerikan Doları", buying: Number(usd.toFixed(2)), selling: Number((usd * 1.02).toFixed(2)) },
-      { code: "EUR", name: "Euro", buying: Number(eur.toFixed(2)), selling: Number((eur * 1.02).toFixed(2)) },
-      { code: "GBP", name: "İngiliz Sterlini", buying: Number(gbp.toFixed(2)), selling: Number((gbp * 1.02).toFixed(2)) },
-      { code: "SAR", name: "Suudi Arabistan Riyali", buying: Number(sar.toFixed(2)), selling: Number((sar * 1.02).toFixed(2)) },
+      { code: "USD", name: "Amerikan Doları", buying: usd, selling: Number((usd * 1.02).toFixed(2)) },
+      { code: "EUR", name: "Euro", buying: eur, selling: Number((eur * 1.02).toFixed(2)) },
+      { code: "GBP", name: "İngiliz Sterlini", buying: gbp, selling: Number((gbp * 1.02).toFixed(2)) },
+      { code: "SAR", name: "Suudi Arabistan Riyali", buying: sar, selling: Number((sar * 1.02).toFixed(2)) },
     ];
     return NextResponse.json({ rates, lastUpdated: new Date().toISOString() });
   } catch (error) {
