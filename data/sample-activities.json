@@ -1,0 +1,10 @@
+[
+  {"id": "act-oldcity", "name": "Old City Tour", "destinationId": "dest-istanbul", "price": 120, "currency": "EUR", "description": "İstanbul'un tarihi yarımadasında rehberli şehir turu: Ayasofya, Sultanahmet, Hipodrom, Kapalıçarşı, Topkapı Sarayı."},
+  {"id": "act-balloon", "name": "Balloon Ride", "destinationId": "dest-cappadocia", "price": 250, "currency": "EUR", "description": "Kapadokya'da sabah balon turu ve manzara keyfi."},
+  {"id": "act-beach", "name": "Beach", "destinationId": "dest-antalya", "price": 100, "currency": "EUR", "description": "Antalya Lara ve Konyaaltı plajlarında deniz ve güneş keyfi."},
+  {"id": "act-uzungol", "name": "Uzungöl", "destinationId": "dest-trabzon", "price": 150, "currency": "EUR", "description": "Trabzon Uzungöl ve yayla gezisi, doğa yürüyüşü."},
+  {"id": "act-ephesus", "name": "Ephesus", "destinationId": "dest-ephesus", "price": 200, "currency": "EUR", "description": "Efes antik kenti, Celsus Kütüphanesi ve antik tiyatro turu."},
+  {"id": "act-pamukkale", "name": "Pamukkale", "destinationId": "dest-ephesus", "price": 180, "currency": "EUR", "description": "Pamukkale travertenleri ve antik havuz gezisi."},
+  {"id": "act-guide", "name": "Şehir Rehberliği", "destinationId": "dest-istanbul", "price": 70, "currency": "EUR", "description": "İstanbul turları için profesyonel rehberlik hizmeti."},
+  {"id": "act-transfer", "name": "Havalimanı Transferi", "destinationId": "dest-antalya", "price": 60, "currency": "EUR", "description": "Antalya havalimanı-otel arası transfer."}
+]

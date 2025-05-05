@@ -1,0 +1,7 @@
+[
+  {"id": "dest-istanbul", "name": "İstanbul", "country": "Türkiye", "description": "Tarihi şehir"},
+  {"id": "dest-cappadocia", "name": "Cappadocia", "country": "Türkiye", "description": "Peri bacaları ve balonlar"},
+  {"id": "dest-antalya", "name": "Antalya", "country": "Türkiye", "description": "Deniz ve plajlar"},
+  {"id": "dest-trabzon", "name": "Trabzon", "country": "Türkiye", "description": "Doğa ve yaylalar"},
+  {"id": "dest-ephesus", "name": "Ephesus", "country": "Türkiye", "description": "Antik kent ve Pamukkale"}
+]
