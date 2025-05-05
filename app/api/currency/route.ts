@@ -6,9 +6,9 @@ export async function GET() {
     const apiBase = "https://api.exchangerate.host/latest";
     const fetchRate = async (base) => {
       const res = await fetch(`${apiBase}?base=${base}&symbols=TRY`);
-      if (!res.ok) throw new Error();
+      if (!res.ok) throw new Error(`API response not ok for base ${base}`);
       const data = await res.json();
-      if (!data.rates || !data.rates.TRY) throw new Error();
+      if (!data.rates || !data.rates.TRY) throw new Error(`No TRY rate in response for base ${base}`);
       return data.rates.TRY;
     };
     const [usd, eur, gbp, sar] = await Promise.all([
@@ -26,6 +26,7 @@ export async function GET() {
     ];
     return NextResponse.json({ rates, lastUpdated: new Date().toISOString() });
   } catch (error) {
-    return NextResponse.json({ error: "Canlı döviz kurları alınamadı, sabit kurlar gösteriliyor." }, { status: 500 });
+    console.error("Döviz API Hatası:", error);
+    return NextResponse.json({ error: `Canlı döviz kurları alınamadı, sabit kurlar gösteriliyor. Hata: ${error?.message || error}` }, { status: 500 });
   }
 }
