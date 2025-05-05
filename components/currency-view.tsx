@@ -8,99 +8,37 @@ import { Label } from "@/components/ui/label"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { RefreshCw } from "lucide-react"
 import { useToast } from "@/components/ui/use-toast"
+import { fetchExchangeRates } from "@/lib/currency-service"
 
 export function CurrencyView({ onClose }) {
   const { toast } = useToast()
   const [isLoading, setIsLoading] = useState(false)
   const [lastUpdate, setLastUpdate] = useState(new Date())
-
-  // Gerçekçi döviz kurları
-  const [rates, setRates] = useState([
-    { code: "USD", name: "Amerikan Doları", buying: 32.85, selling: 33.05 },
-    { code: "EUR", name: "Euro", buying: 35.6, selling: 35.9 },
-    { code: "GBP", name: "İngiliz Sterlini", buying: 41.75, selling: 42.15 },
-    { code: "CHF", name: "İsviçre Frangı", buying: 36.4, selling: 36.7 },
-    { code: "JPY", name: "Japon Yeni", buying: 0.22, selling: 0.23 },
-    { code: "SAR", name: "Suudi Arabistan Riyali", buying: 8.75, selling: 8.85 },
-    { code: "AUD", name: "Avustralya Doları", buying: 21.9, selling: 22.1 },
-    { code: "CAD", name: "Kanada Doları", buying: 24.15, selling: 24.35 },
-  ])
-
+  const [rates, setRates] = useState([])
   const [amount, setAmount] = useState("1")
   const [fromCurrency, setFromCurrency] = useState("TRY")
   const [toCurrency, setToCurrency] = useState("USD")
   const [result, setResult] = useState("")
 
-  const handleRefresh = () => {
+  // Gerçek API'den döviz kurlarını çek
+  const handleRefresh = async () => {
     setIsLoading(true)
-
-    // Gerçek API çağrısı simülasyonu
-    setTimeout(() => {
-      // Kurları güncel değerlerle güncelle
-      const updatedRates = [
-        {
-          code: "USD",
-          name: "Amerikan Doları",
-          buying: 32.85 + (Math.random() * 0.3 - 0.15),
-          selling: 33.05 + (Math.random() * 0.3 - 0.15),
-        },
-        {
-          code: "EUR",
-          name: "Euro",
-          buying: 35.6 + (Math.random() * 0.3 - 0.15),
-          selling: 35.9 + (Math.random() * 0.3 - 0.15),
-        },
-        {
-          code: "GBP",
-          name: "İngiliz Sterlini",
-          buying: 41.75 + (Math.random() * 0.4 - 0.2),
-          selling: 42.15 + (Math.random() * 0.4 - 0.2),
-        },
-        {
-          code: "CHF",
-          name: "İsviçre Frangı",
-          buying: 36.4 + (Math.random() * 0.3 - 0.15),
-          selling: 36.7 + (Math.random() * 0.3 - 0.15),
-        },
-        {
-          code: "JPY",
-          name: "Japon Yeni",
-          buying: 0.22 + (Math.random() * 0.01 - 0.005),
-          selling: 0.23 + (Math.random() * 0.01 - 0.005),
-        },
-        {
-          code: "SAR",
-          name: "Suudi Arabistan Riyali",
-          buying: 8.75 + (Math.random() * 0.1 - 0.05),
-          selling: 8.85 + (Math.random() * 0.1 - 0.05),
-        },
-        {
-          code: "AUD",
-          name: "Avustralya Doları",
-          buying: 21.9 + (Math.random() * 0.2 - 0.1),
-          selling: 22.1 + (Math.random() * 0.2 - 0.1),
-        },
-        {
-          code: "CAD",
-          name: "Kanada Doları",
-          buying: 24.15 + (Math.random() * 0.2 - 0.1),
-          selling: 24.35 + (Math.random() * 0.2 - 0.1),
-        },
-      ].map((rate) => ({
-        ...rate,
-        buying: Number.parseFloat(rate.buying.toFixed(2)),
-        selling: Number.parseFloat(rate.selling.toFixed(2)),
-      }))
-
-      setRates(updatedRates)
-      setLastUpdate(new Date())
-      setIsLoading(false)
-
+    try {
+      const data = await fetchExchangeRates()
+      setRates(data.rates)
+      setLastUpdate(new Date(data.lastUpdated || new Date()))
       toast({
         title: "Kurlar güncellendi",
         description: "Döviz kurları başarıyla güncellendi.",
       })
-    }, 1500)
+    } catch (error: any) {
+      toast({
+        title: "Hata",
+        description: error.message || "Döviz kurları alınamadı.",
+        variant: "destructive",
+      })
+    }
+    setIsLoading(false)
   }
 
   const handleConvert = () => {
@@ -137,7 +75,6 @@ export function CurrencyView({ onClose }) {
   }
 
   useEffect(() => {
-    // Sayfa yüklendiğinde kurları güncelle
     handleRefresh()
   }, [])
 
