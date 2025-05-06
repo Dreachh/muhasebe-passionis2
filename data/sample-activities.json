@@ -1,10 +1,15 @@
 [
-  {"id": "act-oldcity", "name": "Old City Tour", "destinationId": "dest-istanbul", "price": 120, "currency": "EUR", "description": "İstanbul'un tarihi yarımadasında rehberli şehir turu: Ayasofya, Sultanahmet, Hipodrom, Kapalıçarşı, Topkapı Sarayı."},
-  {"id": "act-balloon", "name": "Balloon Ride", "destinationId": "dest-cappadocia", "price": 250, "currency": "EUR", "description": "Kapadokya'da sabah balon turu ve manzara keyfi."},
-  {"id": "act-beach", "name": "Beach", "destinationId": "dest-antalya", "price": 100, "currency": "EUR", "description": "Antalya Lara ve Konyaaltı plajlarında deniz ve güneş keyfi."},
-  {"id": "act-uzungol", "name": "Uzungöl", "destinationId": "dest-trabzon", "price": 150, "currency": "EUR", "description": "Trabzon Uzungöl ve yayla gezisi, doğa yürüyüşü."},
-  {"id": "act-ephesus", "name": "Ephesus", "destinationId": "dest-ephesus", "price": 200, "currency": "EUR", "description": "Efes antik kenti, Celsus Kütüphanesi ve antik tiyatro turu."},
-  {"id": "act-pamukkale", "name": "Pamukkale", "destinationId": "dest-ephesus", "price": 180, "currency": "EUR", "description": "Pamukkale travertenleri ve antik havuz gezisi."},
-  {"id": "act-guide", "name": "Şehir Rehberliği", "destinationId": "dest-istanbul", "price": 70, "currency": "EUR", "description": "İstanbul turları için profesyonel rehberlik hizmeti."},
-  {"id": "act-transfer", "name": "Havalimanı Transferi", "destinationId": "dest-antalya", "price": 60, "currency": "EUR", "description": "Antalya havalimanı-otel arası transfer."}
+  {"id": "act-balloon", "name": "SICAK HAVA BALONU TURU", "destinationId": "dest-cappadocia-balloon", "price": 250, "currency": "EUR", "description": "Cappadocia'da düzenlenen, kısa süreli (yaklaşık 1 saatlik) sıcak hava balonu deneyimi; bölgenin eşsiz manzarasını havadan gözlem etme fırsatı."},
+  
+  {"id": "act-museum", "name": "MÜZE GEZİSİ", "destinationId": "dest-istanbul-classic", "price": 80, "currency": "EUR", "description": "Seçilen şehir veya bölgedeki önemli müze ve sergi mekanlarının rehber eşliğinde ziyaret edilmesi; kültürel ve tarihî mirasın yakından tanınması sağlanır."},
+  
+  {"id": "act-boat", "name": "TEKNE TURU", "destinationId": "dest-antalya", "price": 120, "currency": "EUR", "description": "Deniz veya nehir üzerinde gerçekleştirilen, doğanın ve kentin farklı perspektiflerini sunan; genellikle akşam saatlerinde romantik veya eğlenceli bir atmosferle düzenlenen tekne turu."},
+  
+  {"id": "act-dinner-cruise", "name": "AKŞAM YEMEĞİ KRUVAZYERİ", "destinationId": "dest-istanbul-classic", "price": 180, "currency": "EUR", "description": "Deniz üzerinde akşam yemeği deneyimi – İstanbul ve çevresinin ışıltılı gece manzarası eşliğinde keyifli bir yemek turu."},
+  
+  {"id": "act-jeep-safari", "name": "SAFARI JEEP TURU", "destinationId": "dest-cappadocia-south", "price": 150, "currency": "EUR", "description": "Doğa ve macera tutkunlarına yönelik, arazi şartlarına uygun jeep ile çevre bölgenin doğal güzelliklerinin keşfedildiği heyecan verici tur."},
+  
+  {"id": "act-atv", "name": "ATV TURU", "destinationId": "dest-cappadocia-north", "price": 130, "currency": "EUR", "description": "Adrenalin dolu, ATV ile zorlu parkurlarda keşif ve macera dolu bir deneyim sunan tur."},
+  
+  {"id": "act-hiking-biking", "name": "YÜRÜYÜŞ & BİSİKLET TURU", "destinationId": "dest-sapanca", "price": 100, "currency": "EUR", "description": "Doğayla iç içe, belirlenen rotalarda yürüyüş veya bisiklet turu yaparak bölgenin doğal ve kültürel güzelliklerini yerinde gözlemleyebileceğiniz aktif yaşam deneyimi."}
 ]

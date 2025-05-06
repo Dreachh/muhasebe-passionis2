@@ -1,12 +1,8 @@
-// Kur Sayfası (Next.js 14 App Router için)
-// Tüm işlevler ve açıklamalar Türkçe olarak eklenmiştir.
-
 "use client";
 import React, { useEffect, useState } from "react";
 
 // Döviz kuru servis fonksiyonunu kullanıyoruz
 import { fetchExchangeRates } from "../../lib/currency-service";
-import { convertCurrency } from "../../lib/data-utils";
 
 // Kullanılacak para birimleri
 const CURRENCIES = ["TRY", "USD", "EUR", "GBP", "SAR"];
@@ -17,10 +13,12 @@ export default function CurrencyPage() {
   const [lastUpdate, setLastUpdate] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>("");
-  const [from, setFrom] = useState("TRY");
-  const [to, setTo] = useState("USD");
+  const [from, setFrom] = useState("USD");
+  const [to, setTo] = useState("TRY");
   const [amount, setAmount] = useState(1);
-  const [converted, setConverted] = useState(0);
+  const [result, setResult] = useState(0);
+  // Alış/Satış kuru seçimi
+  const [rateType, setRateType] = useState("buying"); // "buying" veya "selling"
 
   // Otomatik güncelleme: 10 dakikada bir
   useEffect(() => {
@@ -57,18 +55,85 @@ export default function CurrencyPage() {
     setLoading(false);
   };
 
-  // Kur çevirme işlemi (merkezi servis fonksiyonu ile)
-  useEffect(() => {
-    if (from === to) {
-      setConverted(Number(amount.toFixed(2)));
-      return;
-    }
+  // Manuel hesaplama
+  const calculateConversion = () => {
     if (!rates || rates.length === 0) {
-      setConverted(0);
+      setResult(0);
       return;
     }
-    setConverted(Number(convertCurrency(amount, from, to, rates).toFixed(2)));
-  }, [amount, from, to, rates]);
+
+    // Aynı para birimi için doğrudan geri dön
+    if (from === to) {
+      setResult(amount);
+      return;
+    }
+
+    try {
+      // TRY para birimi için özel durum
+      if (from === "TRY") {
+        const toCurrency = rates.find((r) => r.code === to);
+        if (toCurrency) {
+          // TRY -> diğer para birimi
+          const rate = rateType === "buying" ? 
+            Number(toCurrency.buying) : 
+            Number(toCurrency.selling);
+          
+          // TRY'den diğer para birimine çevirirken
+          // TRY değerini kura bölüyoruz
+          const calculatedResult = amount / rate;
+          setResult(Math.floor(calculatedResult * 100) / 100);
+          return;
+        }
+      } else if (to === "TRY") {
+        const fromCurrency = rates.find((r) => r.code === from);
+        if (fromCurrency) {
+          // diğer para birimi -> TRY
+          const rate = rateType === "buying" ? 
+            Number(fromCurrency.buying) : 
+            Number(fromCurrency.selling);
+          
+          // Diğer para biriminden TRY'ye çevirirken
+          // değeri kur ile çarpıyoruz
+          const calculatedResult = amount * rate;
+          setResult(Math.floor(calculatedResult * 100) / 100);
+          return;
+        }
+      } else {
+        // diğer para birimi -> diğer para birimi
+        const fromCurrency = rates.find((r) => r.code === from);
+        const toCurrency = rates.find((r) => r.code === to);
+        
+        if (fromCurrency && toCurrency) {
+          // Seçilen kur tipine göre değerleri kullan
+          const fromRate = rateType === "buying" ? 
+            Number(fromCurrency.buying) : 
+            Number(fromCurrency.selling);
+          
+          const toRate = rateType === "buying" ? 
+            Number(toCurrency.buying) : 
+            Number(toCurrency.selling);
+            
+          // Önce TRY'ye çevir, sonra hedef para birimine çevir
+          const tryValue = amount * fromRate;
+          const calculatedResult = tryValue / toRate;
+          setResult(Math.floor(calculatedResult * 100) / 100);
+          return;
+        }
+      }
+      
+      // Eğer buraya kadar geldiyse, hesaplama yapılamadı
+      setResult(0);
+      
+    } catch (error) {
+      console.error("Kur çevirme hatası:", error);
+      setResult(0);
+    }
+  };
+
+  // Değerler değiştiğinde hesaplamayı yap
+  useEffect(() => {
+    calculateConversion();
+  }, [from, to, amount, rates, rateType]);
 
   return (
     <div className="max-w-2xl mx-auto p-6 bg-white shadow rounded mt-8">
@@ -104,38 +169,97 @@ export default function CurrencyPage() {
             ))}
         </tbody>
       </table>
+      
       <div className="border-t pt-4 mt-4">
-        <h2 className="font-semibold mb-2">Kur Çeviri Alanı</h2>
-        <div className="flex flex-wrap gap-2 mb-2">
-          <select
-            value={from}
-            onChange={(e) => setFrom(e.target.value)}
-            className="border rounded px-2 py-1"
-          >
-            {CURRENCIES.map((c) => (
-              <option value={c} key={c}>{c}</option>
-            ))}
-          </select>
-          <span className="font-bold">→</span>
-          <select
-            value={to}
-            onChange={(e) => setTo(e.target.value)}
-            className="border rounded px-2 py-1"
-          >
-            {CURRENCIES.map((c) => (
-              <option value={c} key={c}>{c}</option>
-            ))}
-          </select>
-          <input
-            type="number"
-            min="0"
-            value={amount}
-            onChange={(e) => setAmount(Number(e.target.value))}
-            className="border rounded px-2 py-1 w-28"
-          />
-        </div>
-        <div className="text-lg">
-          {amount} {from} = <span className="font-bold">{converted.toFixed(2)}</span> {to}
+        <h2 className="font-semibold mb-4">Kur Çeviri Alanı</h2>
+        
+        <div className="flex flex-col gap-4 mb-4">
+          {/* Kur Tipi Seçimi */}
+          <div className="flex items-center gap-4">
+            <label className="font-medium">Kur Tipi:</label>
+            <div className="flex gap-4">
+              <label className="flex items-center gap-1">
+                <input 
+                  type="radio" 
+                  name="rateType" 
+                  value="buying" 
+                  checked={rateType === "buying"}
+                  onChange={() => setRateType("buying")} 
+                />
+                Alış
+              </label>
+              <label className="flex items-center gap-1">
+                <input 
+                  type="radio" 
+                  name="rateType" 
+                  value="selling" 
+                  checked={rateType === "selling"}
+                  onChange={() => setRateType("selling")} 
+                />
+                Satış
+              </label>
+            </div>
+          </div>
+          
+          {/* Çeviri Alanları */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 items-end">
+            {/* Kaynak Para Birimi */}
+            <div>
+              <label className="block mb-1">Kaynak:</label>
+              <div className="flex">
+                <input
+                  type="number"
+                  min="0"
+                  step="any"
+                  value={amount}
+                  onChange={(e) => setAmount(Number(e.target.value))}
+                  className="border rounded-l px-2 py-1 w-24"
+                />
+                <select
+                  value={from}
+                  onChange={(e) => setFrom(e.target.value)}
+                  className="border rounded-r px-2 py-1"
+                >
+                  {CURRENCIES.map((c) => (
+                    <option value={c} key={`from-${c}`}>{c}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            
+            {/* Yön İşareti */}
+            <div className="flex justify-center items-center">
+              <span className="text-xl font-bold">→</span>
+            </div>
+            
+            {/* Hedef Para Birimi */}
+            <div>
+              <label className="block mb-1">Hedef:</label>
+              <div className="flex">
+                <input
+                  type="text"
+                  value={result.toFixed(2)}
+                  readOnly
+                  className="border rounded-l px-2 py-1 w-24 bg-gray-50"
+                />
+                <select
+                  value={to}
+                  onChange={(e) => setTo(e.target.value)}
+                  className="border rounded-r px-2 py-1"
+                >
+                  {CURRENCIES.map((c) => (
+                    <option value={c} key={`to-${c}`}>{c}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </div>
+          
+          {/* Hesaplama detayları */}
+          <div className="text-base mt-2 font-medium">
+            {amount} {from} = <span className="font-bold">{result.toFixed(2)}</span> {to} 
+            <span className="text-gray-500 ml-2">({rateType === 'buying' ? 'Alış' : 'Satış'} kuru ile)</span>
+          </div>
         </div>
       </div>
     </div>

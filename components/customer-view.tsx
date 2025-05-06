@@ -29,7 +29,7 @@ function generateUUID() {
 }
 
 // onCancel fonksiyonu ana sayfaya yönlendirecek şekilde güncellendi
-export function CustomerView({ initialData, onCancel = () => { window.location.hash = '#main-dashboard'; }, onSave, customersData = [] }) {
+export function CustomerView({ initialData, onCancel = () => { window.location.hash = '#main-dashboard'; }, onSave, onUpdateData, customersData = [], editingRecord, setEditingRecord }) {
   // State tanımlamaları
   const [isEditing, setIsEditing] = useState(false)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
@@ -125,10 +125,18 @@ export function CustomerView({ initialData, onCancel = () => { window.location.h
   const confirmDelete = () => {
     if (!customerToDelete) return
     
-    onSave({
-      ...customerToDelete,
-      deleted: true,
-    })
+    if (typeof onSave === 'function') {
+      onSave({
+        ...customerToDelete,
+        deleted: true,
+      })
+    } else {
+      // Ana sayfadan silme işlemi için alternatif yol
+      const updatedCustomers = customersData.filter(c => c.id !== customerToDelete.id);
+      if (typeof onUpdateData === 'function') {
+        onUpdateData(updatedCustomers);
+      }
+    }
     setIsDeleteDialogOpen(false)
   }
 
