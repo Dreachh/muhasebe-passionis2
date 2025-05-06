@@ -8,6 +8,9 @@ import {
   saveDestinations, 
   saveActivities
 } from "@/lib/db";
+// JSON dosyalarını doğrudan import ediyoruz
+import SampleDestinations from "@/data/sample-destinations.json";
+import SampleActivities from "@/data/sample-activities.json";
 
 export default function ReloadDataPage() {
   const [loading, setLoading] = useState(false);
@@ -38,17 +41,12 @@ export default function ReloadDataPage() {
       await clearStore("activities");
       addLogMessage("Veritabanı temizlendi.");
       
-      // 3. Sample JSON dosyalarını yükle
+      // 3. Sample JSON dosyalarını kullan (fetch etmek yerine)
       addLogMessage("JSON dosyaları yükleniyor...");
-      const destinationsResponse = await fetch("/data/sample-destinations.json");
-      const activitiesResponse = await fetch("/data/sample-activities.json");
       
-      if (!destinationsResponse.ok || !activitiesResponse.ok) {
-        throw new Error("JSON dosyaları yüklenirken hata oluştu!");
-      }
-      
-      const destinations = await destinationsResponse.json();
-      const activities = await activitiesResponse.json();
+      // JSON dosyalarını doğrudan kullanalım
+      const destinations = SampleDestinations;
+      const activities = SampleActivities;
       
       addLogMessage(`Destinasyonlar yüklendi: ${destinations.length} adet`);
       addLogMessage(`Aktiviteler yüklendi: ${activities.length} adet`);

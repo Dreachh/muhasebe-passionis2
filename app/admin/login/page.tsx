@@ -35,6 +35,7 @@ export default function AdminLogin() {
   const SECURITY_QUESTION = "İlk evcil hayvanınızın adı nedir?";
   const SECURITY_ANSWER = "limon"; // Gerçek cevap
   const ADMIN_EMAIL = "passionistravell@gmail.com"; // Gerçek email adresi
+  const DEFAULT_USERNAME = "arzum"; // Varsayılan kullanıcı adı
   
   const router = useRouter();
 
@@ -54,8 +55,19 @@ export default function AdminLogin() {
       // Önce localStorage'dan özel şifreyi kontrol et
       const customPassword = localStorage.getItem('adminPassword');
       
-      // Kullanıcı adını büyük/küçük harf duyarsız yap ve şifreyi kontrol et
-      const isCorrectUsername = username.toLowerCase() === 'arzum'.toLowerCase();
+      // localStorage'dan özel kullanıcı adını kontrol et
+      const customUsername = localStorage.getItem('adminUsername');
+      
+      // Kullanıcı adını ve şifreyi kontrol et
+      let isCorrectUsername = false;
+      
+      // Özel kullanıcı adı varsa onu kontrol et, yoksa varsayılan kullanıcı adını kontrol et
+      if (customUsername) {
+        isCorrectUsername = username.toLowerCase() === customUsername.toLowerCase();
+      } else {
+        isCorrectUsername = username.toLowerCase() === DEFAULT_USERNAME.toLowerCase();
+      }
+      
       let isCorrectPassword = false;
       
       // Özel şifre varsa onu kontrol et, yoksa varsayılan şifreyi kontrol et
@@ -513,4 +525,4 @@ export default function AdminLogin() {
       </Card>
     </div>
   );
-} 
+}
