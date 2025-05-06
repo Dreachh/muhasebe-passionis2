@@ -92,3 +92,25 @@ body {
     @apply bg-background text-foreground;
   }
 }
+
+/* Açılır menü (dropdown/select) görünürlük düzeltmesi */
+[data-radix-popper-content-wrapper],
+[data-radix-select-content-wrapper],
+.SelectContent,
+.select-dropdown,
+.select-menu,
+.select-content {
+  z-index: 9999 !important;
+  position: fixed !important;
+}
+
+/* Klasik select için de overflow sorunu varsa düzeltme */
+select {
+  z-index: 10;
+  position: relative;
+}
+
+/* Eğer bir üst kapsayıcıda overflow varsa, kaldırmak için örnek: */
+.main-content, .content, .container, .page-wrapper {
+  overflow: visible !important;
+}

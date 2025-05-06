@@ -28,9 +28,9 @@ export function MainDashboard({ onNavigate, financialData = [], toursData = [], 
       return acc;
     }, {});
 
-  // Finansal Gider (sadece finansal kayıtlar)
+  // Finansal Gider (sadece finansal kayıtlar, Tur Gideri hariç)
   const expenseByCurrency = financialData
-    .filter((item) => item.type === "expense")
+    .filter((item) => item.type === "expense" && item.category !== "Tur Gideri")
     .reduce<Record<string, number>>((acc, item) => {
       const currency = item.currency || "TRY";
       const amount = Number.parseFloat(item.amount?.toString() || "0") || 0;
@@ -38,29 +38,27 @@ export function MainDashboard({ onNavigate, financialData = [], toursData = [], 
       return acc;
     }, {});
 
-  // Tur Geliri: Hem tur fiyatı hem aktiviteler, ödeme durumuna göre ve para birimine göre ayrı ayrı toplanır
+  // Tur Geliri: Sadece totalPrice veya ödenen kısım, completed ise aktiviteler ayrıca eklenmez!
   const tourIncomeByCurrency = toursData.reduce((acc, tour) => {
-    // Ana tur fiyatı
     if (tour.paymentStatus === 'partial') {
       const paidCur = tour.partialPaymentCurrency || tour.currency || 'TRY';
       const paidAmount = Number(tour.partialPaymentAmount) || 0;
       acc[paidCur] = (acc[paidCur] || 0) + paidAmount;
+      // Sadece kısmi ödenen aktiviteler eklenir
+      if (Array.isArray(tour.activities)) {
+        tour.activities.forEach(act => {
+          if (act.partialPaymentAmount) {
+            const cur = act.partialPaymentCurrency || act.currency || tour.currency || 'TRY';
+            acc[cur] = (acc[cur] || 0) + Number(act.partialPaymentAmount);
+          }
+        });
+      }
     } else if (tour.paymentStatus === 'completed') {
       const cur = tour.currency || 'TRY';
       acc[cur] = (acc[cur] || 0) + (Number(tour.totalPrice) || 0);
+      // completed durumunda aktiviteler ayrıca eklenmez!
     }
-    // Aktiviteler
-    if (Array.isArray(tour.activities)) {
-      tour.activities.forEach(act => {
-        const cur = act.currency || tour.currency || 'TRY';
-        const sum = (Number(act.price) || 0) * (Number(act.participants) || 0);
-        if (tour.paymentStatus === 'partial' && act.partialPaymentAmount) {
-          acc[cur] = (acc[cur] || 0) + Number(act.partialPaymentAmount);
-        } else if (tour.paymentStatus === 'completed') {
-          acc[cur] = (acc[cur] || 0) + sum;
-        }
-      });
-    }
+    // Diğer durumlarda gelir eklenmez
     return acc;
   }, {} as Record<string, number>);
 
@@ -94,30 +92,27 @@ export function MainDashboard({ onNavigate, financialData = [], toursData = [], 
   const sortedTours = [...toursData].sort((a, b) => new Date(b.tourDate) - new Date(a.tourDate));
   const pagedTours = sortedTours.slice(0, PAGE_SIZE);
 
-  // Her para birimi için toplamı göster, kısmi ödemede sadece ödenen kısım ve ödenen aktiviteler göster
+  // Her para birimi için toplamı göster, completed'da sadece totalPrice, partial'da ödenen kısımlar ve ödenen aktiviteler
   const getTourTotalString = (tour) => {
     const totals = {};
-    // Ana tur fiyatı
     if (tour.paymentStatus === 'partial') {
       const paidCur = tour.partialPaymentCurrency || tour.currency || 'TRY';
       const paidAmount = Number(tour.partialPaymentAmount) || 0;
       totals[paidCur] = (totals[paidCur] || 0) + paidAmount;
+      if (Array.isArray(tour.activities)) {
+        tour.activities.forEach(act => {
+          if (act.partialPaymentAmount) {
+            const cur = act.partialPaymentCurrency || act.currency || tour.currency || 'TRY';
+            totals[cur] = (totals[cur] || 0) + Number(act.partialPaymentAmount);
+          }
+        });
+      }
     } else if (tour.paymentStatus === 'completed') {
       const cur = tour.currency || 'TRY';
       totals[cur] = (totals[cur] || 0) + (Number(tour.totalPrice) || 0);
+      // completed'da aktiviteler ayrıca eklenmez!
     }
-    // Aktiviteler
-    if (Array.isArray(tour.activities)) {
-      tour.activities.forEach(act => {
-        const cur = act.currency || tour.currency || 'TRY';
-        const sum = (Number(act.price) || 0) * (Number(act.participants) || 0);
-        if (tour.paymentStatus === 'partial' && act.partialPaymentAmount) {
-          totals[cur] = (totals[cur] || 0) + Number(act.partialPaymentAmount);
-        } else if (tour.paymentStatus === 'completed') {
-          totals[cur] = (totals[cur] || 0) + sum;
-        }
-      });
-    }
+    // Diğer durumlarda gelir eklenmez
     return Object.entries(totals)
       .filter(([_, val]) => val > 0)
       .map(([cur, val]) => `${val.toLocaleString('tr-TR')} ${cur}`)

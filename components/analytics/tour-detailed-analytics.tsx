@@ -24,13 +24,8 @@ import { formatCurrency } from "@/lib/data-utils"
 const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#8884D8", "#82ca9d", "#ffc658", "#8dd1e1"]
 
 export function TourDetailedAnalytics({ toursData, selectedCurrency, destinations = [] }) {
-  const [includeUpcoming, setIncludeUpcoming] = useState(false);
-  const today = new Date();
-
-  // Filtrelenmiş tur verisi: checkbox'a göre
-  const filteredToursData = includeUpcoming
-    ? toursData
-    : toursData.filter(tour => new Date(tour.tourDate) <= today);
+  // Tüm turlar analizde kullanılacak, ileri/geri tarih farketmeksizin
+  const filteredToursData = toursData;
 
   // En çok satılan turlar
   const getMostPopularTours = () => {
@@ -221,10 +216,6 @@ export function TourDetailedAnalytics({ toursData, selectedCurrency, destination
       <div className="flex justify-between items-center">
         <h2 className="text-xl font-bold">Detaylı Tur Analizi</h2>
         <div className="flex items-center gap-4">
-          <label className="flex items-center gap-2 text-sm">
-            <Checkbox checked={includeUpcoming} onCheckedChange={setIncludeUpcoming} />
-            Yaklaşan/Planlanan Turları Dahil Et
-          </label>
           <div className="text-sm bg-blue-100 text-blue-800 px-3 py-1 rounded-full">
             Toplam Tur: {totalTours}
           </div>

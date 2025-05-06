@@ -51,6 +51,10 @@ export function AnalyticsView({ financialData = [], toursData = [], onClose }) {
     .filter((item) => item && item.type === "income")
     .reduce((sum, item) => sum + (Number.parseFloat(item?.amount?.toString() || '0') || 0), 0)
 
+  // Tur gelirleri (tüm turların totalPrice toplamı)
+  const tourIncome = (filteredToursData || [])
+    .reduce((sum, tour) => sum + (Number.parseFloat(tour?.totalPrice?.toString() || '0') || 0), 0)
+
    // Finansal giderler + Tur giderleri (hepsi birlikte)
    const allExpenses = [
      ...(filteredFinancialData || []).filter((item) => item && item.type === "expense"),
@@ -337,16 +341,24 @@ export function AnalyticsView({ financialData = [], toursData = [], onClose }) {
           </TabsList>
 
           <TabsContent value="financial">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
               <Card>
                 <CardHeader className="pb-2">
                   <CardTitle className="text-sm font-medium">Toplam Gelir</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold text-green-600">{formatCurrency(totalIncome, selectedCurrency === "all" ? "TRY" : selectedCurrency)}</div>
+                  <div className="text-2xl font-bold text-green-600">{formatCurrency(totalIncome + tourIncome, selectedCurrency === "all" ? "TRY" : selectedCurrency)}</div>
+                  <div className="text-xs text-muted-foreground mt-1">Finansal: {formatCurrency(totalIncome, selectedCurrency === "all" ? "TRY" : selectedCurrency)} | Tur: {formatCurrency(tourIncome, selectedCurrency === "all" ? "TRY" : selectedCurrency)}</div>
                 </CardContent>
               </Card>
-
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium">Tur Geliri</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-indigo-600">{formatCurrency(tourIncome, selectedCurrency === "all" ? "TRY" : selectedCurrency)}</div>
+                </CardContent>
+              </Card>
               <Card>
                 <CardHeader className="pb-2">
                   <CardTitle className="text-sm font-medium">Toplam Gider</CardTitle>
