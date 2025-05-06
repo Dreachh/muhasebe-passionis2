@@ -390,6 +390,14 @@ export function TourSalesForm({
             fetchWithTimeout(getDestinations(), 'Destinasyonlar', 'destinations'),
             fetchWithTimeout(getReferralSources(), 'Referans Kaynakları', 'referralSources')
           ]);
+          
+          console.log('Yüklenen veriler:', {
+            'Gider türleri': types?.length || 0,
+            'Sağlayıcılar': providersData?.length || 0,
+            'Aktiviteler': activitiesData?.length || 0,
+            'Destinasyonlar': destinationsData?.length || 0,
+            'Referans Kaynakları': referralSourcesData?.length || 0
+          });
 
           // Verileri yerel değişkenlere kaydet ve null kontrolü yap
           const typesResult = Array.isArray(types) ? types : [];
@@ -1504,7 +1512,8 @@ export function TourSalesForm({
                                 onCheckedChange={(checked) => {
                                   if (checked) {
                                     updateTourActivity(activity.id, "participantsType", "all");
-                                    updateTourActivity(activity.id, "participants", Number(formData.numberOfPeople) || 0);
+                                    const totalParticipants = Number(formData.numberOfPeople) || 0;
+                                    updateTourActivity(activity.id, "participants", String(totalParticipants)); 
                                   } else {
                                     updateTourActivity(activity.id, "participantsType", "custom");
                                   }
@@ -1525,7 +1534,7 @@ export function TourSalesForm({
                                   min="1"
                                   max={formData.numberOfPeople}
                                   value={activity.participants ?? ""}
-                                  onChange={(e) => updateTourActivity(activity.id, "participants", Number(e.target.value))}
+                                  onChange={(e) => updateTourActivity(activity.id, "participants", String(e.target.value))}
                                   placeholder="Katılımcı sayısı"
                                 />
                                 <span className="text-sm text-muted-foreground">

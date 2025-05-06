@@ -85,12 +85,41 @@ export function MainDashboard({ onNavigate, financialData = [], toursData = [], 
     return tourDate > today;
   });
 
-  // Son Satışlar için sayfalama
+  // Son İşlemler için sayfalama
   const PAGE_SIZE = 6;
   const [currentPage, setCurrentPage] = useState(1);
-  const totalPages = Math.ceil(toursData.length / PAGE_SIZE);
-  const sortedTours = [...toursData].sort((a, b) => new Date(b.tourDate) - new Date(a.tourDate));
-  const pagedTours = sortedTours.slice(0, PAGE_SIZE);
+  
+  // Tur ve finans verilerini birleştir ve tarihe göre sırala
+  const combinedTransactions = [
+    ...toursData.map(tour => ({
+      id: tour.id,
+      type: 'tour',
+      date: tour.tourDate,
+      serialNumber: tour.serialNumber || tour.id?.slice(-4) || "INV",
+      name: tour.tourName,
+      customerName: tour.customerName,
+      amount: tour.totalPrice,
+      currency: tour.currency,
+      status: tour.paymentStatus,
+      originalData: tour
+    })),
+    ...financialData.map((finance, index) => ({
+      id: finance.id,
+      type: 'finance',
+      date: finance.date,
+      serialNumber: `F${index + 1}`,
+      name: finance.type === 'income' ? 'Gelir Kaydı' : 'Gider Kaydı',
+      customerName: finance.description || '-',
+      amount: finance.amount,
+      currency: finance.currency,
+      status: finance.type,
+      category: finance.category || 'Genel',
+      originalData: finance
+    }))
+  ].sort((a, b) => new Date(b.date) - new Date(a.date));
+  
+  const totalPages = Math.ceil(combinedTransactions.length / PAGE_SIZE);
+  const pagedTransactions = combinedTransactions.slice(0, PAGE_SIZE);
 
   // Her para birimi için toplamı göster, completed'da sadece totalPrice, partial'da ödenen kısımlar ve ödenen aktiviteler
   const getTourTotalString = (tour) => {
@@ -236,19 +265,20 @@ export function MainDashboard({ onNavigate, financialData = [], toursData = [], 
         </Card>
       </div>
 
-      {/* Son Satışlar Tablosu */}
+      {/* Son İşlemler Tablosu */}
       <Card className="mt-8">
         <CardHeader>
-          <CardTitle className="text-lg text-[#00a1c6]">Son Satışlar</CardTitle>
+          <CardTitle className="text-lg text-[#00a1c6]">Son İşlemler</CardTitle>
+          <CardDescription>Tur satışları ve finans kayıtları</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
             <table className="min-w-full text-sm">
               <thead>
                 <tr className="border-b text-muted-foreground">
-                  <th className="py-2 px-3 text-left font-semibold">SATIŞ NO</th>
-                  <th className="py-2 px-3 text-left font-semibold">DÜZENLEYİCİ</th>
-                  <th className="py-2 px-3 text-left font-semibold">MÜŞTERİ</th>
+                  <th className="py-2 px-3 text-left font-semibold">İŞLEM NO</th>
+                  <th className="py-2 px-3 text-left font-semibold">TİP</th>
+                  <th className="py-2 px-3 text-left font-semibold">AÇIKLAMA</th>
                   <th className="py-2 px-3 text-left font-semibold">TARİH</th>
                   <th className="py-2 px-3 text-left font-semibold">TUTAR</th>
                   <th className="py-2 px-3 text-left font-semibold">DURUM</th>
@@ -256,33 +286,62 @@ export function MainDashboard({ onNavigate, financialData = [], toursData = [], 
                 </tr>
               </thead>
               <tbody>
-                {pagedTours && pagedTours.length > 0 ? (
-                  pagedTours.map((tour) => (
-                    <tr key={tour.id} className="border-b last:border-0 hover:bg-gray-50 transition">
-                      <td className="py-2 px-3 font-mono text-lg font-bold text-[#00a1c6]">{tour.serialNumber || tour.id?.slice(-4) || "INV"}</td>
-                      <td className="py-2 px-3">{tour.tourName}</td>
-                      <td className="py-2 px-3">{tour.customerName}</td>
-                      <td className="py-2 px-3">{new Date(tour.tourDate).toLocaleDateString("tr-TR")}</td>
-                      <td className="py-2 px-3">{getTourTotalString(tour)}</td>
+                {pagedTransactions && pagedTransactions.length > 0 ? (
+                  pagedTransactions.map((transaction) => (
+                    <tr key={transaction.id} className="border-b last:border-0 hover:bg-gray-50 transition">
+                      <td className="py-2 px-3 font-mono text-lg font-bold text-[#00a1c6]">{transaction.serialNumber}</td>
                       <td className="py-2 px-3">
-                        {tour.paymentStatus === "completed" && (
-                          <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-semibold">Tamamlandı</span>
-                        )}
-                        {tour.paymentStatus === "pending" && (
-                          <span className="bg-orange-100 text-orange-700 px-3 py-1 rounded-full text-xs font-semibold">Beklemede</span>
-                        )}
-                        {tour.paymentStatus === "partial" && (
-                          <span className="bg-yellow-100 text-yellow-700 px-3 py-1 rounded-full text-xs font-semibold">Kısmi</span>
-                        )}
-                        {tour.paymentStatus === "refunded" && (
-                          <span className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-xs font-semibold">İade</span>
-                        )}
-                        {!tour.paymentStatus && (
-                          <span className="bg-gray-100 text-gray-700 px-3 py-1 rounded-full text-xs font-semibold">Bilinmiyor</span>
+                        {transaction.type === 'tour' ? (
+                          <span className="bg-indigo-100 text-indigo-700 px-3 py-1 rounded-full text-xs font-semibold">Tur</span>
+                        ) : transaction.status === 'income' ? (
+                          <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-semibold">Gelir</span>
+                        ) : (
+                          <span className="bg-red-100 text-red-700 px-3 py-1 rounded-full text-xs font-semibold">Gider</span>
                         )}
                       </td>
                       <td className="py-2 px-3">
-                        <Button size="sm" variant="outline" onClick={() => onNavigate(`edit-tour-${tour.id || tour.serialNumber}`)}>Düzenle</Button>
+                        {transaction.type === 'tour' ? transaction.name : transaction.customerName}
+                      </td>
+                      <td className="py-2 px-3">{new Date(transaction.date).toLocaleDateString("tr-TR")}</td>
+                      <td className="py-2 px-3">
+                        {transaction.type === 'tour' 
+                          ? getTourTotalString(transaction.originalData)
+                          : formatCurrency(transaction.amount, transaction.currency)}
+                      </td>
+                      <td className="py-2 px-3">
+                        {transaction.type === 'tour' ? (
+                          <>
+                            {transaction.status === "completed" && (
+                              <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-semibold">Tamamlandı</span>
+                            )}
+                            {transaction.status === "pending" && (
+                              <span className="bg-orange-100 text-orange-700 px-3 py-1 rounded-full text-xs font-semibold">Beklemede</span>
+                            )}
+                            {transaction.status === "partial" && (
+                              <span className="bg-yellow-100 text-yellow-700 px-3 py-1 rounded-full text-xs font-semibold">Kısmi</span>
+                            )}
+                            {transaction.status === "refunded" && (
+                              <span className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-xs font-semibold">İade</span>
+                            )}
+                            {!transaction.status && (
+                              <span className="bg-gray-100 text-gray-700 px-3 py-1 rounded-full text-xs font-semibold">Bilinmiyor</span>
+                            )}
+                          </>
+                        ) : (
+                          <span className="bg-purple-100 text-purple-700 px-3 py-1 rounded-full text-xs font-semibold">{transaction.category}</span>
+                        )}
+                      </td>
+                      <td className="py-2 px-3">
+                        <Button 
+                          size="sm" 
+                          variant="outline" 
+                          onClick={() => onNavigate(transaction.type === 'tour' 
+                            ? `edit-tour-${transaction.id}` 
+                            : `edit-financial-${transaction.id}`
+                          )}
+                        >
+                          Düzenle
+                        </Button>
                       </td>
                     </tr>
                   ))
@@ -315,7 +374,7 @@ export function MainDashboard({ onNavigate, financialData = [], toursData = [], 
               </div>
             )}
             <div className="flex justify-between items-center mt-2 text-xs text-muted-foreground">
-              <span>Toplam {toursData.length} satıştan {Math.min(PAGE_SIZE, toursData.length)} tanesi gösteriliyor</span>
+              <span>Toplam {combinedTransactions.length} işlemden {Math.min(PAGE_SIZE, combinedTransactions.length)} tanesi gösteriliyor</span>
               <Button variant="outline" size="sm" onClick={() => onNavigate("data-view")}>Tümünü Gör</Button>
             </div>
           </div>

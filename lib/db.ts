@@ -335,6 +335,14 @@ export const saveProviders = async (providers: any[]): Promise<void> => {
     for (const provider of providers) {
       await addData("providers", provider)
     }
+    
+    // Ayrıca localStorage'a da kaydet (yedek olarak)
+    try {
+      localStorage.setItem('providers', JSON.stringify(providers));
+      console.log("Sağlayıcılar localStorage'a kaydedildi:", providers.length, "adet");
+    } catch (storageError) {
+      console.warn("Sağlayıcılar localStorage'a kaydedilemedi:", storageError);
+    }
   } catch (error) {
     console.error("Sağlayıcılar kaydedilirken hata:", error)
     throw error
@@ -463,6 +471,14 @@ export const saveActivities = async (activities: any[]): Promise<void> => {
     // Sonra yeni aktiviteleri ekle
     for (const activity of activities) {
       await addData("activities", activity)
+    }
+    
+    // Ayrıca localStorage'a da kaydet (yedek olarak)
+    try {
+      localStorage.setItem('activities', JSON.stringify(activities));
+      console.log("Aktiviteler localStorage'a kaydedildi:", activities.length, "adet");
+    } catch (storageError) {
+      console.warn("Aktiviteler localStorage'a kaydedilemedi:", storageError);
     }
   } catch (error) {
     console.error("Aktiviteler kaydedilirken hata:", error)

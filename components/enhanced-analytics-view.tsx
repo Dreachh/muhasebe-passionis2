@@ -14,15 +14,42 @@ import { PrintButton } from "@/components/ui/print-button"
 import { getDestinations } from "@/lib/db"
 import { useToast } from "@/components/ui/use-toast"
 
-export function EnhancedAnalyticsView({ financialData, toursData, customersData }) {
+// Tür tanımlamaları (Type definitions)
+type DataItem = {
+  date?: string;
+  tourDate?: string;
+  [key: string]: any;
+};
+
+type DestinationType = {
+  id: string;
+  name: string;
+  country: string;
+};
+
+type EnhancedAnalyticsViewProps = {
+  financialData: DataItem[];
+  toursData: DataItem[];
+  customersData: DataItem[];
+};
+
+export function EnhancedAnalyticsView({ financialData = [], toursData = [], customersData = [] }: EnhancedAnalyticsViewProps) {
   const { toast } = useToast()
   const [activeTab, setActiveTab] = useState("financial")
   const [selectedCurrency, setSelectedCurrency] = useState("all")
-  const [destinations, setDestinations] = useState([])
+  const [destinations, setDestinations] = useState<DestinationType[]>([])
   const [dateRange, setDateRange] = useState({
     from: new Date(new Date().getFullYear(), new Date().getMonth() - 11, 1),
     to: new Date()
   })
+  
+  // Tarih filtresi aktif/pasif durumu için state
+  const [isDateFilterActive, setIsDateFilterActive] = useState(false)
+  
+  // Filtrelenmiş veri state'leri
+  const [filteredFinancialData, setFilteredFinancialData] = useState<DataItem[]>(financialData)
+  const [filteredToursData, setFilteredToursData] = useState<DataItem[]>(toursData)
+  const [filteredCustomersData, setFilteredCustomersData] = useState<DataItem[]>(customersData)
   
   // Destinasyonları yükle
   useEffect(() => {
@@ -46,7 +73,7 @@ export function EnhancedAnalyticsView({ financialData, toursData, customersData 
           localStorage.setItem('destinations', JSON.stringify(destinationsData))
         } else {
           // Varsayılan destinasyonlar
-          const defaultDestinations = [
+          const defaultDestinations: DestinationType[] = [
             { id: "default-dest-1", name: "Antalya", country: "Türkiye" },
             { id: "default-dest-2", name: "İstanbul", country: "Türkiye" },
             { id: "default-dest-3", name: "Kapadokya", country: "Türkiye" }
@@ -65,19 +92,32 @@ export function EnhancedAnalyticsView({ financialData, toursData, customersData 
     
     loadDestinations()
   }, [toast])
-
+  
   // Tarih aralığına göre veri filtreleme
-  const filterDataByDateRange = (data) => {
-    if (!dateRange.from || !dateRange.to) return data
+  const filterDataByDateRange = (data: DataItem[]): DataItem[] => {
+    if (!data || !Array.isArray(data)) return [];
+    
+    // Tarih filtresi aktif değilse tüm verileri döndür
+    if (!isDateFilterActive) return data;
+    
+    // Tarih filtresinde geçerli bir aralık yoksa tüm verileri döndür
+    if (!dateRange.from || !dateRange.to) return data;
+    
+    // Sadece tarih filtresi aktifse filtreleme yap
     return data.filter(item => {
-      const itemDate = new Date(item?.date || item?.tourDate)
-      return itemDate >= dateRange.from && itemDate <= dateRange.to
-    })
+      if (!item || (!item.date && !item.tourDate)) return false;
+      
+      const itemDate = new Date(item.date || item.tourDate);
+      return itemDate >= dateRange.from && itemDate <= dateRange.to;
+    });
   }
-
-  const filteredFinancialData = filterDataByDateRange(financialData)
-  const filteredToursData = filterDataByDateRange(toursData)
-  const filteredCustomersData = filterDataByDateRange(customersData)
+  
+  // Tarih veya filtre durumu değiştiğinde yeniden filtreleme yap
+  useEffect(() => {
+    setFilteredFinancialData(filterDataByDateRange(financialData));
+    setFilteredToursData(filterDataByDateRange(toursData));
+    setFilteredCustomersData(filterDataByDateRange(customersData));
+  }, [isDateFilterActive, dateRange, financialData, toursData, customersData]);
 
   return (
     <Card className="w-full">
@@ -103,10 +143,24 @@ export function EnhancedAnalyticsView({ financialData, toursData, customersData 
                 </SelectContent>
               </Select>
             </div>
-            <DatePickerWithRange
-              date={dateRange}
-              setDate={setDateRange}
-            />
+            <div className="flex items-center gap-2">
+              <div className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  id="date-filter-checkbox"
+                  className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  checked={isDateFilterActive}
+                  onChange={(e) => setIsDateFilterActive(e.target.checked)}
+                />
+                <label htmlFor="date-filter-checkbox" className="text-sm font-medium text-gray-600">
+                  Tarih Filtresi Aktif
+                </label>
+              </div>
+              <DatePickerWithRange
+                date={dateRange}
+                setDate={setDateRange}
+              />
+            </div>
           </div>
         </div>
       </CardHeader>

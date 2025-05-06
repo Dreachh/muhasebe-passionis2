@@ -49,13 +49,18 @@ export function CurrencyView({ onClose }) {
       // TRY'den yabancı para birimine
       const currency = rates.find((r) => r.code === toCurrency)
       if (currency) {
-        convertedAmount = amountValue / currency.selling
+        // Alış kuru kullanılacak
+        convertedAmount = amountValue / currency.buying
       }
     } else if (fromCurrency !== "TRY" && toCurrency === "TRY") {
       // Yabancı para biriminden TRY'ye
       const currency = rates.find((r) => r.code === fromCurrency)
       if (currency) {
-        convertedAmount = amountValue * currency.buying
+        // Alış kuru kullanılacak - tam değer için hassas hesaplama yapıyoruz
+        // Örneğin: 20 USD * 38.60 = 772 TRY tam değer olarak görünmeli
+        const buyingRate = parseFloat(currency.buying.toString());
+        const exactAmount = Math.round(amountValue * buyingRate);
+        convertedAmount = exactAmount;
       }
     } else if (fromCurrency !== "TRY" && toCurrency !== "TRY") {
       // Yabancı para biriminden yabancı para birimine
@@ -64,13 +69,14 @@ export function CurrencyView({ onClose }) {
       if (fromRate && toRate) {
         // Önce TRY'ye çevir, sonra hedef para birimine
         const tryAmount = amountValue * fromRate.buying
-        convertedAmount = tryAmount / toRate.selling
+        convertedAmount = tryAmount / toRate.buying
       }
     } else {
       // TRY'den TRY'ye
       convertedAmount = amountValue
     }
 
+    // Yalnızca gösterim için sabit 2 ondalık basamağa yuvarla
     setResult(`${amountValue} ${fromCurrency} = ${convertedAmount.toFixed(2)} ${toCurrency}`)
   }
 
