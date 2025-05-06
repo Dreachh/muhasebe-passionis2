@@ -248,6 +248,28 @@ export default function Home() {
       setCurrentView("currency");
       return;
     }
+
+    // Ana ekrandan tur düzenleme için tıklanınca
+    if (view.startsWith("edit-tour-")) {
+      const tourId = view.replace("edit-tour-", "");
+      // Turu bul
+      const tourToEdit = toursData.find(tour => 
+        tour.id === tourId || 
+        tour.serialNumber === tourId
+      );
+      
+      if (tourToEdit) {
+        console.log("Ana sayfadan tur düzenleme:", tourToEdit);
+        // Derin kopya oluştur
+        const tourCopy = JSON.parse(JSON.stringify(tourToEdit));
+        // Düzenlenecek kaydı ayarla
+        setEditingRecord(tourCopy);
+        // Tour-sales formuna git
+        setCurrentView("tour-sales");
+        return;
+      }
+    }
+    
     // Store the current view before changing
     if (currentView !== view) {
       setPreviousView(currentView)
@@ -545,28 +567,32 @@ export default function Home() {
     }
   }
 
+  // Store the type of record being edited so we know where to navigate after editingRecord is set
+  const [pendingEditType, setPendingEditType] = useState<string | null>(null);
+
   const handleEditRecord = (type: string, record: any) => {
     console.log("Düzenleme kaydı:", type, record);
-    
-    // Derin kopya oluştur (JSON parse/stringify kullanarak)
     const recordCopy = JSON.parse(JSON.stringify(record));
-    
-    // Doğrudan düzenlenecek kaydı ayarla
     setEditingRecord(recordCopy);
-    
-    // İlgili görünüme yönlendir
-    if (type === "tours") {
-      // Navigasyon öncesi düzenleme kaydını konsola yazdır
-      console.log("Tur düzenleme verileri:", recordCopy);
-      navigateTo("tour-sales");
-    } else if (type === "financial") {
-      console.log("Finansal düzenleme verileri:", recordCopy);
-      navigateTo("financial-entry");
-    } else if (type === "customers") {
-      console.log("Müşteri düzenleme verileri:", recordCopy);
-      navigateTo("customers");
+    setPendingEditType(type);
+  };
+
+  // Effect: When editingRecord and pendingEditType are set, navigate to the correct form
+  useEffect(() => {
+    if (editingRecord && pendingEditType) {
+      if (pendingEditType === "tours") {
+        console.log("Tur düzenleme verileri:", editingRecord);
+        navigateTo("tour-sales");
+      } else if (pendingEditType === "financial") {
+        console.log("Finansal düzenleme verileri:", editingRecord);
+        navigateTo("financial-entry");
+      } else if (pendingEditType === "customers") {
+        console.log("Müşteri düzenleme verileri:", editingRecord);
+        navigateTo("customers");
+      }
+      setPendingEditType(null); // Reset after navigation
     }
-  }
+  }, [editingRecord, pendingEditType]);
 
   // Function to temporarily store tour form data
   const handleStoreTourFormData = (formData: any) => {
@@ -687,9 +713,20 @@ export default function Home() {
           )}
           {currentView === "calendar" && (
             <CalendarView
-              financialData={financialData}
-              toursData={toursData}
-              customersData={customersData}
+              toursData={toursData.map(tour => ({
+                id: tour.id,
+                date: new Date(tour.tourDate),
+                title: `#${tour.serialNumber || '----'} | ${tour.customerName || 'İsimsiz'} (${tour.numberOfPeople || 0} Kişi)`,
+                customers: `${tour.numberOfPeople || 0} Kişi`,
+                color: '#4f46e5',
+                location: tour.tourName || 'Belirtilmemiş',
+                time: new Date(tour.tourDate).getHours() + ':00',
+                tourName: tour.tourName,
+                customerName: tour.customerName,
+                totalPrice: tour.totalPrice,
+                currency: tour.currency,
+                serialNumber: tour.serialNumber
+              }))}
               onNavigate={navigateTo}
             />
           )}

@@ -31,6 +31,8 @@ interface TourActivity {
   duration?: string
   price: number
   currency?: string
+  participants?: string | number
+  participantsType?: string
 }
 
 interface TourAdditionalCustomer {
@@ -429,21 +431,49 @@ export function DataView({
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Aktivite</TableHead>
-                    <TableHead>Tarih</TableHead>
-                    <TableHead>Süre</TableHead>
-                    <TableHead className="text-right">Ücret</TableHead>
+                    <TableHead className="text-center">
+                      <div>Aktivite</div>
+                      <div className="text-xs text-gray-500">(Activity)</div>
+                    </TableHead>
+                    <TableHead className="text-center">
+                      <div>Tarih</div>
+                      <div className="text-xs text-gray-500">(Date)</div>
+                    </TableHead>
+                    <TableHead className="text-center">
+                      <div>Süre</div>
+                      <div className="text-xs text-gray-500">(Duration)</div>
+                    </TableHead>
+                    <TableHead className="text-center">
+                      <div>Katılımcı Sayısı</div>
+                      <div className="text-xs text-gray-500">(Participants)</div>
+                    </TableHead>
+                    <TableHead className="text-center">
+                      <div>Kişi Başı Ücret</div>
+                      <div className="text-xs text-gray-500">(Price per Person)</div>
+                    </TableHead>
+                    <TableHead className="text-center">
+                      <div>Toplam Ücret</div>
+                      <div className="text-xs text-gray-500">(Total Price)</div>
+                    </TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {tour.activities.map((activity, index) => (
-                    <TableRow key={index}>
-                      <TableCell>{activity.name}</TableCell>
-                      <TableCell>{activity.date ? formatDate(activity.date) : '-'}</TableCell>
-                      <TableCell>{activity.duration || '-'}</TableCell>
-                      <TableCell className="text-right">{formatCurrency(activity.price, activity.currency || tour.currency)}</TableCell>
-                    </TableRow>
-                  ))}
+                  {tour.activities.map((activity, index) => {
+                    const participants = Number(activity.participants) || 0;
+                    const price = Number(activity.price) || 0;
+                    const totalPrice = participants > 0 ? price * participants : price;
+                    
+                    return (
+                      <TableRow key={index}>
+                        <TableCell>{activity.name}</TableCell>
+                        <TableCell>{activity.date ? formatDate(activity.date) : '-'}</TableCell>
+                        <TableCell>{activity.duration || '-'}</TableCell>
+                        <TableCell className="text-center">{participants > 0 ? participants : '-'}</TableCell>
+                        <TableCell className="text-right">{formatCurrency(price, activity.currency || tour.currency)}</TableCell>
+                        <TableCell className="text-right">{formatCurrency(totalPrice, activity.currency || tour.currency)}</TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
             </div>
