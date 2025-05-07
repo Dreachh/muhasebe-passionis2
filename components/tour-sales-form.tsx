@@ -98,6 +98,7 @@ interface FormData {
   expenses: Expense[];
   activities: Activity[];
   destinationId: string;
+  destinationName: string; // Destinasyon adını da kaydetmek için eklendi
   createdAt?: string; // Eksik olan createdAt alanı eklendi
   updatedAt?: string; // Eksik olan updatedAt alanı eklendi
 }
@@ -169,17 +170,27 @@ export function TourSalesForm({
       updatedAt: new Date().toISOString(),
       activities: [],
       destinationId: "",
+      destinationName: "", // Varsayılan boş destinasyon adı
     }
   })
 
-  // Aktivitelerin toplam fiyatını hesapla (sadece ana para birimi ile)
+  // Aktivitelerin toplam fiyatını hesapla (para birimi ayrımı yapmadan tümünü hesapla)
   const calculateTotalActivitiesPrice = () => {
     if (!formData.activities || formData.activities.length === 0) return 0;
-    // Sadece turun ana para birimindeki aktiviteleri topluyoruz
+
+    // Tüm aktiviteleri ana para birimine çevirerek topla
     return formData.activities.reduce((sum, activity) => {
       if (activity.currency === formData.currency) {
         const price = Number(activity.price) || 0;
-        const participants = Number(activity.participants) || 0;
+        let participants;
+        
+        // Katılımcı sayısını hesapla: "all" seçiliyse turda belirtilen toplam kişi sayısını kullan
+        if (activity.participantsType === "all") {
+          participants = Number(formData.numberOfPeople) || 0;
+        } else {
+          participants = Number(activity.participants) || 0;
+        }
+        
         return sum + price * (participants > 0 ? participants : 1);
       }
       return sum;
@@ -202,40 +213,52 @@ export function TourSalesForm({
   // Kayıt işlemi fonksiyonu
   function handleSubmit() {
     if (typeof onSave === "function") {
+      // Güncel verileri kullanarak form kaydet
       onSave(formData);
       setIsConfirmDialogOpen(false);
-      // Formu sıfırla ve adım 1'e dön
-      setFormData({
-        id: generateUUID(),
-        serialNumber: "",
-        customerName: "",
-        customerPhone: "",
-        customerEmail: "",
-        customerAddress: "",
-        customerIdNumber: "",
-        nationality: "",
-        referralSource: "",
-        additionalCustomers: [],
-        tourName: "",
-        tourDate: new Date().toISOString().split("T")[0],
-        tourEndDate: "",
-        numberOfPeople: 1,
-        numberOfChildren: 0,
-        pricePerPerson: "",
-        totalPrice: "",
-        currency: "TRY",
-        paymentStatus: "pending",
-        paymentMethod: "cash",
-        partialPaymentAmount: "",
-        partialPaymentCurrency: "TRY",
-        notes: "",
-        expenses: [],
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        activities: [],
-        destinationId: "",
-      });
-      setCurrentStep(0);
+      
+      // Eğer düzenleme modunda değilsek (initialData boşsa) formu sıfırla ve adım 1'e dön
+      if (!initialData) {
+        setFormData({
+          id: generateUUID(),
+          serialNumber: "",
+          customerName: "",
+          customerPhone: "",
+          customerEmail: "",
+          customerAddress: "",
+          customerIdNumber: "",
+          nationality: "",
+          referralSource: "",
+          additionalCustomers: [],
+          tourName: "",
+          tourDate: new Date().toISOString().split("T")[0],
+          tourEndDate: "",
+          numberOfPeople: 1,
+          numberOfChildren: 0,
+          pricePerPerson: "",
+          totalPrice: "",
+          currency: "TRY",
+          paymentStatus: "pending",
+          paymentMethod: "cash",
+          partialPaymentAmount: "",
+          partialPaymentCurrency: "TRY",
+          notes: "",
+          expenses: [],
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          activities: [],
+          destinationId: "",
+          destinationName: "",
+        });
+        setCurrentStep(0);
+      } else {
+        // Düzenleme modunda işlem tamamlandı mesajı gösterilebilir
+        toast({ 
+          title: "Başarılı", 
+          description: "Tur kaydı başarıyla güncellendi!", 
+          variant: "default" 
+        });
+      }
     } else {
       toast({ title: "Hata", description: "Kayıt fonksiyonu tanımlı değil!", variant: "destructive" });
     }
@@ -294,12 +317,21 @@ export function TourSalesForm({
         expenses: initialData.expenses || [],
         activities: initialData.activities || [],
         destinationId: initialData.destinationId || "",
+        destinationName: initialData.destinationName || ""
       };
+      
+      // Eğer destinationId var ama destinationName yoksa, destinasyonlar yüklendiyse adını bul ve ekle
+      if (formData.destinationId && !formData.destinationName && destinations && destinations.length > 0) {
+        const selectedDestination = destinations.find((d: any) => d.id === formData.destinationId);
+        if (selectedDestination) {
+          formData.destinationName = selectedDestination.name;
+        }
+      }
 
       // Form verilerini güncelle
       setFormData(formData);
     }
-  }, [initialData]);
+  }, [initialData, destinations]);
 
   // Gider türlerini, sağlayıcıları, aktiviteleri ve destinasyonları yükle
   useEffect(() => {
@@ -621,8 +653,20 @@ export function TourSalesForm({
     });
   };
 
+  // Destinasyon seçildiğinde, adı da otomatik olarak kaydedilsin
   const handleSelectChange = (name: string, value: any) => {
-    setFormData((prev: any) => ({ ...prev, [name]: value }));
+    setFormData((prev: any) => {
+      // Eğer destinationId değişiyorsa, destinationName'i de güncelle
+      if (name === "destinationId") {
+        const selectedDestination = destinations.find((d: any) => d.id === value);
+        return { 
+          ...prev, 
+          [name]: value,
+          destinationName: selectedDestination ? selectedDestination.name : ""
+        };
+      }
+      return { ...prev, [name]: value };
+    });
   };
 
   // Ek müşteri ekleme

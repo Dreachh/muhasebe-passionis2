@@ -5,6 +5,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { DollarSign, Users, Calendar, Globe, FileText, BarChart2, Settings, Save } from "lucide-react"
 import { formatCurrency } from "@/lib/data-utils"
 import { Button } from "@/components/ui/button"
+import { DatePickerWithRange } from "@/components/ui/date-range-picker"
+import { Checkbox } from "@/components/ui/checkbox"
+import { DateRange } from "react-day-picker"
+import { format } from "date-fns"
+import { tr } from "date-fns/locale"
 
 import type { FinancialData, CustomerData, TourData } from "../app/page"; // Doğru tip importu
 
@@ -85,13 +90,18 @@ export function MainDashboard({ onNavigate, financialData = [], toursData = [], 
     return tourDate > today;
   });
 
-  // Son İşlemler için sayfalama
+  // Sayfalama için tek bir state
   const PAGE_SIZE = 6;
   const [currentPage, setCurrentPage] = useState(1);
   
+  // Tarih filtresi
+  const [dateRange, setDateRange] = useState<DateRange | undefined>();
+  const [isDateFilterActive, setIsDateFilterActive] = useState(false);
+
   // Tur ve finans verilerini birleştir ve tarihe göre sırala
-  const combinedTransactions = [
-    ...toursData.map(tour => ({
+  const combinedTransactions = (() => {
+    // Tur satışları
+    const tourTransactions = toursData.map(tour => ({
       id: tour.id,
       type: 'tour',
       date: tour.tourDate,
@@ -102,46 +112,126 @@ export function MainDashboard({ onNavigate, financialData = [], toursData = [], 
       currency: tour.currency,
       status: tour.paymentStatus,
       originalData: tour
-    })),
-    ...(() => {
-      // Gelir ve giderler için ayrı sayaçlar oluştur ve 1'den başlat
-      let incomeCounter = 1;
-      let expenseCounter = 1;
+    }));
+    
+    // Tur giderlerini tur bazında grupla
+    const tourExpenseGroups = {};
+    const regularFinancialTransactions = [];
+    
+    // Gelir ve giderler için ayrı sayaçlar oluştur ve 1'den başlat
+    let incomeCounter = 1;
+    let expenseCounter = 1;
+    
+    // Tüm tur satışları için boş gruplar oluştur (hiç gideri olmayanları bile göstermek için)
+    toursData.forEach(tour => {
+      const tourId = tour.id;
+      const tourSerialNumber = tour.serialNumber || "";
       
-      return financialData.map((finance) => {
-        // Tur giderleri için ilgili turun seri numarasını kullan
-        let serialNumber;
-        let relatedTourSerialNumber = "";
-        let displayDate = finance.date; // Varsayılan olarak işlem tarihi
+      // Eğer tur için henüz bir gider grubu yoksa oluştur
+      if (!tourExpenseGroups[tourId]) {
+        tourExpenseGroups[tourId] = {
+          id: `tourexp-${tourId}`,
+          type: 'finance',
+          date: tour.tourDate, // Tur başlangıç tarihini kullan
+          serialNumber: `F${tourSerialNumber}`, // F1501 gibi bir format
+          name: 'Tur Gider Toplamı',
+          customerName: `${tour.customerName || "Müşteri"} - Tur Satışı Toplam Gideri`,
+          amount: 0,
+          currency: tour.currency || 'TRY',
+          status: 'expense', // Gider olarak işaretle
+          category: 'Tur Gideri',
+          tourId: tourId,
+          originalData: {
+            id: `tourexp-${tourId}`,
+            type: 'expense',
+            category: 'Tur Gideri',
+            relatedTourId: tourId,
+            expenses: [] // İlgili giderleri burada toplayacağız
+          }
+        };
+      }
+    });
+    
+    // Önce tur içindeki giderleri ekleyelim (tour.expenses)
+    toursData.forEach(tour => {
+      if (tour && tour.expenses && Array.isArray(tour.expenses) && tour.expenses.length > 0) {
+        const tourId = tour.id;
         
-        // Eğer ilgili bir tura ait gider ise, turun seri numarasını ve başlangıç tarihini al
-        if (finance.relatedTourId && finance.type === "expense") {
-          const relatedTour = toursData.find(t => t.id === finance.relatedTourId);
-          if (relatedTour) {
-            relatedTourSerialNumber = relatedTour.serialNumber || relatedTour.id?.slice(-4) || "INV";
-            serialNumber = `F${relatedTourSerialNumber}`;
-            
-            // Tur giderleri için turun başlangıç tarihini göster
-            if (finance.category === "Tur Gideri" && relatedTour.tourDate) {
-              displayDate = relatedTour.tourDate;
+        // Eğer bu tur için bir gider grubu varsa
+        if (tourExpenseGroups[tourId]) {
+          // Tüm giderleri topla
+          let totalExpense = 0;
+          tour.expenses.forEach(expense => {
+            if (expense) {
+              const amount = Number.parseFloat(expense.amount?.toString() || "0") || 0;
+              if (amount > 0) {
+                totalExpense += amount;
+                // Gider detayını da ekle
+                tourExpenseGroups[tourId].originalData.expenses.push({
+                  ...expense,
+                  relatedTourId: tourId,
+                  type: 'expense',
+                  category: expense.type || 'Tur Gideri'
+                });
+              }
             }
-          } else {
-            // Tura ait gider ama tur bulunamadıysa sıralı numara ata
-            serialNumber = `F${expenseCounter++}`;
+          });
+          
+          // Toplam gider tutarını güncelle
+          tourExpenseGroups[tourId].amount += totalExpense;
+        }
+      }
+    });
+    
+    // Finansal işlemleri grupla
+    financialData.forEach((finance) => {
+      // Tur giderleri için ilgili turun seri numarasını kullan
+      let serialNumber;
+      let displayDate = finance.date; // Varsayılan olarak işlem tarihi
+      
+      // Eğer tur ile ilişkili bir gider ise grupla
+      if (finance.relatedTourId && finance.type === "expense") {
+        const relatedTour = toursData.find(t => t.id === finance.relatedTourId);
+        
+        if (relatedTour) {
+          const tourId = relatedTour.id;
+          
+          // İlgili tura ait gider grubunu güncelle
+          if (tourExpenseGroups[tourId]) {
+            // Tur giderini topla
+            const amount = Number.parseFloat(finance.amount?.toString() || "0") || 0;
+            tourExpenseGroups[tourId].amount += amount;
+            tourExpenseGroups[tourId].originalData.expenses.push(finance);
           }
         } else {
-          // Normal finans kaydı için gelir veya gidere göre sıralı numara ata
-          if (finance.type === 'income') {
-            serialNumber = `F${incomeCounter++}`;
-          } else {
-            serialNumber = `F${expenseCounter++}`;
-          }
+          // Eğer tur bulunamadıysa normal gider olarak ekle
+          serialNumber = `F${expenseCounter++}`;
+          regularFinancialTransactions.push({
+            id: finance.id,
+            type: 'finance',
+            date: displayDate,
+            serialNumber: serialNumber,
+            name: finance.type === 'income' ? 'Gelir Kaydı' : 'Gider Kaydı',
+            customerName: finance.description || '-',
+            amount: finance.amount,
+            currency: finance.currency,
+            status: finance.type,
+            category: finance.category || 'Genel',
+            originalData: finance
+          });
+        }
+      } else {
+        // Normal finans kaydı için gelir veya gidere göre sıralı numara ata
+        if (finance.type === 'income') {
+          serialNumber = `F${incomeCounter++}`;
+        } else {
+          serialNumber = `F${expenseCounter++}`;
         }
         
-        return {
+        regularFinancialTransactions.push({
           id: finance.id,
           type: 'finance',
-          date: displayDate, // İşlem tarihi veya tur başlangıç tarihi
+          date: displayDate,
           serialNumber: serialNumber,
           name: finance.type === 'income' ? 'Gelir Kaydı' : 'Gider Kaydı',
           customerName: finance.description || '-',
@@ -149,15 +239,27 @@ export function MainDashboard({ onNavigate, financialData = [], toursData = [], 
           currency: finance.currency,
           status: finance.type,
           category: finance.category || 'Genel',
-          originalData: finance,
-          relatedTourSerialNumber
-        };
-      });
-    })()
-  ].sort((a, b) => new Date(b.date) - new Date(a.date));
+          originalData: finance
+        });
+      }
+    });
+    
+    // Sadece gider tutarı olan (0'dan büyük) grupları filtrele
+    const tourExpenseTransactions = Object.values(tourExpenseGroups).filter(
+      (group: any) => group.amount > 0
+    );
+    
+    // Tüm işlemleri birleştir
+    return [...tourTransactions, ...tourExpenseTransactions, ...regularFinancialTransactions];
+  })()
+  .filter(transaction => {
+    if (!isDateFilterActive || !dateRange) return true;
+    const transactionDate = new Date(transaction.date);
+    return transactionDate >= dateRange.from && transactionDate <= dateRange.to;
+  })
+  .sort((a, b) => new Date(b.date) - new Date(a.date));
   
   const totalPages = Math.ceil(combinedTransactions.length / PAGE_SIZE);
-  const pagedTransactions = combinedTransactions.slice(0, PAGE_SIZE);
 
   // Her para birimi için toplamı göster, completed'da sadece totalPrice, partial'da ödenen kısımlar ve ödenen aktiviteler
   const getTourTotalString = (tour) => {
@@ -303,225 +405,407 @@ export function MainDashboard({ onNavigate, financialData = [], toursData = [], 
         </Card>
       </div>
 
-      {/* Son İşlemler Tablosu */}
+      {/* Son Tur Satışları Tablosu */}
       <Card className="mt-8">
-        <CardHeader>
-          <CardTitle className="text-lg text-[#00a1c6]">Son İşlemler</CardTitle>
-          <CardDescription>Tur satışları ve finans kayıtları</CardDescription>
+        <CardHeader className="pb-2">
+          <div className="flex flex-row items-start justify-between">
+            <div>
+              <CardTitle className="text-2xl font-bold text-[#00a1c6]">Son Tur Satışları</CardTitle>
+              <CardDescription>Tur satışları ve ilgili giderler</CardDescription>
+            </div>
+            <div className="flex flex-col items-end gap-2">
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="date-filter-tours"
+                  checked={isDateFilterActive}
+                  onCheckedChange={(checked) => setIsDateFilterActive(checked)}
+                />
+                <label htmlFor="date-filter-tours" className="text-sm font-medium text-muted-foreground">
+                  Tarih filtresini etkinleştir
+                </label>
+              </div>
+              <DatePickerWithRange
+                date={dateRange}
+                setDate={setDateRange}
+                className={!isDateFilterActive ? "opacity-50 pointer-events-none" : ""}
+              />
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
+            <div className="border-t border-gray-200 w-full my-2"></div>
             <table className="min-w-full text-sm">
               <thead>
                 <tr className="border-b text-muted-foreground">
-                  <th className="py-2 px-3 text-left font-semibold">İŞLEM NO</th>
-                  <th className="py-2 px-3 text-left font-semibold">TİP</th>
-                  <th className="py-2 px-3 text-left font-semibold">AÇIKLAMA</th>
-                  <th className="py-2 px-3 text-left font-semibold">TARİH</th>
-                  <th className="py-2 px-3 text-left font-semibold">TUTAR</th>
-                  <th className="py-2 px-3 text-left font-semibold">DURUM</th>
-                  <th className="py-2 px-3 text-left font-semibold">İŞLEM</th>
+                  <th className="py-2 px-3 text-left font-bold">SATIŞ NO</th>
+                  <th className="py-2 px-3 text-left font-bold">TARİH</th>
+                  <th className="py-2 px-3 text-left font-bold">İŞLEM TİPİ</th>
+                  <th className="py-2 px-3 text-left font-bold">AÇIKLAMA</th>
+                  <th className="py-2 px-3 text-left font-bold">DURUM</th>
+                  <th className="py-2 px-3 text-left font-bold">TUTAR</th>
+                  <th className="py-2 px-3 text-left font-bold">KALAN ÖDEME</th>
+                  <th className="py-2 px-3 text-left font-bold">İŞLEM</th>
                 </tr>
               </thead>
               <tbody>
-                {pagedTransactions && pagedTransactions.length > 0 ? (
-                  pagedTransactions.map((transaction) => (
-                    <tr key={transaction.id} className="border-b last:border-0 hover:bg-gray-50 transition">
-                      <td className="py-2 px-3 font-mono text-lg font-bold">
-                        {/* İşlem numarasının rengini türüne göre değiştir */}
-                        <span className={
-                          transaction.type === 'tour' ? 
-                            "text-purple-600" : /* Tur satışı mor */
-                          transaction.originalData.relatedTourId ? 
-                            "text-purple-600" : /* Tur gideri mor */
-                          transaction.status === 'income' ?
-                            "text-green-600" : /* Gelir yeşil */
-                          "text-red-600" /* Gider kırmızı */
-                        }>
-                          {transaction.serialNumber}
-                        </span>
-                      </td>
-                      <td className="py-2 px-3">
-                        {transaction.type === 'tour' ? (
-                          <span className="bg-indigo-100 text-indigo-700 px-3 py-1 rounded-full text-xs font-semibold">Tur</span>
-                        ) : transaction.status === 'income' ? (
-                          <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-semibold">Gelir</span>
-                        ) : (
-                          <span className="bg-red-100 text-red-700 px-3 py-1 rounded-full text-xs font-semibold">Gider</span>
-                        )}
-                      </td>
-                      <td className="py-2 px-3">
-                        {transaction.type === 'tour' ? (
-                          <span>
-                            {transaction.customerName || "İsimsiz Müşteri"} - {transaction.originalData.destinationId ? 
-                            (() => {
-                              try {
-                                const destinationsData = localStorage.getItem('destinations');
-                                if (destinationsData) {
-                                  const destinations = JSON.parse(destinationsData);
-                                  const destination = destinations.find(d => d.id === transaction.originalData.destinationId);
-                                  return destination ? destination.name : transaction.name || "Belirtilmemiş Destinasyon";
-                                }
-                              } catch (e) {
-                                console.error("Destinasyon bilgisi alınamadı:", e);
-                              }
-                              return transaction.name || "Belirtilmemiş Destinasyon";
-                            })() 
-                            : transaction.name || "Belirtilmemiş Destinasyon"}
-                          </span>
-                        ) : transaction.status === 'expense' ? (
-                          <span>
-                            {(() => {
-                              // Eğer tur gideri ise, ilgili turun müşteri adını göster
-                              if (transaction.originalData.relatedTourId && transaction.originalData.category === "Tur Gideri") {
-                                const relatedTour = toursData.find(t => t.id === transaction.originalData.relatedTourId);
-                                if (relatedTour) {
-                                  // Gider açıklaması kısaltılıp sadece gider tipini göster
-                                  const expenseName = transaction.originalData.description?.split(' - ')[1] || "Gider";
-                                  return `${relatedTour.customerName || "Müşteri"} - ${expenseName}`;
-                                }
-                              }
-                              // Normal gider
-                              return `${transaction.customerName || "Genel"} - ${transaction.originalData.description || "Gider"}`;
-                            })()}
-                          </span>
-                        ) : (
-                          <span>{transaction.customerName}</span>
-                        )}
-                      </td>
-                      <td className="py-2 px-3">{new Date(transaction.date).toLocaleDateString("tr-TR")}</td>
-                      <td className="py-2 px-3">
-                        {transaction.type === 'tour' 
-                          ? getTourTotalString(transaction.originalData)
-                          : formatCurrency(transaction.amount, transaction.currency)}
-                      </td>
-                      <td className="py-2 px-3">
-                        {transaction.type === 'tour' ? (
-                          <>
-                            {transaction.status === "completed" && (
-                              <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-semibold">Tamamlandı</span>
-                            )}
-                            {transaction.status === "pending" && (
-                              <span className="bg-orange-100 text-orange-700 px-3 py-1 rounded-full text-xs font-semibold">Beklemede</span>
-                            )}
-                            {transaction.status === "partial" && (
-                              <span className="bg-yellow-100 text-yellow-700 px-3 py-1 rounded-full text-xs font-semibold">Kısmi</span>
-                            )}
-                            {transaction.status === "refunded" && (
-                              <span className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-xs font-semibold">İade</span>
-                            )}
-                            {!transaction.status && (
-                              <span className="bg-gray-100 text-gray-700 px-3 py-1 rounded-full text-xs font-semibold">Bilinmiyor</span>
-                            )}
-                          </>
-                        ) : (
-                          <span className="bg-purple-100 text-purple-700 px-3 py-1 rounded-full text-xs font-semibold">{transaction.category}</span>
-                        )}
-                      </td>
-                      <td className="py-2 px-3">
-                        <Button 
-                          size="sm" 
-                          variant="outline" 
-                          onClick={() => onNavigate(transaction.type === 'tour' 
-                            ? `edit-tour-${transaction.id}` 
-                            : `edit-financial-${transaction.id}`
-                          )}
-                        >
-                          Düzenle
-                        </Button>
-                      </td>
-                    </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan={7} className="text-center py-6 text-muted-foreground">Kayıt yok</td>
-                  </tr>
-                )}
+                {(() => {
+                  // Sadece tur kayıtları ve tur giderleri
+                  const combinedTourTransactions = combinedTransactions
+                    .filter(transaction => 
+                      transaction.type === 'tour' || // Tur satışları
+                      (transaction.type === 'finance' && transaction.originalData.relatedTourId) // Tur giderleri
+                    )
+                    .sort((a, b) => {
+                      // Önce tarih sıralaması
+                      const dateCompare = new Date(b.date) - new Date(a.date);
+                      if (dateCompare !== 0) return dateCompare;
+                      
+                      // Aynı tarihli olanları satış numarası ve ilgili giderleri birlikte göstermek için sırala
+                      if (a.type === 'tour' && b.type === 'finance' && 
+                          b.originalData.relatedTourId === a.id) {
+                        return -1; // Tur satışı önce, gideri sonra
+                      }
+                      if (b.type === 'tour' && a.type === 'finance' && 
+                          a.originalData.relatedTourId === b.id) {
+                        return 1; // Tur satışı önce, gideri sonra
+                      }
+                      
+                      // Diğer durumlarda varsayılan sıralama
+                      return 0;
+                    });
+
+                  const totalTourPages = Math.ceil(combinedTourTransactions.length / PAGE_SIZE);
+                  const startTourIndex = (currentPage - 1) * PAGE_SIZE;
+                  const pagedTourTransactions = combinedTourTransactions.slice(startTourIndex, startTourIndex + PAGE_SIZE);
+
+                  if (pagedTourTransactions && pagedTourTransactions.length > 0) {
+                    return pagedTourTransactions.map((transaction) => {
+                      // Tur satışı veya tur gideri için farklı görünüm
+                      if (transaction.type === 'tour') {
+                        // Tur satışı için kalan ödeme hesaplama
+                        const totalPaid = transaction.status === "partial" ? 
+                          Number(transaction.originalData.partialPaymentAmount) || 0 : 
+                          (transaction.status === "completed" ? Number(transaction.amount) || 0 : 0);
+                        const totalLeft = (Number(transaction.amount) || 0) - totalPaid;
+                        
+                        return (
+                          <tr key={transaction.id} className="border-b last:border-0 hover:bg-gray-100 transition bg-indigo-50">
+                            <td className="py-2 px-3 font-mono text-lg font-bold">
+                              <span className="text-indigo-600">
+                                {transaction.serialNumber}
+                              </span>
+                            </td>
+                            <td className="py-2 px-3">{new Date(transaction.date).toLocaleDateString("tr-TR")}</td>
+                            <td className="py-2 px-3">
+                              <span className="bg-white border border-indigo-500 text-indigo-700 px-3 py-1 rounded-full text-xs font-semibold">Tur</span>
+                            </td>
+                            <td className="py-2 px-3">
+                              <div className="flex flex-col">
+                                <span className="font-semibold">{transaction.customerName || "İsimsiz Müşteri"}</span>
+                                <span className="text-xs text-gray-500">{transaction.originalData.destination || transaction.originalData.tourName || "Belirtilmemiş"}</span>
+                              </div>
+                            </td>
+                            <td className="py-2 px-3">
+                              {transaction.status === "completed" && (
+                                <span className="bg-white border border-green-500 text-green-700 px-3 py-1 rounded-full text-xs font-semibold">Tamamlandı</span>
+                              )}
+                              {transaction.status === "pending" && (
+                                <span className="bg-white border border-orange-500 text-orange-700 px-3 py-1 rounded-full text-xs font-semibold">Beklemede</span>
+                              )}
+                              {transaction.status === "partial" && (
+                                <span className="bg-white border border-yellow-500 text-yellow-700 px-3 py-1 rounded-full text-xs font-semibold">Kısmi</span>
+                              )}
+                              {transaction.status === "refunded" && (
+                                <span className="bg-white border border-blue-500 text-blue-700 px-3 py-1 rounded-full text-xs font-semibold">İade</span>
+                              )}
+                              {!transaction.status && (
+                                <span className="bg-white border border-gray-500 text-gray-700 px-3 py-1 rounded-full text-xs font-semibold">Bilinmiyor</span>
+                              )}
+                            </td>
+                            <td className="py-2 px-3">
+                              {getTourTotalString(transaction.originalData)}
+                            </td>
+                            <td className="py-2 px-3">
+                              {formatCurrency(totalLeft, transaction.currency)}
+                            </td>
+                            <td className="py-2 px-3">
+                              <Button 
+                                size="sm" 
+                                variant="outline"
+                                onClick={() => onNavigate(`edit-tour-${transaction.id}`)}
+                              >
+                                Düzenle
+                              </Button>
+                            </td>
+                          </tr>
+                        );
+                      } else {
+                        // Tur ile ilişkili gider kaydı
+                        const relatedTour = toursData.find(t => t.id === transaction.originalData.relatedTourId);
+                        
+                        return (
+                          <tr key={transaction.id} className="border-b last:border-0 hover:bg-gray-100 transition bg-red-50">
+                            <td className="py-2 px-3 font-mono text-lg font-bold">
+                              <span className="text-red-600">
+                                {transaction.serialNumber}
+                              </span>
+                            </td>
+                            <td className="py-2 px-3">{new Date(transaction.date).toLocaleDateString("tr-TR")}</td>
+                            <td className="py-2 px-3">
+                              <span className="bg-white border border-red-500 text-red-700 px-3 py-1 rounded-full text-xs font-semibold">Gider</span>
+                            </td>
+                            <td className="py-2 px-3">
+                              <div className="flex flex-col">
+                                <span className="font-semibold">{relatedTour?.customerName || "Müşteri"} - Tur Gideri</span>
+                                <span className="text-xs text-gray-500">{transaction.originalData.category || "Tur Gideri"}</span>
+                              </div>
+                            </td>
+                            <td className="py-2 px-3">
+                              <span className="bg-white border border-indigo-500 text-indigo-700 px-3 py-1 rounded-full text-xs font-semibold">Tur Gideri</span>
+                            </td>
+                            <td className="py-2 px-3">
+                              {formatCurrency(transaction.amount || 0, transaction.currency)}
+                            </td>
+                            <td className="py-2 px-3">-</td>
+                            <td className="py-2 px-3">
+                              <Button 
+                                size="sm" 
+                                variant="outline"
+                                onClick={() => onNavigate(`edit-financial-${transaction.id}`)}
+                              >
+                                Düzenle
+                              </Button>
+                            </td>
+                          </tr>
+                        );
+                      }
+                    });
+                  } else {
+                    return (
+                      <tr>
+                        <td colSpan={8} className="text-center py-6 text-muted-foreground">Kayıt yok</td>
+                      </tr>
+                    );
+                  }
+                })()}
               </tbody>
             </table>
-            {/* Sayfalama */}
-            {totalPages > 1 && (
-              <div className="flex justify-center items-center gap-2 mt-4">
-                <Button variant="ghost" size="sm" disabled={currentPage === 1} onClick={() => setCurrentPage(currentPage - 1)}>
-                  Önceki
-                </Button>
-                {Array.from({ length: totalPages }).map((_, idx) => (
-                  <Button
-                    key={idx}
-                    variant={currentPage === idx + 1 ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => setCurrentPage(idx + 1)}
-                  >
-                    {idx + 1}
-                  </Button>
-                ))}
-                <Button variant="ghost" size="sm" disabled={currentPage === totalPages} onClick={() => setCurrentPage(currentPage + 1)}>
-                  Sonraki
-                </Button>
-              </div>
-            )}
-            <div className="flex justify-between items-center mt-2 text-xs text-muted-foreground">
-              <span>Toplam {combinedTransactions.length} işlemden {Math.min(PAGE_SIZE, combinedTransactions.length)} tanesi gösteriliyor</span>
-              <Button variant="outline" size="sm" onClick={() => onNavigate("data-view")}>Tümünü Gör</Button>
+            <div className="border-b border-gray-200 w-full my-2"></div>
+            
+            <div className="flex justify-between items-center mt-4">
+              {(() => {
+                // Sadece tur kayıtları ve giderleri için sayfalama bilgisi
+                const combinedTourTransactions = combinedTransactions.filter(transaction => 
+                  transaction.type === 'tour' || (transaction.type === 'finance' && transaction.originalData.relatedTourId)
+                );
+                const totalTourPages = Math.ceil(combinedTourTransactions.length / PAGE_SIZE);
+                
+                return (
+                  <>
+                    <span className="text-xs text-muted-foreground">
+                      Toplam {combinedTourTransactions.length} tur kaydından {Math.min(PAGE_SIZE, combinedTourTransactions.length)} tanesi gösteriliyor
+                    </span>
+                    
+                    {/* Sayfalama */}
+                    <div className="flex items-center">
+                      {totalTourPages > 1 && (
+                        <div className="flex justify-center items-center gap-2">
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            disabled={currentPage === 1} 
+                            onClick={() => setCurrentPage(currentPage - 1)}
+                          >
+                            Önceki
+                          </Button>
+                          {Array.from({ length: totalTourPages }).map((_, idx) => (
+                            <Button
+                              key={idx}
+                              variant={currentPage === idx + 1 ? "default" : "outline"}
+                              size="sm"
+                              onClick={() => setCurrentPage(idx + 1)}
+                            >
+                              {idx + 1}
+                            </Button>
+                          ))}
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            disabled={currentPage === totalTourPages} 
+                            onClick={() => setCurrentPage(currentPage + 1)}
+                          >
+                            Sonraki
+                          </Button>
+                        </div>
+                      )}
+                      
+                      <div className="ml-4">
+                        <Button variant="outline" size="sm" onClick={() => onNavigate("data-view")}>Tümünü Gör</Button>
+                      </div>
+                    </div>
+                  </>
+                );
+              })()}
             </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Yaklaşan Turların Finansal Durumu Tablosu */}
+      {/* Son Finansal Kayıtlar Tablosu - Sadece tur ile ilişkisiz olanlar */}
       <Card className="mt-8">
-        <CardHeader>
-          <CardTitle className="text-lg text-[#00a1c6]">Yaklaşan Turların Finansal Durumu</CardTitle>
+        <CardHeader className="pb-2">
+          <div className="flex flex-row items-start justify-between">
+            <div>
+              <CardTitle className="text-2xl font-bold text-[#00a1c6]">Son Finansal Kayıtlar</CardTitle>
+              <CardDescription>Tur ile ilgisi olmayan gelir ve gider işlemleri</CardDescription>
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
+            <div className="border-t border-gray-200 w-full my-2"></div>
             <table className="min-w-full text-sm">
               <thead>
                 <tr className="border-b text-muted-foreground">
-                  <th className="py-2 px-3 text-left font-semibold">SATIŞ NO</th>
-                  <th className="py-2 px-3 text-left font-semibold">MÜŞTERİ</th>
-                  <th className="py-2 px-3 text-left font-semibold">TUR TARİHİ</th>
-                  <th className="py-2 px-3 text-left font-semibold">ALINAN ÖDEME</th>
-                  <th className="py-2 px-3 text-left font-semibold">KALAN ÖDEME</th>
-                  <th className="py-2 px-3 text-left font-semibold">YAPILAN GİDER</th>
-                  <th className="py-2 px-3 text-left font-semibold">DURUM</th>
-                  <th className="py-2 px-3 text-left font-semibold">İŞLEM</th>
+                  <th className="py-2 px-3 text-left font-bold">İŞLEM NO</th>
+                  <th className="py-2 px-3 text-left font-bold">TARİH</th>
+                  <th className="py-2 px-3 text-left font-bold">İŞLEM TİPİ</th>
+                  <th className="py-2 px-3 text-left font-bold">AÇIKLAMA</th>
+                  <th className="py-2 px-3 text-left font-bold">KATEGORİ</th>
+                  <th className="py-2 px-3 text-left font-bold">TUTAR</th>
+                  <th className="py-2 px-3 text-left font-bold">İŞLEM</th>
                 </tr>
               </thead>
               <tbody>
-                {upcomingTours && upcomingTours.length > 0 ? (
-                  upcomingTours.map((tour) => {
-                    const totalPaid = tour.paymentStatus === "partial" ? Number(tour.partialPaymentAmount) || 0 : (tour.paymentStatus === "completed" ? Number(tour.totalPrice) || 0 : 0);
-                    const totalLeft = (Number(tour.totalPrice) || 0) - totalPaid;
-                    const totalExpense = Array.isArray(tour.expenses) ? tour.expenses.reduce((sum, exp) => sum + (Number(exp.amount) || 0), 0) : 0;
+                {(() => {
+                  // Sadece tur ile ilgisi olmayan finans kayıtları
+                  const financialOnlyTransactions = combinedTransactions
+                    .filter(transaction => 
+                      transaction.type === 'finance' && 
+                      !transaction.originalData.relatedTourId  // Tur ile ilgisi olmayanlar
+                    )
+                    .sort((a, b) => new Date(b.date) - new Date(a.date));
+
+                  const totalFinancialPages = Math.ceil(financialOnlyTransactions.length / PAGE_SIZE);
+                  const startFinancialIndex = (currentPage - 1) * PAGE_SIZE;
+                  const pagedFinancialTransactions = financialOnlyTransactions.slice(startFinancialIndex, startFinancialIndex + PAGE_SIZE);
+
+                  if (pagedFinancialTransactions && pagedFinancialTransactions.length > 0) {
+                    return pagedFinancialTransactions.map((transaction) => {
+                      // İşlem tipine göre arka plan rengi belirleme
+                      const rowBgColor = transaction.status === 'income' ? 
+                        "bg-green-50" : // Gelir için yeşil
+                        "bg-red-50";    // Gider için kırmızı
+                      
+                      // İşlem numarası rengi
+                      const serialNumberColor = transaction.status === 'income' ? 
+                        "text-green-600" : // Gelir için yeşil
+                        "text-red-600";    // Gider için kırmızı
+                      
+                      return (
+                        <tr key={transaction.id} className={`border-b last:border-0 hover:bg-gray-100 transition ${rowBgColor}`}>
+                          <td className="py-2 px-3 font-mono text-lg font-bold">
+                            <span className={serialNumberColor}>
+                              {transaction.serialNumber}
+                            </span>
+                          </td>
+                          <td className="py-2 px-3">{new Date(transaction.date).toLocaleDateString("tr-TR")}</td>
+                          <td className="py-2 px-3">
+                            {transaction.status === 'income' ? (
+                              <span className="bg-white border border-green-500 text-green-700 px-3 py-1 rounded-full text-xs font-semibold">Gelir</span>
+                            ) : (
+                              <span className="bg-white border border-red-500 text-red-700 px-3 py-1 rounded-full text-xs font-semibold">Gider</span>
+                            )}
+                          </td>
+                          <td className="py-2 px-3">{transaction.customerName}</td>
+                          <td className="py-2 px-3">
+                            <span className={`bg-white border ${transaction.status === 'income' ? 'border-green-500 text-green-700' : 'border-red-500 text-red-700'} px-3 py-1 rounded-full text-xs font-semibold`}>
+                              {transaction.category || "Genel"}
+                            </span>
+                          </td>
+                          <td className="py-2 px-3">
+                            {formatCurrency(transaction.amount, transaction.currency)}
+                          </td>
+                          <td className="py-2 px-3">
+                            <Button 
+                              size="sm" 
+                              variant="outline"
+                              onClick={() => onNavigate(`edit-financial-${transaction.id}`)}
+                            >
+                              Düzenle
+                            </Button>
+                          </td>
+                        </tr>
+                      );
+                    });
+                  } else {
                     return (
-                      <tr key={tour.id} className="border-b last:border-0 hover:bg-gray-50 transition">
-                        <td className="py-2 px-3 font-mono text-lg font-bold text-[#00a1c6]">{tour.serialNumber || tour.id?.slice(-4) || "INV"}</td>
-                        <td className="py-2 px-3">{tour.customerName}</td>
-                        <td className="py-2 px-3">{new Date(tour.tourDate).toLocaleDateString("tr-TR")}</td>
-                        <td className="py-2 px-3">{getTourTotalString(tour)}</td>
-                        <td className="py-2 px-3">{formatCurrency(totalLeft, tour.currency)}</td>
-                        <td className="py-2 px-3">{formatCurrency(totalExpense, tour.currency)}</td>
-                        <td className="py-2 px-3">
-                          {tour.paymentStatus === "completed" && <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-semibold">Tamamlandı</span>}
-                          {tour.paymentStatus === "pending" && <span className="bg-orange-100 text-orange-700 px-3 py-1 rounded-full text-xs font-semibold">Beklemede</span>}
-                          {tour.paymentStatus === "partial" && <span className="bg-yellow-100 text-yellow-700 px-3 py-1 rounded-full text-xs font-semibold">Kısmi</span>}
-                          {tour.paymentStatus === "refunded" && <span className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-xs font-semibold">İade</span>}
-                          {!tour.paymentStatus && <span className="bg-gray-100 text-gray-700 px-3 py-1 rounded-full text-xs font-semibold">Bilinmiyor</span>}
-                        </td>
-                        <td className="py-2 px-3">
-                          <Button size="sm" variant="outline" onClick={() => onNavigate(`edit-tour-${tour.id || tour.serialNumber}`)}>Düzenle</Button>
-                        </td>
+                      <tr>
+                        <td colSpan={7} className="text-center py-6 text-muted-foreground">Kayıt yok</td>
                       </tr>
                     );
-                  })
-                ) : (
-                  <tr>
-                    <td colSpan={8} className="text-center py-6 text-muted-foreground">Yaklaşan tur kaydı yok</td>
-                  </tr>
-                )}
+                  }
+                })()}
               </tbody>
             </table>
+            <div className="border-b border-gray-200 w-full my-2"></div>
+            
+            <div className="flex justify-between items-center mt-4">
+              {(() => {
+                // Sadece finans kayıtları için sayfalama bilgisi
+                const financialOnlyTransactions = combinedTransactions.filter(transaction => 
+                  transaction.type === 'finance' && !transaction.originalData.relatedTourId
+                );
+                const totalFinancialPages = Math.ceil(financialOnlyTransactions.length / PAGE_SIZE);
+                
+                return (
+                  <>
+                    <span className="text-xs text-muted-foreground">
+                      Toplam {financialOnlyTransactions.length} finansal kayıttan {Math.min(PAGE_SIZE, financialOnlyTransactions.length)} tanesi gösteriliyor
+                    </span>
+                    
+                    {/* Sayfalama */}
+                    <div className="flex items-center">
+                      {totalFinancialPages > 1 && (
+                        <div className="flex justify-center items-center gap-2">
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            disabled={currentPage === 1} 
+                            onClick={() => setCurrentPage(currentPage - 1)}
+                          >
+                            Önceki
+                          </Button>
+                          {Array.from({ length: totalFinancialPages }).map((_, idx) => (
+                            <Button
+                              key={idx}
+                              variant={currentPage === idx + 1 ? "default" : "outline"}
+                              size="sm"
+                              onClick={() => setCurrentPage(idx + 1)}
+                            >
+                              {idx + 1}
+                            </Button>
+                          ))}
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            disabled={currentPage === totalFinancialPages} 
+                            onClick={() => setCurrentPage(currentPage + 1)}
+                          >
+                            Sonraki
+                          </Button>
+                        </div>
+                      )}
+                      
+                      <div className="ml-4">
+                        <Button variant="outline" size="sm" onClick={() => onNavigate("data-view")}>Tümünü Gör</Button>
+                      </div>
+                    </div>
+                  </>
+                );
+              })()}
+            </div>
           </div>
         </CardContent>
       </Card>

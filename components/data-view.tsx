@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import React, { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -23,6 +23,7 @@ import { Search, Edit, Trash2, Eye, Printer } from "lucide-react"
 import { formatCurrency, formatDate } from "@/lib/data-utils"
 import { deleteData } from "@/lib/db"
 import { PrintButton } from "@/components/ui/print-button"
+import { useToast } from "@/components/ui/use-toast"
 
 // Type definitions
 interface TourActivity {
@@ -128,6 +129,7 @@ export function DataView({
   onDataUpdate, 
   onEdit 
 }: DataViewProps) {
+  const { toast } = useToast();
   // Para birimi seçimi için state
   const [selectedCurrency, setSelectedCurrency] = useState<string>("all");
   // Diğer özet veriler için state'ler (boş başlatılıyor)
@@ -145,6 +147,30 @@ export function DataView({
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [itemToDelete, setItemToDelete] = useState<DeleteItem>({ type: "", id: "" })
   const [dateRange, setDateRange] = useState<DateRange | undefined>()
+  const [destinations, setDestinations] = useState<any[]>([]);
+
+  // Komponent yüklendiğinde destinasyon verilerini al
+  useEffect(() => {
+    // Önce localStorage'dan destinasyon verilerini almayı dene
+    try {
+      const savedDestinations = localStorage.getItem('destinations');
+      if (savedDestinations) {
+        setDestinations(JSON.parse(savedDestinations));
+      } else {
+        // localStorage'da yok ise, sample-destinations.json dosyasını yükle
+        fetch('/data/sample-destinations.json')
+          .then(response => response.json())
+          .then(data => {
+            setDestinations(data);
+            // localStorage'a kaydet
+            localStorage.setItem('destinations', JSON.stringify(data));
+          })
+          .catch(error => console.error("Destinasyon verileri yüklenirken hata oluştu:", error));
+      }
+    } catch (e) {
+      console.error("Destinasyon verilerini işlerken hata:", e);
+    }
+  }, []);
 
   const handleDelete = async () => {
     try {
@@ -300,18 +326,106 @@ export function DataView({
   }
   
   const filteredToursData = toursData.filter(
-    (item: TourData) =>
-      (item.customerName?.toLowerCase().includes(searchTerm.toLowerCase()) || '') ||
-      (item.tourName?.toLowerCase().includes(searchTerm.toLowerCase()) || '') ||
-      (item.serialNumber?.toLowerCase().includes(searchTerm.toLowerCase()) || '')
+    (item: TourData) => {
+      if (!searchTerm) return true;
+      
+      const searchLower = searchTerm.toLowerCase();
+      
+      // Tur adı yerine müşteri adı olarak değiştiriliyor
+      return (
+        (item.customerName?.toLowerCase().includes(searchLower) || '') ||
+        (item.tourName?.toLowerCase().includes(searchLower) || '') || // Tur adı da aranabilsin
+        (item.serialNumber?.toLowerCase().includes(searchLower) || '') ||
+        // "F" olmadan seri numarasını arama
+        (item.serialNumber && searchLower.startsWith("f") && 
+          item.serialNumber.toLowerCase().includes(searchLower.substring(1)))
+      );
+    }
   )
 
-  const filteredFinancialData = financialData.filter(
-    (item: FinancialData) =>
-      (item.description?.toLowerCase().includes(searchTerm.toLowerCase()) || '') ||
-      (item.category?.toLowerCase().includes(searchTerm.toLowerCase()) || '') ||
-      (item.type.toLowerCase().includes(searchTerm.toLowerCase()))
-  )
+  const filteredFinancialData = (() => {
+    // Önce tüm işlem numaralarını sabit bir şekilde oluştur (filtrelemeden önce)
+    let incomeCounter = 1;
+    let expenseCounter = 1;
+    
+    // Tüm finansal kayıtların işlem numaralarını önceden hesapla
+    const financialWithSerialNumbers = financialData.map(item => {
+      let serialNumber = "";
+      let displayDate = item.date;
+      let displayDescription = item.description || '-';
+      let tourCustomerName = "";
+      
+      if (item.relatedTourId && item.category === "Tur Gideri") {
+        const tourInfo = toursData.find(t => t.id === item.relatedTourId);
+        if (tourInfo) {
+          serialNumber = `F${tourInfo.serialNumber || tourInfo.id?.slice(-4) || ""}`;
+          tourCustomerName = tourInfo.customerName || "";
+          
+          const expenseType = item.description?.split(' - ')[1] || "Gider";
+          displayDescription = `${tourInfo.customerName || "Müşteri"} - ${expenseType}`;
+        } else {
+          serialNumber = `F${expenseCounter++}`;
+        }
+      } else {
+        // Normal finans kaydı için gelir veya gidere göre sıralı numara ata
+        if (item.type === 'income') {
+          serialNumber = `F${incomeCounter++}`;
+        } else {
+          serialNumber = `F${expenseCounter++}`;
+        }
+      }
+      
+      return {
+        ...item,
+        _serialNumber: serialNumber,  // Önceden hesaplanmış işlem numarası
+        _displayDate: displayDate,
+        _displayDescription: displayDescription,
+        _tourCustomerName: tourCustomerName
+      };
+    });
+
+    // Şimdi filtrele
+    if (!searchTerm) return financialWithSerialNumbers;
+    
+    const searchLower = searchTerm.toLowerCase().trim();
+    
+    return financialWithSerialNumbers.filter(item => {
+      // Sabit numarayı kullan
+      const serialNumber = item._serialNumber;
+      
+      // Farklı formatlarda aranabilen işlem numarası kontrolü
+      // F3 veya 3 gibi aramalarda hem tam metin hem de sayı olarak kontrolü yap
+      const searchWithoutF = searchLower.startsWith("f") ? searchLower.substring(1) : searchLower;
+      const serialWithoutF = serialNumber.toLowerCase().substring(1);
+      
+      // F olmadan doğrudan sayı karşılaştırması
+      const searchNumberOnly = searchLower.replace(/\D/g, ''); // Sadece sayılar
+      const serialNumberOnly = serialNumber.replace(/\D/g, ''); // Sadece sayılar
+      
+      const isSerialMatch = 
+        serialNumber.toLowerCase() === searchLower || // Tam eşleşme (F1)
+        serialWithoutF === searchWithoutF || // F hariç eşleşme (1)
+        serialNumber.toLowerCase().includes(searchLower) || // İşlem no içinde arama
+        serialWithoutF === searchNumberOnly || // Sayı olarak eşleşme
+        serialNumberOnly === searchNumberOnly; // Sadece sayı karşılaştırması
+      
+      // Tanımların ayrılması
+      let expenseType = "";
+      if (item.description && item.description.includes(" - ")) {
+        const parts = item.description.split(" - ");
+        expenseType = parts[1] || "";
+      }
+      
+      return (
+        isSerialMatch || // İşlem numarası eşleşmesi
+        (item.description?.toLowerCase().includes(searchLower) || '') || // Açıklama eşleşmesi
+        (item.category?.toLowerCase().includes(searchLower) || '') || // Kategori eşleşmesi
+        (item.type.toLowerCase().includes(searchLower)) || // Tür eşleşmesi
+        (item._tourCustomerName.toLowerCase().includes(searchLower)) || // Müşteri adı eşleşmesi
+        (expenseType.toLowerCase().includes(searchLower)) // Gider türü eşleşmesi
+      );
+    });
+  })();
 
   const filteredCustomersData = customersData.filter(
     (item: CustomerData) =>
@@ -555,98 +669,78 @@ export function DataView({
 
   // Financial Record Preview Component
   const FinancialPreview = ({ financial }: { financial: FinancialData | null }) => {
-    if (!financial) return null
+    if (!financial) return null;
 
-    // Tur ile ilişkiliyse ilgili turu bul
-    let tourInfo = null;
-    let customerName = "-";
-    let destinationName = "-";
-    let displayDate = financial.date;
-    let serialNumber = "";
-    let expenseType = "";
+    // İlgili turu bul
+    const tourInfo = financial.relatedTourId ? toursData.find(t => t.id === financial.relatedTourId) : null;
     
-    if (financial.relatedTourId) {
-      tourInfo = toursData.find(t => t.id === financial.relatedTourId);
-      if (tourInfo) {
-        customerName = tourInfo.customerName || "-";
-        destinationName = tourInfo.destination || tourInfo.tourName || "-";
-        serialNumber = tourInfo.serialNumber || '-';
-        
-        // Tur gideri ise tur başlangıç tarihini göster
-        if (financial.category === "Tur Gideri") {
-          displayDate = tourInfo.tourDate;
-          
-          // Gider açıklamasını ayır
-          if (financial.description) {
-            const parts = financial.description.split(' - ');
-            expenseType = parts.length > 1 ? parts[1] : financial.description;
-          }
-        }
-      }
+    // Gerçek müşteri adını bul
+    const customerName = tourInfo?.customerName || "-";
+    
+    // Gider açıklaması - sadece gider türünü al
+    let expenseDesc = "-";
+    if (financial.description) {
+      const parts = financial.description.split(" - ");
+      expenseDesc = parts.length > 1 ? parts[1].split("(")[0].trim() : financial.description;
     }
     
-    // Ödeme yöntemini Türkçeye çevir
-    const getPaymentMethodTr = (method: string | undefined) => {
-      if (!method) return 'Nakit';
-      switch (method.toLowerCase()) {
-        case 'cash': return 'Nakit';
-        case 'credit card': return 'Kredi Kartı';
-        case 'bank transfer': return 'Banka Transferi';
-        case 'online payment': return 'Online Ödeme';
-        case 'check': return 'Çek';
-        default: return method;
-      }
-    };
+    // Seri numarası
+    const serialNumber = tourInfo?.serialNumber || "-";
 
-    const paymentMethod = getPaymentMethodTr(financial.paymentMethod);
+    // Tur tarihi formatı: "başlangıç / bitiş" (eğer bitiş varsa)
+    let tourDateFormatted = "-";
+    if (tourInfo) {
+      const startDate = formatDate(tourInfo.tourDate);
+      
+      if (tourInfo.tourEndDate) {
+        const endDate = formatDate(tourInfo.tourEndDate);
+        tourDateFormatted = `${startDate} / ${endDate}`;
+      } else {
+        tourDateFormatted = startDate;
+      }
+    }
 
     return (
-      <div className="p-5 max-h-[70vh] overflow-y-auto">
-        <div className="bg-gray-50 rounded-lg p-5 shadow-sm">
-          <div className="grid grid-cols-2 gap-x-12 gap-y-4">
-            <div className="flex items-start">
-              <div className="w-1/3 font-semibold text-gray-600">Müşteri:</div>
-              <div>{customerName}</div>
-            </div>
-            <div className="flex items-start">
-              <div className="w-1/3 font-semibold text-gray-600">Destinasyon:</div>
-              <div>{destinationName}</div>
-            </div>
-            
-            <div className="flex items-start">
-              <div className="w-1/3 font-semibold text-gray-600">İşlem tarihi:</div>
-              <div>{formatDate(financial.date)}</div>
-            </div>
-            <div className="flex items-start">
-              <div className="w-1/3 font-semibold text-gray-600">Tur Tarihi:</div>
-              <div>{tourInfo ? formatDate(tourInfo.tourDate) : "-"}</div>
-            </div>
-            
-            <div className="flex items-start">
-              <div className="w-1/3 font-semibold text-gray-600">Kategori:</div>
-              <div>{financial.category || '-'}</div>
-            </div>
-            <div className="flex items-start">
-              <div className="w-1/3 font-semibold text-gray-600">Açıklama:</div>
-              <div>{expenseType || financial.description || '-'}</div>
-            </div>
-            
-            <div className="flex items-start">
-              <div className="w-1/3 font-semibold text-gray-600">{paymentMethod}:</div>
-              <div className="font-bold text-blue-700">{formatCurrency(financial.amount || 0, financial.currency)}</div>
-            </div>
-            
-            {serialNumber && (
-              <div className="flex items-start">
-                <div className="w-1/3 font-semibold text-gray-600">Seri No:</div>
-                <div>{serialNumber}</div>
-              </div>
-            )}
-          </div>
-        </div>
+      <div className="space-y-6 max-h-[70vh] overflow-y-auto p-2">
+        <table className="w-full border-collapse border border-gray-300">
+          <tbody>
+            <tr className="bg-gray-50">
+              <td className="border border-gray-300 px-4 py-2 font-semibold w-1/4">Müşteri:</td>
+              <td className="border border-gray-300 px-4 py-2">{customerName}</td>
+            </tr>
+            <tr>
+              <td className="border border-gray-300 px-4 py-2 font-semibold">Destinasyon:</td>
+              <td className="border border-gray-300 px-4 py-2">-</td>
+            </tr>
+            <tr className="bg-gray-50">
+              <td className="border border-gray-300 px-4 py-2 font-semibold">İşlem Tarihi:</td>
+              <td className="border border-gray-300 px-4 py-2">{formatDate(financial.date)}</td>
+            </tr>
+            <tr>
+              <td className="border border-gray-300 px-4 py-2 font-semibold">Tur Tarihi:</td>
+              <td className="border border-gray-300 px-4 py-2">{tourDateFormatted}</td>
+            </tr>
+            <tr className="bg-gray-50">
+              <td className="border border-gray-300 px-4 py-2 font-semibold">Kategori:</td>
+              <td className="border border-gray-300 px-4 py-2">{financial.category || "-"}</td>
+            </tr>
+            <tr>
+              <td className="border border-gray-300 px-4 py-2 font-semibold">Açıklama:</td>
+              <td className="border border-gray-300 px-4 py-2">{expenseDesc}</td>
+            </tr>
+            <tr className="bg-gray-50">
+              <td className="border border-gray-300 px-4 py-2 font-semibold">Nakit:</td>
+              <td className="border border-gray-300 px-4 py-2">{financial.currency} {financial.amount?.toLocaleString() || "-"}</td>
+            </tr>
+            <tr>
+              <td className="border border-gray-300 px-4 py-2 font-semibold">Seri No:</td>
+              <td className="border border-gray-300 px-4 py-2">{serialNumber}</td>
+            </tr>
+          </tbody>
+        </table>
       </div>
-    )
-  }
+    );
+  };
 
   // Customer Preview Component
   const CustomerPreview = ({ customer }: { customer: CustomerData | null }) => {
@@ -720,6 +814,7 @@ export function DataView({
                     <TableHead>Seri No</TableHead>
                     <TableHead>Düzenleyici</TableHead>
                     <TableHead>Müşteri</TableHead>
+                    <TableHead>Destinasyon</TableHead>
                     <TableHead>Tarih</TableHead>
                     <TableHead className="text-right">Toplam</TableHead>
                     <TableHead className="text-right">İşlemler</TableHead>
@@ -732,6 +827,9 @@ export function DataView({
                         <TableCell>{tour.serialNumber || '-'}</TableCell>
                         <TableCell>{tour.tourName || '-'}</TableCell>
                         <TableCell>{tour.customerName || '-'}</TableCell>
+                        <TableCell>
+                          {tour.destination || '-'}
+                        </TableCell>
                         <TableCell>{formatDate(tour.tourDate)}</TableCell>
                         <TableCell className="text-right">
                           {tour.totalPrice ? formatCurrency(tour.totalPrice, tour.currency) : '-'}
@@ -768,7 +866,7 @@ export function DataView({
                     ))
                   ) : (
                     <TableRow>
-                      <TableCell colSpan={6} className="h-24 text-center">
+                      <TableCell colSpan={7} className="h-24 text-center">
                         Kayıt bulunamadı.
                       </TableCell>
                     </TableRow>
@@ -786,8 +884,9 @@ export function DataView({
               <Table className="w-full">
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-[80px]">İşlem No</TableHead>
                     <TableHead className="w-[100px]">Tarih</TableHead>
-                    <TableHead className="w-[80px]">Tür</TableHead>
+                    <TableHead className="w-[80px]">İşlem Tipi</TableHead>
                     <TableHead className="w-[120px]">Kategori</TableHead>
                     <TableHead>Açıklama</TableHead>
                     <TableHead className="w-[100px] text-right">Tutar</TableHead>
@@ -796,80 +895,133 @@ export function DataView({
                 </TableHeader>
                 <TableBody>
                   {filteredFinancialData.length > 0 ? (
-                    filteredFinancialData.map((financial) => {
-                      // Tur ile ilişkili ise ilgili turu bul
-                      let tourInfo = null;
-                      let displayDate = financial.date;
-                      let displayDescription = financial.description || '-';
+                    (() => {
+                      // Gelir ve giderler için ayrı sayaçlar
+                      let incomeCounter = 1;
+                      let expenseCounter = 1;
                       
-                      if (financial.relatedTourId && financial.category === "Tur Gideri") {
-                        // Tur gideri ise ilgili turu bul
-                        tourInfo = toursData.find(t => t.id === financial.relatedTourId);
+                      return filteredFinancialData.map((financial) => {
+                        // Tur ile ilişkili ise ilgili turu bul
+                        let tourInfo = null;
+                        let displayDate = financial.date;
+                        let displayDescription = financial.description || '-';
                         
-                        if (tourInfo) {
-                          // Tur gideri için tur başlangıç tarihini göster
-                          displayDate = tourInfo.tourDate;
+                        // İşlem numarası hesaplama - F (finansal) için basit sıralı sayı
+                        let serialNumber = "";
+                        
+                        // İşlem tipine göre arka plan rengi belirleme
+                        let rowBgColor;
+                        
+                        if (financial.relatedTourId && financial.category === "Tur Gideri") {
+                          // Tur gideri ise ilgili turu bul
+                          tourInfo = toursData.find(t => t.id === financial.relatedTourId);
                           
-                          // Açıklama formatını "müşteri adı - gider türü" şeklinde düzenle
-                          // Gider türünü description'dan çıkarmak için " - " sonrası kısmı al
-                          const expenseType = financial.description?.split(' - ')[1] || "Gider";
-                          displayDescription = `${tourInfo.customerName || "Müşteri"} - ${expenseType}`;
+                          if (tourInfo) {
+                            // Tur gideri için tur başlangıç tarihini göster
+                            displayDate = tourInfo.tourDate;
+                            
+                            // Tur gideri için "F" + turun seri numarası
+                            serialNumber = `F${tourInfo.serialNumber || tourInfo.id?.slice(-4) || ""}`;
+                            
+                            // Açıklama formatını "müşteri adı - gider türü" şeklinde düzenle
+                            // Gider türünü description'dan çıkarmak için " - " sonrası kısmı al
+                            const expenseType = financial.description?.split(' - ')[1] || "Gider";
+                            displayDescription = `${tourInfo.customerName || "Müşteri"} - ${expenseType}`;
+                            
+                            // Tur giderleri için mavi tonu (tur ile uyumlu)
+                            rowBgColor = "bg-indigo-50";
+                          } else {
+                            // İlgili tur bulunamadıysa gider sayacıyla numara ata
+                            serialNumber = `F${expenseCounter++}`;
+                            // Tur bulunamadığında normal gider rengi
+                            rowBgColor = "bg-red-50";
+                          }
+                        } else {
+                          // Normal finans kaydı için gelir veya gidere göre sıralı numara ata
+                          if (financial.type === 'income') {
+                            serialNumber = `F${incomeCounter++}`;
+                            rowBgColor = "bg-green-50"; // Gelir için yeşil arka plan
+                          } else {
+                            serialNumber = `F${expenseCounter++}`;
+                            rowBgColor = "bg-red-50"; // Gider için kırmızı arka plan
+                          }
                         }
-                      }
-                      
-                      // Satır rengi: gelir için yeşil, gider için kırmızı
-                      const rowBg = financial.type === "income"
-                        ? "bg-green-50"
-                        : financial.type === "expense"
-                          ? "bg-red-50"
-                          : "";
+                        
+                        // İşlem numarasının rengini türüne göre değiştir
+                        const serialNumberColor = financial.relatedTourId && financial.category === "Tur Gideri"
+                          ? "text-indigo-600"  // Tur gideri mavi
+                          : financial.type === "income"
+                            ? "text-green-600"  // Gelir yeşil
+                            : "text-red-600";   // Gider kırmızı
 
-                      return (
-                        <TableRow key={financial.id} className={rowBg}>
-                          <TableCell className="py-2 px-3 text-sm whitespace-nowrap">{formatDate(displayDate)}</TableCell>
-                          <TableCell className="py-2 px-3 text-sm whitespace-nowrap">{financial.type === "income" ? "Gelir" : "Gider"}</TableCell>
-                          <TableCell className="py-2 px-3 text-sm whitespace-nowrap">{financial.category || '-'}</TableCell>
-                          <TableCell className="py-2 px-3 text-sm">{displayDescription}</TableCell>
-                          <TableCell className="py-2 px-3 text-sm text-right whitespace-nowrap">
-                            {formatCurrency(financial.amount || 0, financial.currency)}
-                          </TableCell>
-                          <TableCell className="py-2 px-1 text-right">
-                            <div className="flex justify-end gap-1">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-8 w-8"
-                                onClick={() => {
-                                  setSelectedFinancial(financial)
-                                  setIsPreviewOpen(true)
-                                }}
-                              >
-                                <Eye className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-8 w-8"
-                                onClick={() => handleEdit("financial", financial)}
-                              >
-                                <Edit className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-8 w-8"
-                                onClick={() => openDeleteDialog("financial", financial.id)}
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })
+                        return (
+                          <TableRow key={financial.id} className={`border-b last:border-0 hover:bg-gray-100 transition ${rowBgColor}`}>
+                            <TableCell className="py-2 px-3 text-sm whitespace-nowrap font-mono font-bold">
+                              <span className={serialNumberColor}>{serialNumber}</span>
+                            </TableCell>
+                            <TableCell className="py-2 px-3 text-sm whitespace-nowrap">{formatDate(displayDate)}</TableCell>
+                            <TableCell className="py-2 px-3 text-sm whitespace-nowrap">
+                              {financial.type === "income" ? (
+                                <span className="bg-white border border-green-500 text-green-700 px-2 py-1 rounded-full text-xs">Gelir</span>
+                              ) : financial.relatedTourId && financial.category === "Tur Gideri" ? (
+                                <span className="bg-white border border-red-500 text-red-700 px-2 py-1 rounded-full text-xs">Gider</span>
+                              ) : (
+                                <span className="bg-white border border-red-500 text-red-700 px-2 py-1 rounded-full text-xs">Gider</span>
+                              )}
+                            </TableCell>
+                            <TableCell className="py-2 px-3 text-sm whitespace-nowrap">
+                              {financial.relatedTourId && financial.category === "Tur Gideri" ? (
+                                <span className="bg-white border border-indigo-500 text-indigo-700 px-2 py-1 rounded-full text-xs">{financial.category}</span>
+                              ) : financial.category ? (
+                                <span className={`bg-white border ${financial.type === 'income' ? 'border-green-500 text-green-700' : 'border-red-500 text-red-700'} px-2 py-1 rounded-full text-xs`}>
+                                  {financial.category}
+                                </span>
+                              ) : (
+                                '-'
+                              )}
+                            </TableCell>
+                            <TableCell className="py-2 px-3 text-sm">{displayDescription}</TableCell>
+                            <TableCell className="py-2 px-3 text-sm text-right whitespace-nowrap">
+                              {formatCurrency(financial.amount || 0, financial.currency)}
+                            </TableCell>
+                            <TableCell className="py-2 px-1 text-right">
+                              <div className="flex justify-end gap-1">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-8 w-8"
+                                  onClick={() => {
+                                    setSelectedFinancial(financial)
+                                    setIsPreviewOpen(true)
+                                  }}
+                                >
+                                  <Eye className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-8 w-8"
+                                  onClick={() => handleEdit("financial", financial)}
+                                >
+                                  <Edit className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-8 w-8"
+                                  onClick={() => openDeleteDialog("financial", financial.id)}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      });
+                    })()
                   ) : (
                     <TableRow>
-                      <TableCell colSpan={6} className="h-24 text-center">
+                      <TableCell colSpan={7} className="h-24 text-center">
                         Kayıt bulunamadı.
                       </TableCell>
                     </TableRow>
@@ -954,20 +1106,7 @@ export function DataView({
               {activeTab === "tours" && selectedTour
                 ? `Tur Detayları: ${selectedTour.tourName || 'İsimsiz Tur'}`
                 : activeTab === "financial" && selectedFinancial
-                ? (() => {
-                    // Finansal kaydın tur ile ilişkili olup olmadığını kontrol et
-                    if (selectedFinancial.category === "Tur Gideri" && selectedFinancial.relatedTourId) {
-                      const tourInfo = toursData.find(t => t.id === selectedFinancial.relatedTourId);
-                      if (tourInfo) {
-                        // Gider açıklamasını ayıkla
-                        const expenseDesc = selectedFinancial.description?.split(' - ')[1] || "Gider";
-                        // Seri numarası başlıkta sadece bir kez gösterilecek
-                        return `Finansal Kayıt Detayları: ${tourInfo.customerName} - ${expenseDesc}`;
-                      }
-                    }
-                    // Tur ile ilişkili değilse normal açıklamayı göster
-                    return `Finansal Kayıt Detayları: ${selectedFinancial.description || 'Açıklama Yok'}`;
-                  })()
+                ? "Finansal Kayıt Detayları"
                 : activeTab === "customers" && selectedCustomer
                 ? `Müşteri Detayları: ${selectedCustomer.name || 'İsimsiz Müşteri'}`
                 : "Detaylar"}

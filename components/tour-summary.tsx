@@ -57,6 +57,7 @@ interface TourSummaryProps {
     expenses?: Expense[];
     activities?: Activity[];
     destinationId?: string;
+    destinationName?: string; // Destinasyon adı eklendi
   };
   calculateTotalExpensesByCurrency?: (expenses: Expense[]) => Record<string, number>;
 }
@@ -95,6 +96,7 @@ export function TourSummary({ formData, calculateTotalExpensesByCurrency }: Tour
     expenses = [],
     activities = [],
     destinationId,
+    destinationName, // Destinasyon adı değişkeni eklendi
   } = formData;
 
   const totalExpensesByCurrency = calculateTotalExpensesByCurrency
@@ -218,6 +220,7 @@ export function TourSummary({ formData, calculateTotalExpensesByCurrency }: Tour
               <TableRow><TableHead>Bitiş Tarihi</TableHead><TableCell>{formatDate(tourEndDate)}</TableCell></TableRow>
               <TableRow><TableHead>Kişi Sayısı</TableHead><TableCell>{numberOfPeople || 0}</TableCell></TableRow>
               <TableRow><TableHead>Çocuk Sayısı</TableHead><TableCell>{numberOfChildren || 0}</TableCell></TableRow>
+              <TableRow><TableHead>Destinasyon</TableHead><TableCell>{destinationName || '-'}</TableCell></TableRow>
             </TableBody>
           </Table>
         </CardContent>
