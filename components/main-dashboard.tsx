@@ -103,19 +103,57 @@ export function MainDashboard({ onNavigate, financialData = [], toursData = [], 
       status: tour.paymentStatus,
       originalData: tour
     })),
-    ...financialData.map((finance, index) => ({
-      id: finance.id,
-      type: 'finance',
-      date: finance.date,
-      serialNumber: `F${index + 1}`,
-      name: finance.type === 'income' ? 'Gelir Kaydı' : 'Gider Kaydı',
-      customerName: finance.description || '-',
-      amount: finance.amount,
-      currency: finance.currency,
-      status: finance.type,
-      category: finance.category || 'Genel',
-      originalData: finance
-    }))
+    ...(() => {
+      // Gelir ve giderler için ayrı sayaçlar oluştur ve 1'den başlat
+      let incomeCounter = 1;
+      let expenseCounter = 1;
+      
+      return financialData.map((finance) => {
+        // Tur giderleri için ilgili turun seri numarasını kullan
+        let serialNumber;
+        let relatedTourSerialNumber = "";
+        let displayDate = finance.date; // Varsayılan olarak işlem tarihi
+        
+        // Eğer ilgili bir tura ait gider ise, turun seri numarasını ve başlangıç tarihini al
+        if (finance.relatedTourId && finance.type === "expense") {
+          const relatedTour = toursData.find(t => t.id === finance.relatedTourId);
+          if (relatedTour) {
+            relatedTourSerialNumber = relatedTour.serialNumber || relatedTour.id?.slice(-4) || "INV";
+            serialNumber = `F${relatedTourSerialNumber}`;
+            
+            // Tur giderleri için turun başlangıç tarihini göster
+            if (finance.category === "Tur Gideri" && relatedTour.tourDate) {
+              displayDate = relatedTour.tourDate;
+            }
+          } else {
+            // Tura ait gider ama tur bulunamadıysa sıralı numara ata
+            serialNumber = `F${expenseCounter++}`;
+          }
+        } else {
+          // Normal finans kaydı için gelir veya gidere göre sıralı numara ata
+          if (finance.type === 'income') {
+            serialNumber = `F${incomeCounter++}`;
+          } else {
+            serialNumber = `F${expenseCounter++}`;
+          }
+        }
+        
+        return {
+          id: finance.id,
+          type: 'finance',
+          date: displayDate, // İşlem tarihi veya tur başlangıç tarihi
+          serialNumber: serialNumber,
+          name: finance.type === 'income' ? 'Gelir Kaydı' : 'Gider Kaydı',
+          customerName: finance.description || '-',
+          amount: finance.amount,
+          currency: finance.currency,
+          status: finance.type,
+          category: finance.category || 'Genel',
+          originalData: finance,
+          relatedTourSerialNumber
+        };
+      });
+    })()
   ].sort((a, b) => new Date(b.date) - new Date(a.date));
   
   const totalPages = Math.ceil(combinedTransactions.length / PAGE_SIZE);
@@ -289,7 +327,20 @@ export function MainDashboard({ onNavigate, financialData = [], toursData = [], 
                 {pagedTransactions && pagedTransactions.length > 0 ? (
                   pagedTransactions.map((transaction) => (
                     <tr key={transaction.id} className="border-b last:border-0 hover:bg-gray-50 transition">
-                      <td className="py-2 px-3 font-mono text-lg font-bold text-[#00a1c6]">{transaction.serialNumber}</td>
+                      <td className="py-2 px-3 font-mono text-lg font-bold">
+                        {/* İşlem numarasının rengini türüne göre değiştir */}
+                        <span className={
+                          transaction.type === 'tour' ? 
+                            "text-purple-600" : /* Tur satışı mor */
+                          transaction.originalData.relatedTourId ? 
+                            "text-purple-600" : /* Tur gideri mor */
+                          transaction.status === 'income' ?
+                            "text-green-600" : /* Gelir yeşil */
+                          "text-red-600" /* Gider kırmızı */
+                        }>
+                          {transaction.serialNumber}
+                        </span>
+                      </td>
                       <td className="py-2 px-3">
                         {transaction.type === 'tour' ? (
                           <span className="bg-indigo-100 text-indigo-700 px-3 py-1 rounded-full text-xs font-semibold">Tur</span>
@@ -300,7 +351,43 @@ export function MainDashboard({ onNavigate, financialData = [], toursData = [], 
                         )}
                       </td>
                       <td className="py-2 px-3">
-                        {transaction.type === 'tour' ? transaction.name : transaction.customerName}
+                        {transaction.type === 'tour' ? (
+                          <span>
+                            {transaction.customerName || "İsimsiz Müşteri"} - {transaction.originalData.destinationId ? 
+                            (() => {
+                              try {
+                                const destinationsData = localStorage.getItem('destinations');
+                                if (destinationsData) {
+                                  const destinations = JSON.parse(destinationsData);
+                                  const destination = destinations.find(d => d.id === transaction.originalData.destinationId);
+                                  return destination ? destination.name : transaction.name || "Belirtilmemiş Destinasyon";
+                                }
+                              } catch (e) {
+                                console.error("Destinasyon bilgisi alınamadı:", e);
+                              }
+                              return transaction.name || "Belirtilmemiş Destinasyon";
+                            })() 
+                            : transaction.name || "Belirtilmemiş Destinasyon"}
+                          </span>
+                        ) : transaction.status === 'expense' ? (
+                          <span>
+                            {(() => {
+                              // Eğer tur gideri ise, ilgili turun müşteri adını göster
+                              if (transaction.originalData.relatedTourId && transaction.originalData.category === "Tur Gideri") {
+                                const relatedTour = toursData.find(t => t.id === transaction.originalData.relatedTourId);
+                                if (relatedTour) {
+                                  // Gider açıklaması kısaltılıp sadece gider tipini göster
+                                  const expenseName = transaction.originalData.description?.split(' - ')[1] || "Gider";
+                                  return `${relatedTour.customerName || "Müşteri"} - ${expenseName}`;
+                                }
+                              }
+                              // Normal gider
+                              return `${transaction.customerName || "Genel"} - ${transaction.originalData.description || "Gider"}`;
+                            })()}
+                          </span>
+                        ) : (
+                          <span>{transaction.customerName}</span>
+                        )}
                       </td>
                       <td className="py-2 px-3">{new Date(transaction.date).toLocaleDateString("tr-TR")}</td>
                       <td className="py-2 px-3">

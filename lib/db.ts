@@ -404,6 +404,62 @@ export const getDestinations = async (): Promise<any[]> => {
   }
 }
 
+// Referans kaynaklarını kaydet
+export const saveReferralSources = async (sources: any[]): Promise<void> => {
+  try {
+    // Önce mevcut referans kaynaklarını temizle
+    await clearStore("referral_sources")
+    
+    // Yeni referans kaynaklarını ekle
+    for (const source of sources) {
+      await addData("referral_sources", source)
+    }
+    
+    // LocalStorage'a da kaydet
+    saveToLocalStorage("referral_sources", sources)
+  } catch (error) {
+    console.error("Referans kaynakları kaydedilirken hata:", error)
+    throw error
+  }
+}
+
+// Referans kaynaklarını getir
+export const getReferralSources = async (): Promise<any[]> => {
+  try {
+    const sources = await getAllData("referral_sources")
+    return sources
+  } catch (error) {
+    console.error("Referans kaynakları alınırken hata:", error)
+    // LocalStorage'dan almayı dene
+    const localSources = loadFromLocalStorage("referral_sources")
+    
+    // Eğer hiç kaynak yoksa, varsayılan bazı kaynaklar ekleyelim
+    if (!localSources || localSources.length === 0) {
+      const defaultSources = [
+        { id: "website", name: "İnternet Sitemiz", type: "online" },
+        { id: "hotel", name: "Otel Yönlendirmesi", type: "partner" },
+        { id: "local_guide", name: "Hanutçu / Yerel Rehber", type: "partner" },
+        { id: "walk_in", name: "Kapı Önü Müşterisi", type: "direct" },
+        { id: "repeat", name: "Tekrar Gelen Müşteri", type: "direct" },
+        { id: "recommendation", name: "Tavsiye", type: "referral" },
+        { id: "social_media", name: "Sosyal Medya", type: "online" },
+        { id: "other", name: "Diğer", type: "other" }
+      ];
+      
+      // Varsayılan değerleri localStorage'a da kaydedelim
+      try {
+        saveToLocalStorage("referral_sources", defaultSources);
+      } catch (e) {
+        console.error("Varsayılan referans kaynakları localStorage'a kaydedilemedi", e);
+      }
+      
+      return defaultSources;
+    }
+    
+    return localSources;
+  }
+}
+
 // Simple UUID generator function to replace the uuid package
 export function generateUUID() {
   return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {

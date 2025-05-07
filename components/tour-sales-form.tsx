@@ -65,7 +65,7 @@ interface Activity {
   duration: string;
   price: string;
   currency: string;
-  participants: string;
+  participants: string; // number tipinde beklenmesi yerine string olarak düzeltildi
   participantsType: string;
   providerId: string;
   details?: string;
@@ -98,6 +98,8 @@ interface FormData {
   expenses: Expense[];
   activities: Activity[];
   destinationId: string;
+  createdAt?: string; // Eksik olan createdAt alanı eklendi
+  updatedAt?: string; // Eksik olan updatedAt alanı eklendi
 }
 
 export function TourSalesForm({
@@ -307,6 +309,22 @@ export function TourSalesForm({
       try {
         console.log('Veri yükleme başlıyor...');
 
+        // Öncelikle localStorage'dan destinasyonları direkt olarak yükleyelim
+        try {
+          const cachedDestinations = localStorage.getItem('destinations');
+          if (cachedDestinations) {
+            const parsedDestinations = JSON.parse(cachedDestinations);
+            if (parsedDestinations && Array.isArray(parsedDestinations) && parsedDestinations.length > 0) {
+              console.log('Destinasyonlar önbellekten yüklendi:', parsedDestinations.length, 'adet');
+              setDestinations(parsedDestinations);
+              // Eğer localStorage'dan başarıyla yüklediyse, isLoading'i false yap
+              setIsLoading(false);
+            }
+          }
+        } catch (cacheError) {
+          console.warn("Destinasyonlar localStorage'dan yüklenemedi:", cacheError);
+        }
+
         // Tüm verileri paralel olarak yükle ve her bir isteğe timeout ekle
         const fetchWithTimeout = async (
           fetchPromise: Promise<any>, // API çağrısı için Promise türü
@@ -347,6 +365,30 @@ export function TourSalesForm({
               return result;
             } else {
               console.warn(`${name} API'den yüklendi fakat veri yok veya boş dizi döndü`);
+              // Referans kaynakları için özel olarak hata fırlatmak yerine varsayılan değerleri döndür
+              if (name === 'Referans Kaynakları') {
+                const defaultSources = [
+                  { id: "website", name: "İnternet Sitemiz", type: "online" },
+                  { id: "hotel", name: "Otel Yönlendirmesi", type: "partner" },
+                  { id: "local_guide", name: "Hanutçu / Yerel Rehber", type: "partner" },
+                  { id: "walk_in", name: "Kapı Önü Müşterisi", type: "direct" },
+                  { id: "repeat", name: "Tekrar Gelen Müşteri", type: "direct" },
+                  { id: "recommendation", name: "Tavsiye", type: "referral" },
+                  { id: "social_media", name: "Sosyal Medya", type: "online" },
+                  { id: "other", name: "Diğer", type: "other" }
+                ];
+                
+                try {
+                  localStorage.setItem(fallbackStorageKey, JSON.stringify(defaultSources));
+                  console.log(`Varsayılan ${name} kaydedildi:`, defaultSources.length, 'adet');
+                } catch (storageError) {
+                  console.warn(`Varsayılan ${name} önbelleğe kaydedilemedi:`, storageError);
+                }
+                
+                return defaultSources;
+              }
+              
+              // Diğer veri türleri için hata fırlatmaya devam et
               throw new Error(`${name} için veri bulunamadı`);
             }
           } catch (error) {
@@ -355,9 +397,11 @@ export function TourSalesForm({
             // Hata durumunda varsayılan veriler
             if (name === 'Destinasyonlar') {
               const defaultData = [
-                { id: "default-dest-1", name: "Antalya", country: "Türkiye", description: "Güzel sahiller" },
-                { id: "default-dest-2", name: "İstanbul", country: "Türkiye", description: "Tarihi yarımada" },
-                { id: "default-dest-3", name: "Kapadokya", country: "Türkiye", description: "Peri bacaları" }
+                { id: "dest-1", name: "Antalya", country: "Türkiye", description: "Güzel sahiller" },
+                { id: "dest-2", name: "İstanbul", country: "Türkiye", description: "Tarihi yarımada" },
+                { id: "dest-3", name: "Kapadokya", country: "Türkiye", description: "Peri bacaları" },
+                { id: "dest-4", name: "Bursa", country: "Türkiye", description: "Tarihi şehir ve doğal güzellikler" },
+                { id: "dest-5", name: "Efes", country: "Türkiye", description: "Antik kent" }
               ];
               try {
                 localStorage.setItem(fallbackStorageKey, JSON.stringify(defaultData));
@@ -365,9 +409,9 @@ export function TourSalesForm({
               return defaultData;
             } else if (name === 'Aktiviteler') {
               const defaultData = [
-                { id: "default-act-1", name: "Tekne Turu", destinationId: "default-dest-1", price: "300", currency: "TRY", description: "Güzel bir tekne turu" },
-                { id: "default-act-2", name: "Müze Gezisi", destinationId: "default-dest-2", price: "150", currency: "TRY", description: "Tarihi müze gezisi" },
-                { id: "default-act-3", name: "Balon Turu", destinationId: "default-dest-3", price: "2000", currency: "TRY", description: "Kapadokya'da balon turu" }
+                { id: "act-1", name: "Tekne Turu", destinationId: "dest-1", price: "300", currency: "TRY", description: "Güzel bir tekne turu" },
+                { id: "act-2", name: "Müze Gezisi", destinationId: "dest-2", price: "150", currency: "TRY", description: "Tarihi müze gezisi" },
+                { id: "act-3", name: "Balon Turu", destinationId: "dest-3", price: "2000", currency: "TRY", description: "Kapadokya'da balon turu" }
               ];
               try {
                 localStorage.setItem(fallbackStorageKey, JSON.stringify(defaultData));
@@ -481,7 +525,21 @@ export function TourSalesForm({
             const parsedDestinations = JSON.parse(cachedDestinations);
             setDestinations(parsedDestinations);
             console.log('Önbellek destinasyonlar yüklendi:', parsedDestinations.length, 'adet');
+          } else {
+            // Eğer önbellekte destinasyon verisi yoksa, varsayılan değerleri yükle
+            const defaultDestinations = [
+              { id: "dest-1", name: "Antalya", country: "Türkiye", description: "Güzel sahiller" },
+              { id: "dest-2", name: "İstanbul", country: "Türkiye", description: "Tarihi yarımada" },
+              { id: "dest-3", name: "Kapadokya", country: "Türkiye", description: "Peri bacaları" },
+              { id: "dest-4", name: "Bursa", country: "Türkiye", description: "Tarihi şehir ve doğal güzellikler" },
+              { id: "dest-5", name: "Efes", country: "Türkiye", description: "Antik kent" }
+            ];
+            setDestinations(defaultDestinations);
+            // Varsayılan değerleri localStorage'a kaydet
+            localStorage.setItem('destinations', JSON.stringify(defaultDestinations));
+            console.log('Varsayılan destinasyonlar yüklendi:', defaultDestinations.length, 'adet');
           }
+          
           if (cachedReferralSources) {
             const parsedReferralSources = JSON.parse(cachedReferralSources);
             setReferralSources(parsedReferralSources);
@@ -495,9 +553,28 @@ export function TourSalesForm({
           });
         } catch (cacheError) {
           console.error("Önbellekten veri yükleme hatası:", cacheError);
+          
+          // Bu noktada son çare olarak varsayılan destinasyon verilerini yükleyelim
+          const defaultDestinations = [
+            { id: "dest-1", name: "Antalya", country: "Türkiye", description: "Güzel sahiller" },
+            { id: "dest-2", name: "İstanbul", country: "Türkiye", description: "Tarihi yarımada" },
+            { id: "dest-3", name: "Kapadokya", country: "Türkiye", description: "Peri bacaları" },
+            { id: "dest-4", name: "Bursa", country: "Türkiye", description: "Tarihi şehir ve doğal güzellikler" },
+            { id: "dest-5", name: "Efes", country: "Türkiye", description: "Antik kent" }
+          ];
+          setDestinations(defaultDestinations);
+          
+          // Varsayılan değerleri localStorage'a kaydet
+          try {
+            localStorage.setItem('destinations', JSON.stringify(defaultDestinations));
+            console.log('Varsayılan destinasyonlar yüklendi:', defaultDestinations.length, 'adet');
+          } catch (e) {
+            console.error('Varsayılan destinasyonlar localStorage\'a kaydedilemedi', e);
+          }
+          
           toast({
             title: "Hata",
-            description: "Veriler yüklenemedi. Lütfen sayfayı yenileyin.",
+            description: "Veriler yüklenemedi. Varsayılan veriler kullanılıyor.",
             variant: "destructive",
           });
         }

@@ -557,43 +557,91 @@ export function DataView({
   const FinancialPreview = ({ financial }: { financial: FinancialData | null }) => {
     if (!financial) return null
 
-    return (
-      <div className="space-y-6 max-h-[70vh] overflow-y-auto p-2">
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <h3 className="text-lg font-semibold mb-2">İşlem Bilgileri</h3>
-            <div className="space-y-2">
-              <div>
-                <span className="text-sm text-muted-foreground">İşlem Tarihi:</span>
-                <p>{formatDate(financial.date)}</p>
-              </div>
-              <div>
-                <span className="text-sm text-muted-foreground">İşlem Türü:</span>
-                <p>{financial.type === "income" ? "Gelir" : "Gider"}</p>
-              </div>
-              <div>
-                <span className="text-sm text-muted-foreground">Kategori:</span>
-                <p>{financial.category || '-'}</p>
-              </div>
-              <div>
-                <span className="text-sm text-muted-foreground">Açıklama:</span>
-                <p>{financial.description || '-'}</p>
-              </div>
-            </div>
-          </div>
+    // Tur ile ilişkiliyse ilgili turu bul
+    let tourInfo = null;
+    let customerName = "-";
+    let destinationName = "-";
+    let displayDate = financial.date;
+    let serialNumber = "";
+    let expenseType = "";
+    
+    if (financial.relatedTourId) {
+      tourInfo = toursData.find(t => t.id === financial.relatedTourId);
+      if (tourInfo) {
+        customerName = tourInfo.customerName || "-";
+        destinationName = tourInfo.destination || tourInfo.tourName || "-";
+        serialNumber = tourInfo.serialNumber || '-';
+        
+        // Tur gideri ise tur başlangıç tarihini göster
+        if (financial.category === "Tur Gideri") {
+          displayDate = tourInfo.tourDate;
           
-          <div>
-            <h3 className="text-lg font-semibold mb-2">Ödeme Bilgileri</h3>
-            <div className="space-y-2">
-              <div>
-                <span className="text-sm text-muted-foreground">Tutar:</span>
-                <p>{formatCurrency(financial.amount || 0, financial.currency)}</p>
-              </div>
-              <div>
-                <span className="text-sm text-muted-foreground">Ödeme Yöntemi:</span>
-                <p>{financial.paymentMethod || '-'}</p>
-              </div>
+          // Gider açıklamasını ayır
+          if (financial.description) {
+            const parts = financial.description.split(' - ');
+            expenseType = parts.length > 1 ? parts[1] : financial.description;
+          }
+        }
+      }
+    }
+    
+    // Ödeme yöntemini Türkçeye çevir
+    const getPaymentMethodTr = (method: string | undefined) => {
+      if (!method) return 'Nakit';
+      switch (method.toLowerCase()) {
+        case 'cash': return 'Nakit';
+        case 'credit card': return 'Kredi Kartı';
+        case 'bank transfer': return 'Banka Transferi';
+        case 'online payment': return 'Online Ödeme';
+        case 'check': return 'Çek';
+        default: return method;
+      }
+    };
+
+    const paymentMethod = getPaymentMethodTr(financial.paymentMethod);
+
+    return (
+      <div className="p-5 max-h-[70vh] overflow-y-auto">
+        <div className="bg-gray-50 rounded-lg p-5 shadow-sm">
+          <div className="grid grid-cols-2 gap-x-12 gap-y-4">
+            <div className="flex items-start">
+              <div className="w-1/3 font-semibold text-gray-600">Müşteri:</div>
+              <div>{customerName}</div>
             </div>
+            <div className="flex items-start">
+              <div className="w-1/3 font-semibold text-gray-600">Destinasyon:</div>
+              <div>{destinationName}</div>
+            </div>
+            
+            <div className="flex items-start">
+              <div className="w-1/3 font-semibold text-gray-600">İşlem tarihi:</div>
+              <div>{formatDate(financial.date)}</div>
+            </div>
+            <div className="flex items-start">
+              <div className="w-1/3 font-semibold text-gray-600">Tur Tarihi:</div>
+              <div>{tourInfo ? formatDate(tourInfo.tourDate) : "-"}</div>
+            </div>
+            
+            <div className="flex items-start">
+              <div className="w-1/3 font-semibold text-gray-600">Kategori:</div>
+              <div>{financial.category || '-'}</div>
+            </div>
+            <div className="flex items-start">
+              <div className="w-1/3 font-semibold text-gray-600">Açıklama:</div>
+              <div>{expenseType || financial.description || '-'}</div>
+            </div>
+            
+            <div className="flex items-start">
+              <div className="w-1/3 font-semibold text-gray-600">{paymentMethod}:</div>
+              <div className="font-bold text-blue-700">{formatCurrency(financial.amount || 0, financial.currency)}</div>
+            </div>
+            
+            {serialNumber && (
+              <div className="flex items-start">
+                <div className="w-1/3 font-semibold text-gray-600">Seri No:</div>
+                <div>{serialNumber}</div>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -735,15 +783,15 @@ export function DataView({
               <FinancialPrintButton />
             </div>
             <div className="rounded-md border">
-              <Table>
+              <Table className="w-full">
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Tarih</TableHead>
-                    <TableHead>Tür</TableHead>
-                    <TableHead>Kategori</TableHead>
+                    <TableHead className="w-[100px]">Tarih</TableHead>
+                    <TableHead className="w-[80px]">Tür</TableHead>
+                    <TableHead className="w-[120px]">Kategori</TableHead>
                     <TableHead>Açıklama</TableHead>
-                    <TableHead className="text-right">Tutar</TableHead>
-                    <TableHead className="text-right">İşlemler</TableHead>
+                    <TableHead className="w-[100px] text-right">Tutar</TableHead>
+                    <TableHead className="w-[100px] text-right">İşlemler</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -751,9 +799,24 @@ export function DataView({
                     filteredFinancialData.map((financial) => {
                       // Tur ile ilişkili ise ilgili turu bul
                       let tourInfo = null;
-                      if (financial.relatedTourId) {
+                      let displayDate = financial.date;
+                      let displayDescription = financial.description || '-';
+                      
+                      if (financial.relatedTourId && financial.category === "Tur Gideri") {
+                        // Tur gideri ise ilgili turu bul
                         tourInfo = toursData.find(t => t.id === financial.relatedTourId);
+                        
+                        if (tourInfo) {
+                          // Tur gideri için tur başlangıç tarihini göster
+                          displayDate = tourInfo.tourDate;
+                          
+                          // Açıklama formatını "müşteri adı - gider türü" şeklinde düzenle
+                          // Gider türünü description'dan çıkarmak için " - " sonrası kısmı al
+                          const expenseType = financial.description?.split(' - ')[1] || "Gider";
+                          displayDescription = `${tourInfo.customerName || "Müşteri"} - ${expenseType}`;
+                        }
                       }
+                      
                       // Satır rengi: gelir için yeşil, gider için kırmızı
                       const rowBg = financial.type === "income"
                         ? "bg-green-50"
@@ -761,25 +824,21 @@ export function DataView({
                           ? "bg-red-50"
                           : "";
 
-                      // Açıklama formatı: Seri No - Müşteri Adı - Gider Açıklaması
-                      const description = tourInfo
-                        ? `${tourInfo.serialNumber || ''} - ${tourInfo.customerName || ''}${financial.description ? ' - ' + financial.description : ''}`
-                        : (financial.description || '-');
-
                       return (
                         <TableRow key={financial.id} className={rowBg}>
-                          <TableCell>{formatDate(financial.date)}</TableCell>
-                          <TableCell>{financial.type === "income" ? "Gelir" : "Gider"}</TableCell>
-                          <TableCell>{financial.category || '-'}</TableCell>
-                          <TableCell>{description}</TableCell>
-                          <TableCell className="text-right">
+                          <TableCell className="py-2 px-3 text-sm whitespace-nowrap">{formatDate(displayDate)}</TableCell>
+                          <TableCell className="py-2 px-3 text-sm whitespace-nowrap">{financial.type === "income" ? "Gelir" : "Gider"}</TableCell>
+                          <TableCell className="py-2 px-3 text-sm whitespace-nowrap">{financial.category || '-'}</TableCell>
+                          <TableCell className="py-2 px-3 text-sm">{displayDescription}</TableCell>
+                          <TableCell className="py-2 px-3 text-sm text-right whitespace-nowrap">
                             {formatCurrency(financial.amount || 0, financial.currency)}
                           </TableCell>
-                          <TableCell className="text-right">
-                            <div className="flex justify-end gap-2">
+                          <TableCell className="py-2 px-1 text-right">
+                            <div className="flex justify-end gap-1">
                               <Button
                                 variant="ghost"
-                                size="icon"
+                                size="sm"
+                                className="h-8 w-8"
                                 onClick={() => {
                                   setSelectedFinancial(financial)
                                   setIsPreviewOpen(true)
@@ -789,14 +848,16 @@ export function DataView({
                               </Button>
                               <Button
                                 variant="ghost"
-                                size="icon"
+                                size="sm"
+                                className="h-8 w-8"
                                 onClick={() => handleEdit("financial", financial)}
                               >
                                 <Edit className="h-4 w-4" />
                               </Button>
                               <Button
                                 variant="ghost"
-                                size="icon"
+                                size="sm"
+                                className="h-8 w-8"
                                 onClick={() => openDeleteDialog("financial", financial.id)}
                               >
                                 <Trash2 className="h-4 w-4" />
@@ -851,7 +912,7 @@ export function DataView({
                                 setIsPreviewOpen(true)
                               }}
                             >
-                              <Eye className="h-4 w-4" />
+                                <Eye className="h-4 w-4" />
                             </Button>
                             <Button
                               variant="ghost"
@@ -893,7 +954,20 @@ export function DataView({
               {activeTab === "tours" && selectedTour
                 ? `Tur Detayları: ${selectedTour.tourName || 'İsimsiz Tur'}`
                 : activeTab === "financial" && selectedFinancial
-                ? `Finansal Kayıt Detayları: ${selectedFinancial.description || 'Açıklama Yok'}`
+                ? (() => {
+                    // Finansal kaydın tur ile ilişkili olup olmadığını kontrol et
+                    if (selectedFinancial.category === "Tur Gideri" && selectedFinancial.relatedTourId) {
+                      const tourInfo = toursData.find(t => t.id === selectedFinancial.relatedTourId);
+                      if (tourInfo) {
+                        // Gider açıklamasını ayıkla
+                        const expenseDesc = selectedFinancial.description?.split(' - ')[1] || "Gider";
+                        // Seri numarası başlıkta sadece bir kez gösterilecek
+                        return `Finansal Kayıt Detayları: ${tourInfo.customerName} - ${expenseDesc}`;
+                      }
+                    }
+                    // Tur ile ilişkili değilse normal açıklamayı göster
+                    return `Finansal Kayıt Detayları: ${selectedFinancial.description || 'Açıklama Yok'}`;
+                  })()
                 : activeTab === "customers" && selectedCustomer
                 ? `Müşteri Detayları: ${selectedCustomer.name || 'İsimsiz Müşteri'}`
                 : "Detaylar"}
