@@ -70,25 +70,25 @@ export function CurrencyFinancialSummary({ onCancel = () => { window.location.ha
     return (
       <div className="space-y-8">
         <h2 className="text-xl font-bold">Tüm Para Birimleri Finansal Özeti</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+        <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-4 gap-2">
           {allCurrencies.map((cur) => {
             const summary = getFinancialSummaryByCurrency(cur);
             const currencySymbol = cur === "TRY" ? "₺" : cur === "USD" ? "$" : cur === "EUR" ? "€" : cur === "GBP" ? "£" : cur;
             return (
-              <Card key={cur}>
-                <CardHeader className="pb-2">
+              <Card key={cur} className="overflow-hidden">
+                <CardHeader className="p-2 pb-0">
                   <CardTitle className="text-sm font-medium">{cur} Özeti</CardTitle>
                 </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold text-green-600 mb-2">
+                <CardContent className="p-2">
+                  <div className="text-xl font-bold text-green-600">
                     {formatCurrency(summary.totalIncome, cur)}
                   </div>
-                  <div className="mb-1 text-xs text-muted-foreground">
+                  <div className="text-xs text-muted-foreground">
                     Finansal: {formatCurrency(summary.income, cur)} | Tur: {formatCurrency(summary.tourIncome, cur)}
                   </div>
-                  <div className="text-red-600 mb-1">Gider: {formatCurrency(summary.expense, cur)}</div>
-                  <div className={summary.totalProfit >= 0 ? "text-green-600" : "text-red-600"}>Net Kar/Zarar: {formatCurrency(summary.totalProfit, cur)}</div>
-                  <div className={summary.balance >= 0 ? "text-blue-600" : "text-red-600"}>Kasa: {formatCurrency(summary.balance, cur)}</div>
+                  <div className="text-xs text-red-600">Gider: {formatCurrency(summary.expense, cur)}</div>
+                  <div className={`text-xs ${summary.totalProfit >= 0 ? "text-green-600" : "text-red-600"}`}>Net Kar/Zarar: {formatCurrency(summary.totalProfit, cur)}</div>
+                  <div className={`text-xs ${summary.balance >= 0 ? "text-blue-600" : "text-red-600"}`}>Kasa: {formatCurrency(summary.balance, cur)}</div>
                 </CardContent>
               </Card>
             );
@@ -103,13 +103,13 @@ export function CurrencyFinancialSummary({ onCancel = () => { window.location.ha
                 <div className="font-bold mb-1">{cur} Detayı</div>
                 <table className="w-full">
                   <tbody>
-                    <tr className="border-b"><td className="py-2">Finansal Gelirler</td><td className="py-2 text-right">{formatCurrency(summary.income, cur)}</td></tr>
-                    <tr className="border-b"><td className="py-2">Tur Gelirleri</td><td className="py-2 text-right">{formatCurrency(summary.tourIncome, cur)}</td></tr>
-                    <tr className="border-b"><td className="py-2">Toplam Gelir</td><td className="py-2 text-right font-medium">{formatCurrency(summary.totalIncome, cur)}</td></tr>
-                    <tr className="border-b"><td className="py-2">Tur Giderleri</td><td className="py-2 text-right text-red-600">{formatCurrency(summary.tourExpenses, cur)}</td></tr>
-                    <tr className="border-b"><td className="py-2">Diğer Giderler</td><td className="py-2 text-right text-red-600">{formatCurrency(summary.expense - summary.tourExpenses, cur)}</td></tr>
-                    <tr className="border-b"><td className="py-2">Toplam Gider</td><td className="py-2 text-right text-red-600">{formatCurrency(summary.expense, cur)}</td></tr>
-                    <tr><td className="py-2 font-medium">Net Kar/Zarar</td><td className={`py-2 text-right font-medium ${summary.totalProfit >= 0 ? "text-green-600" : "text-red-600"}`}>{formatCurrency(summary.totalProfit, cur)}</td></tr>
+                    <tr className="border-b bg-green-50"><td className="py-2">Finansal Gelirler</td><td className="py-2 text-right">{formatCurrency(summary.income, cur)}</td></tr>
+                    <tr className="border-b bg-green-50"><td className="py-2">Tur Gelirleri</td><td className="py-2 text-right">{formatCurrency(summary.tourIncome, cur)}</td></tr>
+                    <tr className="border-b bg-green-50"><td className="py-2">Toplam Gelir</td><td className="py-2 text-right font-medium">{formatCurrency(summary.totalIncome, cur)}</td></tr>
+                    <tr className="border-b bg-red-50"><td className="py-2">Tur Giderleri</td><td className="py-2 text-right text-red-600">{formatCurrency(summary.tourExpenses, cur)}</td></tr>
+                    <tr className="border-b bg-red-50"><td className="py-2">Diğer Giderler</td><td className="py-2 text-right text-red-600">{formatCurrency(summary.expense - summary.tourExpenses, cur)}</td></tr>
+                    <tr className="border-b bg-red-50"><td className="py-2">Toplam Gider</td><td className="py-2 text-right text-red-600">{formatCurrency(summary.expense, cur)}</td></tr>
+                    <tr className={`${summary.totalProfit >= 0 ? "bg-green-50" : "bg-red-50"}`}><td className="py-2 font-medium">Net Kar/Zarar</td><td className={`py-2 text-right font-medium ${summary.totalProfit >= 0 ? "text-green-600" : "text-red-600"}`}>{formatCurrency(summary.totalProfit, cur)}</td></tr>
                   </tbody>
                 </table>
               </div>
@@ -131,50 +131,50 @@ export function CurrencyFinancialSummary({ onCancel = () => { window.location.ha
     <div className="space-y-6">
       <h2 className="text-xl font-bold">{currency} Para Birimi Finansal Özeti</h2>
       
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card>
-          <CardHeader className="pb-2">
+      <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-4 gap-2">
+        <Card className="overflow-hidden">
+          <CardHeader className="p-2 pb-0">
             <CardTitle className="text-sm font-medium">Toplam Gelir</CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-600">
+          <CardContent className="p-2">
+            <div className="text-xl font-bold text-green-600">
               {formatCurrency(summary.totalIncome, currency)}
             </div>
-            <p className="text-xs text-muted-foreground mt-1">
+            <p className="text-xs text-muted-foreground">
               Finansal: {formatCurrency(summary.income, currency)} | 
               Tur: {formatCurrency(summary.tourIncome, currency)}
             </p>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="pb-2">
+        <Card className="overflow-hidden">
+          <CardHeader className="p-2 pb-0">
             <CardTitle className="text-sm font-medium">Toplam Gider</CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-red-600">
+          <CardContent className="p-2">
+            <div className="text-xl font-bold text-red-600">
               {formatCurrency(summary.expense, currency)}
             </div>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="pb-2">
+        <Card className="overflow-hidden">
+          <CardHeader className="p-2 pb-0">
             <CardTitle className="text-sm font-medium">Net Kar/Zarar</CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className={`text-2xl font-bold ${summary.totalProfit >= 0 ? "text-green-600" : "text-red-600"}`}>
+          <CardContent className="p-2">
+            <div className={`text-xl font-bold ${summary.totalProfit >= 0 ? "text-green-600" : "text-red-600"}`}>
               {formatCurrency(summary.totalProfit, currency)}
             </div>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="pb-2">
+        <Card className="overflow-hidden">
+          <CardHeader className="p-2 pb-0">
             <CardTitle className="text-sm font-medium">Kasa Bakiyesi</CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className={`text-2xl font-bold ${summary.balance >= 0 ? "text-blue-600" : "text-red-600"}`}>
+          <CardContent className="p-2">
+            <div className={`text-xl font-bold ${summary.balance >= 0 ? "text-blue-600" : "text-red-600"}`}>
               {formatCurrency(summary.balance, currency)}
             </div>
           </CardContent>
@@ -185,31 +185,31 @@ export function CurrencyFinancialSummary({ onCancel = () => { window.location.ha
         <h3 className="font-medium mb-2">Detaylı Bilgi</h3>
         <table className="w-full">
           <tbody>
-            <tr className="border-b">
+            <tr className="border-b bg-green-50">
               <td className="py-2">Finansal Gelirler</td>
               <td className="py-2 text-right">{formatCurrency(summary.income, currency)}</td>
             </tr>
-            <tr className="border-b">
+            <tr className="border-b bg-green-50">
               <td className="py-2">Tur Gelirleri</td>
               <td className="py-2 text-right">{formatCurrency(summary.tourIncome, currency)}</td>
             </tr>
-            <tr className="border-b">
+            <tr className="border-b bg-green-50">
               <td className="py-2">Toplam Gelir</td>
               <td className="py-2 text-right font-medium">{formatCurrency(summary.totalIncome, currency)}</td>
             </tr>
-            <tr className="border-b">
+            <tr className="border-b bg-red-50">
               <td className="py-2">Tur Giderleri</td>
               <td className="py-2 text-right text-red-600">{formatCurrency(summary.tourExpenses, currency)}</td>
             </tr>
-            <tr className="border-b">
+            <tr className="border-b bg-red-50">
               <td className="py-2">Diğer Giderler</td>
               <td className="py-2 text-right text-red-600">{formatCurrency(summary.expense - summary.tourExpenses, currency)}</td>
             </tr>
-            <tr className="border-b">
+            <tr className="border-b bg-red-50">
               <td className="py-2">Toplam Gider</td>
               <td className="py-2 text-right text-red-600">{formatCurrency(summary.expense, currency)}</td>
             </tr>
-            <tr>
+            <tr className={`${summary.totalProfit >= 0 ? "bg-green-50" : "bg-red-50"}`}>
               <td className="py-2 font-medium">Net Kar/Zarar</td>
               <td className={`py-2 text-right font-medium ${summary.totalProfit >= 0 ? "text-green-600" : "text-red-600"}`}>
                 {formatCurrency(summary.totalProfit, currency)}

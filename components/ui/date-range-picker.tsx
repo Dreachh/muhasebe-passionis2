@@ -19,12 +19,16 @@ interface DatePickerWithRangeProps {
   className?: string
   date: DateRange | undefined
   setDate: (date: DateRange | undefined) => void
+  placeholder?: string
+  disabled?: boolean
 }
 
 export function DatePickerWithRange({
   className,
   date,
   setDate,
+  placeholder = "Tarih Aralığı Seçin",
+  disabled = false,
 }: DatePickerWithRangeProps) {
   return (
     <div className={cn("grid gap-2", className)}>
@@ -37,6 +41,7 @@ export function DatePickerWithRange({
               "w-[300px] justify-start text-left font-normal",
               !date && "text-muted-foreground"
             )}
+            disabled={disabled}
           >
             <CalendarIcon className="mr-2 h-4 w-4" />
             {date?.from ? (
@@ -49,7 +54,7 @@ export function DatePickerWithRange({
                 format(date.from, "dd LLL y", { locale: tr })
               )
             ) : (
-              <span>Tarih Aralığı Seçin</span>
+              <span>{placeholder}</span>
             )}
           </Button>
         </PopoverTrigger>

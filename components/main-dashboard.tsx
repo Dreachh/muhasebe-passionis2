@@ -93,10 +93,15 @@ export function MainDashboard({ onNavigate, financialData = [], toursData = [], 
   // Sayfalama için tek bir state
   const PAGE_SIZE = 6;
   const [currentPage, setCurrentPage] = useState(1);
+  const [currentFinancialPage, setCurrentFinancialPage] = useState(1);
   
-  // Tarih filtresi
-  const [dateRange, setDateRange] = useState<DateRange | undefined>();
-  const [isDateFilterActive, setIsDateFilterActive] = useState(false);
+  // Tur satışları için tarih filtresi
+  const [tourDateRange, setTourDateRange] = useState<DateRange | undefined>();
+  const [isTourDateFilterActive, setIsTourDateFilterActive] = useState(false);
+
+  // Finansal kayıtlar için tarih filtresi
+  const [financialDateRange, setFinancialDateRange] = useState<DateRange | undefined>();
+  const [isFinancialDateFilterActive, setIsFinancialDateFilterActive] = useState(false);
 
   // Tur ve finans verilerini birleştir ve tarihe göre sırala
   const combinedTransactions = (() => {
@@ -249,14 +254,9 @@ export function MainDashboard({ onNavigate, financialData = [], toursData = [], 
       (group: any) => group.amount > 0
     );
     
-    // Tüm işlemleri birleştir
+    // Tüm işlemleri birleştir - tarih filtresi yok
     return [...tourTransactions, ...tourExpenseTransactions, ...regularFinancialTransactions];
   })()
-  .filter(transaction => {
-    if (!isDateFilterActive || !dateRange) return true;
-    const transactionDate = new Date(transaction.date);
-    return transactionDate >= dateRange.from && transactionDate <= dateRange.to;
-  })
   .sort((a, b) => new Date(b.date) - new Date(a.date));
   
   const totalPages = Math.ceil(combinedTransactions.length / PAGE_SIZE);
@@ -417,17 +417,17 @@ export function MainDashboard({ onNavigate, financialData = [], toursData = [], 
               <div className="flex items-center gap-2">
                 <Checkbox
                   id="date-filter-tours"
-                  checked={isDateFilterActive}
-                  onCheckedChange={(checked) => setIsDateFilterActive(checked)}
+                  checked={isTourDateFilterActive}
+                  onCheckedChange={(checked) => setIsTourDateFilterActive(checked)}
                 />
                 <label htmlFor="date-filter-tours" className="text-sm font-medium text-muted-foreground">
                   Tarih filtresini etkinleştir
                 </label>
               </div>
               <DatePickerWithRange
-                date={dateRange}
-                setDate={setDateRange}
-                className={!isDateFilterActive ? "opacity-50 pointer-events-none" : ""}
+                date={tourDateRange}
+                setDate={setTourDateRange}
+                className={!isTourDateFilterActive ? "opacity-50 pointer-events-none" : ""}
               />
             </div>
           </div>
@@ -456,6 +456,17 @@ export function MainDashboard({ onNavigate, financialData = [], toursData = [], 
                       transaction.type === 'tour' || // Tur satışları
                       (transaction.type === 'finance' && transaction.originalData.relatedTourId) // Tur giderleri
                     )
+                    // Tur tarihi filtreleme
+                    .filter(transaction => {
+                      if (!isTourDateFilterActive || !tourDateRange || !tourDateRange.from) return true;
+                      const transactionDate = new Date(transaction.date);
+                      // Bitiş tarihi undefined ise sadece başlangıç tarihiyle kontrol et
+                      if (!tourDateRange.to) {
+                        return transactionDate >= tourDateRange.from;
+                      }
+                      // Her ikisi de tanımlı ise aralığı kontrol et
+                      return transactionDate >= tourDateRange.from && transactionDate <= tourDateRange.to;
+                    })
                     .sort((a, b) => {
                       // Önce tarih sıralaması
                       const dateCompare = new Date(b.date) - new Date(a.date);
@@ -660,6 +671,23 @@ export function MainDashboard({ onNavigate, financialData = [], toursData = [], 
               <CardTitle className="text-2xl font-bold text-[#00a1c6]">Son Finansal Kayıtlar</CardTitle>
               <CardDescription>Tur ile ilgisi olmayan gelir ve gider işlemleri</CardDescription>
             </div>
+            <div className="flex flex-col items-end gap-2">
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="date-filter-financial"
+                  checked={isFinancialDateFilterActive}
+                  onCheckedChange={(checked) => setIsFinancialDateFilterActive(checked)}
+                />
+                <label htmlFor="date-filter-financial" className="text-sm font-medium text-muted-foreground">
+                  Tarih filtresini etkinleştir
+                </label>
+              </div>
+              <DatePickerWithRange
+                date={financialDateRange}
+                setDate={setFinancialDateRange}
+                className={!isFinancialDateFilterActive ? "opacity-50 pointer-events-none" : ""}
+              />
+            </div>
           </div>
         </CardHeader>
         <CardContent>
@@ -685,10 +713,21 @@ export function MainDashboard({ onNavigate, financialData = [], toursData = [], 
                       transaction.type === 'finance' && 
                       !transaction.originalData.relatedTourId  // Tur ile ilgisi olmayanlar
                     )
+                    // Finansal kayıtlar için tarih filtresini uygula
+                    .filter(transaction => {
+                      if (!isFinancialDateFilterActive || !financialDateRange || !financialDateRange.from) return true;
+                      const transactionDate = new Date(transaction.date);
+                      // Bitiş tarihi undefined ise sadece başlangıç tarihiyle kontrol et
+                      if (!financialDateRange.to) {
+                        return transactionDate >= financialDateRange.from;
+                      }
+                      // Her ikisi de tanımlı ise aralığı kontrol et
+                      return transactionDate >= financialDateRange.from && transactionDate <= financialDateRange.to;
+                    })
                     .sort((a, b) => new Date(b.date) - new Date(a.date));
 
                   const totalFinancialPages = Math.ceil(financialOnlyTransactions.length / PAGE_SIZE);
-                  const startFinancialIndex = (currentPage - 1) * PAGE_SIZE;
+                  const startFinancialIndex = (currentFinancialPage - 1) * PAGE_SIZE;
                   const pagedFinancialTransactions = financialOnlyTransactions.slice(startFinancialIndex, startFinancialIndex + PAGE_SIZE);
 
                   if (pagedFinancialTransactions && pagedFinancialTransactions.length > 0) {
@@ -772,17 +811,17 @@ export function MainDashboard({ onNavigate, financialData = [], toursData = [], 
                           <Button 
                             variant="ghost" 
                             size="sm" 
-                            disabled={currentPage === 1} 
-                            onClick={() => setCurrentPage(currentPage - 1)}
+                            disabled={currentFinancialPage === 1} 
+                            onClick={() => setCurrentFinancialPage(currentFinancialPage - 1)}
                           >
                             Önceki
                           </Button>
                           {Array.from({ length: totalFinancialPages }).map((_, idx) => (
                             <Button
                               key={idx}
-                              variant={currentPage === idx + 1 ? "default" : "outline"}
+                              variant={currentFinancialPage === idx + 1 ? "default" : "outline"}
                               size="sm"
-                              onClick={() => setCurrentPage(idx + 1)}
+                              onClick={() => setCurrentFinancialPage(idx + 1)}
                             >
                               {idx + 1}
                             </Button>
@@ -790,8 +829,8 @@ export function MainDashboard({ onNavigate, financialData = [], toursData = [], 
                           <Button 
                             variant="ghost" 
                             size="sm" 
-                            disabled={currentPage === totalFinancialPages} 
-                            onClick={() => setCurrentPage(currentPage + 1)}
+                            disabled={currentFinancialPage === totalFinancialPages} 
+                            onClick={() => setCurrentFinancialPage(currentFinancialPage + 1)}
                           >
                             Sonraki
                           </Button>

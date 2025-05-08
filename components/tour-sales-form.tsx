@@ -105,20 +105,30 @@ interface FormData {
 
 export function TourSalesForm({
   initialData = null,
-  tempData = null,
   onSave,
   onCancel,
-  onStoreFormData,
-  onNavigateToSettings,
+  toursData = [],
+  onUpdateData,
+  onNavigate,
+  editingRecord,
+  setEditingRecord,
   customersData = [],
+  setCustomersData,
+  tempTourFormData = null,
+  setTempTourFormData
 }: {
-  initialData?: Partial<FormData> | null;
-  tempData?: Partial<FormData> | null;
-  onSave: (data: FormData) => void;
+  initialData?: any | null;
+  onSave: (data: any) => void;
   onCancel: () => void;
-  onStoreFormData: (data: FormData) => void;
-  onNavigateToSettings: () => void;
-  customersData: Customer[];
+  toursData: any[];
+  onUpdateData: (data: any[]) => void;
+  onNavigate?: (view: string) => void;
+  editingRecord: any;
+  setEditingRecord: (record: any) => void;
+  customersData: any[];
+  setCustomersData: (data: any[]) => void;
+  tempTourFormData: any | null;
+  setTempTourFormData: (data: any) => void;
 }) {
   const { toast } = useToast()
   const [currentStep, setCurrentStep] = useState(0)
@@ -138,7 +148,7 @@ export function TourSalesForm({
 
   // Initialize form data from initialData, tempData, or default values
   const [formData, setFormData] = useState<FormData>(() => {
-    if (tempData) return tempData as FormData
+    if (tempTourFormData) return tempTourFormData as FormData
     if (initialData) return initialData as FormData
 
     return {
@@ -621,11 +631,11 @@ export function TourSalesForm({
   // Store form data when component unmounts or when navigating away
   useEffect(() => {
     return () => {
-      if (onStoreFormData && localStorage.getItem("returnToTourSales") === "true") {
-        onStoreFormData(formData)
+      if (setTempTourFormData && localStorage.getItem("returnToTourSales") === "true") {
+        setTempTourFormData(formData)
       }
     }
-  }, [formData, onStoreFormData])
+  }, [formData, setTempTourFormData])
 
   const steps = [
     { id: "customer", label: "Müşteri Bilgileri" },
@@ -714,8 +724,8 @@ export function TourSalesForm({
   }
 
   const handleNavigateToSettings = () => {
-    if (typeof onNavigateToSettings === "function") {
-      onNavigateToSettings();
+    if (typeof onNavigate === "function") {
+      onNavigate("settings");
     }
   };
 
@@ -942,7 +952,7 @@ export function TourSalesForm({
                 <div className="space-y-2">
                   <Label htmlFor="nationality">Vatandaşlık / Ülke</Label>
                   <Select
-                    value={formData.nationality ?? ""}
+                    value={formData.nationality}
                     onValueChange={(value) => handleSelectChange("nationality", value)}
                   >
                     <SelectTrigger>
@@ -953,23 +963,21 @@ export function TourSalesForm({
                       {(() => {
                         try {
                           // Dinamik olarak ülke listesini import et
-                          const countriesList: { code: string; name: string }[] = require("@/lib/countries").countries;
-                          return countriesList.map((country: { code: string; name: string }, index: number) => (
+                          const countriesList = require("@/lib/countries").countries as {code: string, name: string}[];
+                          return countriesList.map((country: {code: string, name: string}, index: number) => (
                             <SelectItem key={country.code + '-' + index} value={country.name}>{country.name}</SelectItem>
                           ));
                         } catch (error) {
                           console.error("Ülke listesi yüklenemedi:", error);
                           // Hata durumunda en yaygın ülkeleri göster
                           return [
-                            <SelectItem key="TR" value="Türkiye">Türkiye</SelectItem>,
-                            <SelectItem key="DE" value="Almanya">Almanya</SelectItem>,
-                            <SelectItem key="GB" value="Birleşik Krallık">İngiltere</SelectItem>,
-                            <SelectItem key="US" value="Amerika Birleşik Devletleri">Amerika</SelectItem>,
-                            <SelectItem key="RU" value="Rusya">Rusya</SelectItem>,
-                            <SelectItem key="FR" value="Fransa">Fransa</SelectItem>,
-                            <SelectItem key="NL" value="Hollanda">Hollanda</SelectItem>,
-                            <SelectItem key="UA" value="Ukrayna">Ukrayna</SelectItem>,
-                            <SelectItem key="IT" value="İtalya">İtalya</SelectItem>,
+                            <SelectItem key="tr" value="Türkiye">Türkiye</SelectItem>,
+                            <SelectItem key="us" value="Amerika Birleşik Devletleri">Amerika Birleşik Devletleri</SelectItem>,
+                            <SelectItem key="de" value="Almanya">Almanya</SelectItem>,
+                            <SelectItem key="fr" value="Fransa">Fransa</SelectItem>,
+                            <SelectItem key="gb" value="Birleşik Krallık">Birleşik Krallık</SelectItem>,
+                            <SelectItem key="ru" value="Rusya">Rusya</SelectItem>,
+                            <SelectItem key="ua" value="Ukrayna">Ukrayna</SelectItem>,
                             <SelectItem key="other" value="Diğer">Diğer</SelectItem>
                           ];
                         }
@@ -979,30 +987,27 @@ export function TourSalesForm({
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="referralSource">Müşteriyi Nereden Bulduk?</Label>
+                  <Label htmlFor="referralSource">Müşteri Referans Kaynağı</Label>
                   <Select
                     value={formData.referralSource}
                     onValueChange={(value) => handleSelectChange("referralSource", value)}
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder="Referans kaynağı seçin" />
+                      <SelectValue placeholder="Müşteriyi nereden bulduk?" />
                     </SelectTrigger>
                     <SelectContent>
-                      {referralSources && referralSources.length > 0 ? (
-                        referralSources.map((source: any) => (
-                          <SelectItem key={source.id} value={source.id}>{source.name}</SelectItem>
+                      {isLoading ? (
+                        <SelectItem value="loading" disabled>Yükleniyor...</SelectItem>
+                      ) : referralSources && referralSources.length > 0 ? (
+                        referralSources.map((source) => (
+                          <SelectItem key={source.id} value={source.id}>
+                            {source.name}
+                          </SelectItem>
                         ))
                       ) : (
-                        <>
-                          <SelectItem value="website">İnternet Sitemiz</SelectItem>
-                          <SelectItem value="hotel">Otel Yönlendirmesi</SelectItem>
-                          <SelectItem value="local_guide">Hanutçu / Yerel Rehber</SelectItem>
-                          <SelectItem value="walk_in">Kapı Önü Müşterisi</SelectItem>
-                          <SelectItem value="repeat">Tekrar Gelen Müşteri</SelectItem>
-                          <SelectItem value="recommendation">Tavsiye</SelectItem>
-                          <SelectItem value="social_media">Sosyal Medya</SelectItem>
-                          <SelectItem value="other">Diğer</SelectItem>
-                        </>
+                        <SelectItem value="no-sources">
+                          Referans kaynağı bulunamadı. Lütfen ayarlardan ekleyin.
+                        </SelectItem>
                       )}
                     </SelectContent>
                   </Select>
