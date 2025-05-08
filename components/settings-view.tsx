@@ -51,10 +51,78 @@ function generateUUID() {
   })
 }
 
+// Gerekli arayüz tanımlamaları ekleniyor
+interface ExpenseType {
+  id: string;
+  type: string;
+  name: string;
+  description: string;
+  category: string;
+}
+
+interface Provider {
+  id: string;
+  name: string;
+  contactPerson: string;
+  phone: string;
+  email: string;
+  address: string;
+  notes: string;
+  category: string;
+}
+
+interface Activity {
+  id: string;
+  name: string;
+  description: string;
+  defaultDuration: string;
+  defaultPrice: string;
+  defaultCurrency: string;
+}
+
+interface Destination {
+  id: string;
+  name: string;
+  country: string;
+  region: string;
+  description: string;
+}
+
+interface CompanyInfo {
+  name: string;
+  address: string;
+  phone: string;
+  email: string;
+  taxId: string;
+  website: string;
+  logo: string | null;
+}
+
+// Props tanımı ekle
+interface SettingsViewProps {
+  onClose: () => void;
+  onNavigate?: (view: string) => void;
+  financialData?: any[];
+  toursData?: any[];
+  customersData?: any[];
+  onUpdateData?: (type: string, data: any[]) => void;
+}
+
+// Event tipleri için değişiklikler
+type InputChangeEvent = React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>;
+type FileChangeEvent = React.ChangeEvent<HTMLInputElement>;
+
 // onClose fonksiyonu ana sayfaya yönlendirecek şekilde güncellendi
-export function SettingsView({ onClose = () => { window.location.hash = '#main-dashboard'; } }) {
+export function SettingsView({ 
+  onClose, 
+  onNavigate = () => {},
+  financialData = [],
+  toursData = [],
+  customersData = [],
+  onUpdateData = () => {}
+}: SettingsViewProps) {
   const { toast } = useToast()
-  const [companyInfo, setCompanyInfo] = useState({
+  const [companyInfo, setCompanyInfo] = useState<CompanyInfo>({
     name: "PassionisTravel",
     address: "Örnek Mahallesi, Örnek Caddesi No:123, İstanbul",
     phone: "+90 212 123 4567",
@@ -64,8 +132,8 @@ export function SettingsView({ onClose = () => { window.location.hash = '#main-d
     logo: null,
   })
 
-  const [expenseTypes, setExpenseTypes] = useState([])
-  const [newExpenseType, setNewExpenseType] = useState({
+  const [expenseTypes, setExpenseTypes] = useState<ExpenseType[]>([])
+  const [newExpenseType, setNewExpenseType] = useState<ExpenseType>({
     id: "",
     type: "",
     name: "",
@@ -75,13 +143,13 @@ export function SettingsView({ onClose = () => { window.location.hash = '#main-d
   const [isExpenseDialogOpen, setIsExpenseDialogOpen] = useState(false)
   const [isEditingExpense, setIsEditingExpense] = useState(false)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
-  const [expenseToDelete, setExpenseToDelete] = useState(null)
+  const [expenseToDelete, setExpenseToDelete] = useState<ExpenseType | null>(null)
   const [customExpenseType, setCustomExpenseType] = useState("")
   const [showCustomTypeInput, setShowCustomTypeInput] = useState(false)
 
   // Sağlayıcılar için state
-  const [providers, setProviders] = useState([])
-  const [newProvider, setNewProvider] = useState({
+  const [providers, setProviders] = useState<Provider[]>([])
+  const [newProvider, setNewProvider] = useState<Provider>({
     id: "",
     name: "",
     contactPerson: "",
@@ -94,11 +162,11 @@ export function SettingsView({ onClose = () => { window.location.hash = '#main-d
   const [isProviderDialogOpen, setIsProviderDialogOpen] = useState(false)
   const [isEditingProvider, setIsEditingProvider] = useState(false)
   const [isDeleteProviderDialogOpen, setIsDeleteProviderDialogOpen] = useState(false)
-  const [providerToDelete, setProviderToDelete] = useState(null)
+  const [providerToDelete, setProviderToDelete] = useState<Provider | null>(null)
 
   // Aktiviteler için state
-  const [activities, setActivities] = useState([])
-  const [newActivity, setNewActivity] = useState({
+  const [activities, setActivities] = useState<Activity[]>([])
+  const [newActivity, setNewActivity] = useState<Activity>({
     id: "",
     name: "",
     description: "",
@@ -109,11 +177,11 @@ export function SettingsView({ onClose = () => { window.location.hash = '#main-d
   const [isActivityDialogOpen, setIsActivityDialogOpen] = useState(false)
   const [isEditingActivity, setIsEditingActivity] = useState(false)
   const [isDeleteActivityDialogOpen, setIsDeleteActivityDialogOpen] = useState(false)
-  const [activityToDelete, setActivityToDelete] = useState(null)
+  const [activityToDelete, setActivityToDelete] = useState<Activity | null>(null)
 
   // Destinasyonlar için state
-  const [destinations, setDestinations] = useState([])
-  const [newDestination, setNewDestination] = useState({
+  const [destinations, setDestinations] = useState<Destination[]>([])
+  const [newDestination, setNewDestination] = useState<Destination>({
     id: "",
     name: "",
     country: "",
@@ -123,7 +191,7 @@ export function SettingsView({ onClose = () => { window.location.hash = '#main-d
   const [isDestinationDialogOpen, setIsDestinationDialogOpen] = useState(false)
   const [isEditingDestination, setIsEditingDestination] = useState(false)
   const [isDeleteDestinationDialogOpen, setIsDeleteDestinationDialogOpen] = useState(false)
-  const [destinationToDelete, setDestinationToDelete] = useState(null)
+  const [destinationToDelete, setDestinationToDelete] = useState<Destination | null>(null)
 
   // Ayarları ve gider türlerini yükle
   useEffect(() => {
@@ -424,17 +492,17 @@ export function SettingsView({ onClose = () => { window.location.hash = '#main-d
     loadDestinations()
   }, [])
 
-  const handleCompanyInfoChange = (e) => {
+  const handleCompanyInfoChange = (e: InputChangeEvent) => {
     const { name, value } = e.target
     setCompanyInfo((prev) => ({ ...prev, [name]: value }))
   }
 
-  const handleLogoUpload = (e) => {
-    const file = e.target.files[0]
+  const handleLogoUpload = (e: FileChangeEvent) => {
+    const file = e.target.files?.[0]
     if (file) {
       const reader = new FileReader()
       reader.onload = (e) => {
-        setCompanyInfo((prev) => ({ ...prev, logo: e.target.result }))
+        setCompanyInfo((prev) => ({ ...prev, logo: e.target?.result as string }))
       }
       reader.readAsDataURL(file)
     }
@@ -442,26 +510,64 @@ export function SettingsView({ onClose = () => { window.location.hash = '#main-d
 
   const handleSaveSettings = async () => {
     try {
-      await saveSettings({
-        companyInfo,
-      })
+      // Kaydetme işlemi başladığında bir yükleniyor göstergesi
+      const saveButton = document.querySelector('button[class*="bg-[#00a1c6]"]') as HTMLButtonElement | null;
+      if (saveButton) {
+        const originalContent = saveButton.innerHTML;
+        saveButton.innerHTML = `<svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Kaydediliyor...`;
+        saveButton.disabled = true;
 
-      toast({
-        title: "Ayarlar kaydedildi",
-        description: "Şirket bilgileriniz başarıyla güncellendi.",
-      })
+        // Ayarları kaydet
+        await saveSettings({
+          companyInfo,
+        });
+
+        // Başarılı animasyonu ve bildirimi göster
+        saveButton.innerHTML = `<svg class="h-4 w-4 mr-2 text-white" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" /></svg> Kaydedildi!`;
+
+        // Başarılı toast mesajı
+        toast({
+          title: "Şirket bilgileri kaydedildi!",
+          description: "Şirket bilgileriniz başarıyla güncellendi.",
+          variant: "default",
+        });
+
+        // 2 saniye sonra butonu normal haline döndür
+        setTimeout(() => {
+          saveButton.innerHTML = originalContent;
+          saveButton.disabled = false;
+        }, 2000);
+      } else {
+        // Buton bulunamazsa standart kaydet ve bildirimi göster
+        await saveSettings({
+          companyInfo,
+        });
+        
+        toast({
+          title: "Şirket bilgileri kaydedildi!",
+          description: "Şirket bilgileriniz başarıyla güncellendi.",
+        });
+      }
     } catch (error) {
-      console.error("Ayarlar kaydedilirken hata:", error)
+      console.error("Ayarlar kaydedilirken hata:", error);
+      
+      // Hata durumunda butonu sıfırla
+      const saveButton = document.querySelector('button[class*="bg-[#00a1c6]"]') as HTMLButtonElement | null;
+      if (saveButton) {
+        saveButton.innerHTML = `<svg class="h-4 w-4 mr-2 text-white" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg> Şirket Bilgilerini Kaydet`;
+        saveButton.disabled = false;
+      }
+      
       toast({
         title: "Hata",
         description: "Ayarlar kaydedilirken bir hata oluştu.",
         variant: "destructive",
-      })
+      });
     }
   }
 
   // Gider türü ekleme/düzenleme dialog'unu aç
-  const openExpenseDialog = (expense = null) => {
+  const openExpenseDialog = (expense: ExpenseType | null = null) => {
     if (expense) {
       setNewExpenseType(expense)
       setIsEditingExpense(true)
@@ -479,13 +585,13 @@ export function SettingsView({ onClose = () => { window.location.hash = '#main-d
   }
 
   // Gider türü değişikliklerini işle
-  const handleExpenseTypeChange = (e) => {
+  const handleExpenseTypeChange = (e: InputChangeEvent) => {
     const { name, value } = e.target
     setNewExpenseType((prev) => ({ ...prev, [name]: value }))
   }
 
   // Gider kategorisi değişikliğini ele al
-  const handleExpenseCategoryChange = (value) => {
+  const handleExpenseCategoryChange = (value: string) => {
     setNewExpenseType((prev) => ({ ...prev, category: value }));
   }
 
@@ -539,14 +645,14 @@ export function SettingsView({ onClose = () => { window.location.hash = '#main-d
   }
 
   // Gider türü silme dialog'unu aç
-  const openDeleteExpenseDialog = (expense) => {
+  const openDeleteExpenseDialog = (expense: ExpenseType) => {
     setExpenseToDelete(expense)
     setIsDeleteDialogOpen(true)
   }
 
   // Gider türü sil
   const handleDeleteExpenseType = async () => {
-    const updatedExpenseTypes = expenseTypes.filter((item) => item.id !== expenseToDelete.id)
+    const updatedExpenseTypes = expenseTypes.filter((item) => item.id !== expenseToDelete?.id)
     setExpenseTypes(updatedExpenseTypes)
     setIsDeleteDialogOpen(false)
 
@@ -568,7 +674,7 @@ export function SettingsView({ onClose = () => { window.location.hash = '#main-d
   }
 
   // Sağlayıcı ekleme/düzenleme dialog'unu aç
-  const openProviderDialog = (provider = null) => {
+  const openProviderDialog = (provider: Provider | null = null) => {
     if (provider) {
       setNewProvider(provider)
       setIsEditingProvider(true)
@@ -589,7 +695,7 @@ export function SettingsView({ onClose = () => { window.location.hash = '#main-d
   }
 
   // Sağlayıcı değişikliklerini işle
-  const handleProviderChange = (e) => {
+  const handleProviderChange = (e: InputChangeEvent) => {
     const { name, value } = e.target
     setNewProvider((prev) => ({ ...prev, [name]: value }))
   }
@@ -635,14 +741,14 @@ export function SettingsView({ onClose = () => { window.location.hash = '#main-d
   }
 
   // Sağlayıcı silme dialog'unu aç
-  const openDeleteProviderDialog = (provider) => {
+  const openDeleteProviderDialog = (provider: Provider) => {
     setProviderToDelete(provider)
     setIsDeleteProviderDialogOpen(true)
   }
 
   // Sağlayıcı sil
   const handleDeleteProvider = async () => {
-    const updatedProviders = providers.filter((item) => item.id !== providerToDelete.id)
+    const updatedProviders = providers.filter((item) => item.id !== providerToDelete?.id)
     setProviders(updatedProviders)
     setIsDeleteProviderDialogOpen(false)
 
@@ -664,7 +770,7 @@ export function SettingsView({ onClose = () => { window.location.hash = '#main-d
   }
 
   // Aktivite ekleme/düzenleme dialog'unu aç
-  const openActivityDialog = (activity = null) => {
+  const openActivityDialog = (activity: Activity | null = null) => {
     if (activity) {
       setNewActivity(activity)
       setIsEditingActivity(true)
@@ -683,7 +789,7 @@ export function SettingsView({ onClose = () => { window.location.hash = '#main-d
   }
 
   // Aktivite değişikliklerini işle
-  const handleActivityChange = (e) => {
+  const handleActivityChange = (e: InputChangeEvent) => {
     const { name, value } = e.target
     setNewActivity((prev) => ({ ...prev, [name]: value }))
   }
@@ -729,14 +835,14 @@ export function SettingsView({ onClose = () => { window.location.hash = '#main-d
   }
 
   // Aktivite silme dialog'unu aç
-  const openDeleteActivityDialog = (activity) => {
+  const openDeleteActivityDialog = (activity: Activity) => {
     setActivityToDelete(activity)
     setIsDeleteActivityDialogOpen(true)
   }
 
   // Aktivite sil
   const handleDeleteActivity = async () => {
-    const updatedActivities = activities.filter((item) => item.id !== activityToDelete.id)
+    const updatedActivities = activities.filter((item) => item.id !== activityToDelete?.id)
     setActivities(updatedActivities)
     setIsDeleteActivityDialogOpen(false)
 
@@ -758,7 +864,7 @@ export function SettingsView({ onClose = () => { window.location.hash = '#main-d
   }
 
   // Destinasyon ekleme/düzenleme dialog'unu aç
-  const openDestinationDialog = (destination = null) => {
+  const openDestinationDialog = (destination: Destination | null = null) => {
     if (destination) {
       setNewDestination(destination)
       setIsEditingDestination(true)
@@ -776,7 +882,7 @@ export function SettingsView({ onClose = () => { window.location.hash = '#main-d
   }
 
   // Destinasyon değişikliklerini işle
-  const handleDestinationChange = (e) => {
+  const handleDestinationChange = (e: InputChangeEvent) => {
     const { name, value } = e.target
     setNewDestination((prev) => ({ ...prev, [name]: value }))
   }
@@ -822,14 +928,14 @@ export function SettingsView({ onClose = () => { window.location.hash = '#main-d
   }
 
   // Destinasyon silme dialog'unu aç
-  const openDeleteDestinationDialog = (destination) => {
+  const openDeleteDestinationDialog = (destination: Destination) => {
     setDestinationToDelete(destination)
     setIsDeleteDestinationDialogOpen(true)
   }
 
   // Destinasyon sil
   const handleDeleteDestination = async () => {
-    const updatedDestinations = destinations.filter((item) => item.id !== destinationToDelete.id)
+    const updatedDestinations = destinations.filter((item) => item.id !== destinationToDelete?.id)
     setDestinations(updatedDestinations)
     setIsDeleteDestinationDialogOpen(false)
 
@@ -952,7 +1058,7 @@ export function SettingsView({ onClose = () => { window.location.hash = '#main-d
                 </div>
                 <div>
                   <Input id="logo" type="file" accept="image/*" onChange={handleLogoUpload} className="hidden" />
-                  <Button variant="outline" onClick={() => document.getElementById("logo").click()}>
+                  <Button variant="outline" onClick={() => document.getElementById("logo")?.click()}>
                     Logo Yükle
                   </Button>
                 </div>

@@ -1,6 +1,6 @@
 // IndexedDB işlemleri için yardımcı fonksiyonlar
 const DB_NAME = "passionistravelDB"
-const DB_VERSION = 1
+const DB_VERSION = 2 // Versiyon 1'den 2'ye yükseltildi
 
 // Store konfigürasyonu için arayüz tanımlaması
 interface StoreConfig {

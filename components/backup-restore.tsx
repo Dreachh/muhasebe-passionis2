@@ -10,7 +10,18 @@ import { useToast } from "@/components/ui/use-toast"
 import { Download, Upload, Calendar, AlertTriangle } from "lucide-react"
 import { exportData, importData } from "@/lib/export-import"
 
-export function BackupRestoreView({ onClose }) {
+// Props için arayüz tanımı
+interface BackupRestoreViewProps {
+  onClose: () => void;
+  onExport?: () => void;
+  onImport?: () => void;
+}
+
+export function BackupRestoreView({ 
+  onClose, 
+  onExport = () => {}, 
+  onImport = () => {} 
+}: BackupRestoreViewProps) {
   const { toast } = useToast()
   const [isExporting, setIsExporting] = useState(false)
   const [isImporting, setIsImporting] = useState(false)
@@ -61,7 +72,7 @@ export function BackupRestoreView({ onClose }) {
       console.error("Geri yükleme hatası:", error)
       toast({
         title: "Geri yükleme hatası",
-        description: error.message || "Verileriniz geri yüklenirken bir hata oluştu.",
+        description: error instanceof Error ? error.message : "Verileriniz geri yüklenirken bir hata oluştu.",
         variant: "destructive"
       })
     } finally {

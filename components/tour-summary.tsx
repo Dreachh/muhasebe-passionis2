@@ -5,10 +5,21 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 interface Expense {
+  id: string;
   type: string;
   name: string;
-  amount: number;
+  amount: string | number;
   currency: string;
+  details?: string;
+  isIncludedInPrice?: boolean;
+  rehberInfo?: string;
+  transferType?: string;
+  transferPerson?: string;
+  acentaName?: string;
+  provider?: string;
+  description?: string;
+  date?: string | Date;
+  category?: string;
 }
 
 interface Activity {

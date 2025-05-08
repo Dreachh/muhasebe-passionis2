@@ -9,10 +9,9 @@ import { BarChart2, DollarSign, Users, Calendar, Filter } from "lucide-react"
 import { CurrencyFinancialSummary } from "@/components/analytics/currency-financial-summary"
 import { CustomerAnalytics } from "@/components/analytics/customer-analytics"
 import { TourDetailedAnalytics } from "@/components/analytics/tour-detailed-analytics"
-import { PrintableReport } from "@/components/analytics/printable-report"
-import { PrintButton } from "@/components/ui/print-button"
 import { getDestinations } from "@/lib/db"
 import { useToast } from "@/components/ui/use-toast"
+import { DateRange } from "react-day-picker"
 
 // Tür tanımlamaları (Type definitions)
 type DataItem = {
@@ -31,6 +30,7 @@ type EnhancedAnalyticsViewProps = {
   financialData: DataItem[];
   toursData: DataItem[];
   customersData: DataItem[];
+  onNavigate?: (view: string) => void; // Navigation prop eklendi
 };
 
 export function EnhancedAnalyticsView({ financialData = [], toursData = [], customersData = [] }: EnhancedAnalyticsViewProps) {
@@ -38,7 +38,7 @@ export function EnhancedAnalyticsView({ financialData = [], toursData = [], cust
   const [activeTab, setActiveTab] = useState("financial")
   const [selectedCurrency, setSelectedCurrency] = useState("all")
   const [destinations, setDestinations] = useState<DestinationType[]>([])
-  const [dateRange, setDateRange] = useState({
+  const [dateRange, setDateRange] = useState<DateRange>({
     from: new Date(new Date().getFullYear(), new Date().getMonth() - 11, 1),
     to: new Date()
   })
@@ -101,14 +101,20 @@ export function EnhancedAnalyticsView({ financialData = [], toursData = [], cust
     if (!isDateFilterActive) return data;
     
     // Tarih filtresinde geçerli bir aralık yoksa tüm verileri döndür
-    if (!dateRange.from || !dateRange.to) return data;
+    if (!dateRange?.from || !dateRange?.to) return data;
     
     // Sadece tarih filtresi aktifse filtreleme yap
     return data.filter(item => {
       if (!item || (!item.date && !item.tourDate)) return false;
       
-      const itemDate = new Date(item.date || item.tourDate);
-      return itemDate >= dateRange.from && itemDate <= dateRange.to;
+      const dateStr = item.date || item.tourDate;
+      if (!dateStr) return false;
+      
+      const itemDate = new Date(dateStr.toString());
+      if (dateRange.from && dateRange.to) {
+        return itemDate >= dateRange.from && itemDate <= dateRange.to;
+      }
+      return true;
     });
   }
   
@@ -158,7 +164,11 @@ export function EnhancedAnalyticsView({ financialData = [], toursData = [], cust
               </div>
               <DatePickerWithRange
                 date={dateRange}
-                setDate={setDateRange}
+                setDate={(date: DateRange | undefined) => {
+                  if (date) {
+                    setDateRange(date);
+                  }
+                }}
               />
             </div>
           </div>
@@ -183,84 +193,6 @@ export function EnhancedAnalyticsView({ financialData = [], toursData = [], cust
                     Tur Analizi
                   </TabsTrigger>
                 </TabsList>
-                
-                <PrintButton 
-                  type="analytics"
-                  data={{
-                    financialData: filteredFinancialData,
-                    toursData: filteredToursData,
-                    customersData: filteredCustomersData
-                  }}
-                  dateRange={dateRange}
-                  selectedCurrency={selectedCurrency}
-                  companyInfo={JSON.parse(localStorage.getItem('companyInfo') || '{}')}
-                  nationalityData={toursData.reduce((acc, tour) => {
-                    const nationality = tour.customerNationality || 'Belirtilmemiş'
-                    const existingItem = acc.find(item => item.name === nationality)
-                    if (existingItem) {
-                      existingItem.value++
-                    } else {
-                      acc.push({ name: nationality, value: 1 })
-                    }
-                    return acc
-                  }, [])}
-                  referralSourceData={toursData.reduce((acc, tour) => {
-                    const source = tour.referralSource || 'Belirtilmemiş'
-                    const existingItem = acc.find(item => item.name === source)
-                    if (existingItem) {
-                      existingItem.value++
-                    } else {
-                      acc.push({ name: source, value: 1 })
-                    }
-                    return acc
-                  }, [])}
-                  toursByDestination={destinations.map(dest => {
-                    const toursForDest = filteredToursData.filter(tour => tour.destination === dest.name)
-                    return {
-                      name: dest.name,
-                      count: toursForDest.length,
-                      customers: toursForDest.reduce((sum, tour) => sum + 1, 0),
-                      revenue: toursForDest.reduce((sum, tour) => sum + (Number(tour.totalPrice) || 0), 0)
-                    }
-                  }).sort((a, b) => b.count - a.count)}
-                  toursByMonth={Array.from({ length: 12 }, (_, i) => {
-                    const monthDate = new Date(new Date().getFullYear(), i, 1)
-                    const monthName = monthDate.toLocaleString('tr-TR', { month: 'long' })
-                    const toursInMonth = filteredToursData.filter(tour => {
-                      const tourDate = new Date(tour.tourDate)
-                      return tourDate.getMonth() === i
-                    })
-                    return {
-                      name: monthName,
-                      tours: toursInMonth.length,
-                      customers: toursInMonth.reduce((sum, tour) => sum + 1, 0),
-                      revenue: toursInMonth.reduce((sum, tour) => sum + (Number(tour.totalPrice) || 0), 0)
-                    }
-                  })}
-                  currencySummaries={['TRY', 'USD', 'EUR', 'GBP'].reduce((acc, curr) => {
-                    // Gelirler
-                    const incomeRecords = filteredFinancialData.filter(item => item.type === 'income' && item.currency === curr)
-                    const totalIncome = incomeRecords.reduce((sum, item) => sum + (Number(item.amount) || 0), 0)
-                    
-                    // Giderler
-                    const expenseRecords = filteredFinancialData.filter(item => item.type === 'expense' && item.currency === curr)
-                    const totalExpense = expenseRecords.reduce((sum, item) => sum + (Number(item.amount) || 0), 0)
-                    
-                    // Tur gelirleri
-                    const tourIncome = filteredToursData
-                      .filter(tour => tour.currency === curr)
-                      .reduce((sum, tour) => sum + (Number(tour.totalPrice) || 0), 0)
-                    
-                    acc[curr] = {
-                      totalIncome: totalIncome + tourIncome,
-                      expense: totalExpense,
-                      totalProfit: totalIncome + tourIncome - totalExpense,
-                      balance: totalIncome + tourIncome - totalExpense
-                    }
-                    return acc
-                  }, {})}
-                  
-                />
               </div>
 
               <TabsContent value="financial">
@@ -287,18 +219,7 @@ export function EnhancedAnalyticsView({ financialData = [], toursData = [], cust
             </Tabs>
           </div>
         </div>
-
-        {/* Yazdırılabilir rapor bileşeni */}
-        <div className="hidden">
-          <PrintableReport
-            financialData={filteredFinancialData}
-            toursData={filteredToursData}
-            customersData={filteredCustomersData}
-            selectedCurrency={selectedCurrency}
-            dateRange={dateRange}
-          />
-        </div>
       </CardContent>
-      </Card>
+    </Card>
   )
 }

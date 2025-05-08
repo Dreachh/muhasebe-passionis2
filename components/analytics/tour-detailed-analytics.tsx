@@ -23,13 +23,79 @@ import { formatCurrency } from "@/lib/data-utils"
 // Grafik renkleri
 const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#8884D8", "#82ca9d", "#ffc658", "#8dd1e1"]
 
-export function TourDetailedAnalytics({ toursData, selectedCurrency, destinations = [] }) {
+// Tip tanımlamaları
+type DataItem = {
+  id?: string;
+  tourDate?: string | Date;
+  tourName?: string;
+  numberOfPeople?: string | number;
+  totalPrice?: string | number;
+  currency?: string;
+  paymentStatus?: string;
+  expenses?: any[];
+  destinationId?: string;
+  destinationName?: string;
+  [key: string]: any;
+}
+
+type DestinationType = {
+  id: string;
+  name: string;
+  country: string;
+}
+
+// Turla ilgili popüler veri
+type TourPopularityData = {
+  count: number;
+  customers: number;
+  revenue: number;
+  currency: string;
+}
+
+// Aylık veri
+type MonthlyData = {
+  name: string;
+  tours: number;
+  customers: number;
+  revenue: number;
+}
+
+// Destinasyon veri
+type DestinationData = {
+  count: number;
+  customers: number;
+  revenue: number;
+}
+
+// Ödeme veri
+type PaymentData = {
+  count: number;
+  revenue: number;
+}
+
+// Statik tip ile Record
+type StatusLabelsType = {
+  paid: string;
+  pending: string;
+  partial: string; 
+  cancelled: string;
+  completed: string;
+  [key: string]: string;
+}
+
+interface TourDetailedAnalyticsProps {
+  toursData: DataItem[];
+  selectedCurrency: string;
+  destinations: DestinationType[];
+}
+
+export function TourDetailedAnalytics({ toursData, selectedCurrency, destinations = [] }: TourDetailedAnalyticsProps) {
   // Tüm turlar analizde kullanılacak, ileri/geri tarih farketmeksizin
   const filteredToursData = toursData;
 
   // En çok satılan turlar
   const getMostPopularTours = () => {
-    const tourPopularity = {};
+    const tourPopularity: Record<string, TourPopularityData> = {};
     
     filteredToursData.forEach(tour => {
       if (!tour) return;
@@ -45,11 +111,11 @@ export function TourDetailedAnalytics({ toursData, selectedCurrency, destination
       }
       
       tourPopularity[tourName].count += 1;
-      tourPopularity[tourName].customers += Number.parseInt(tour.numberOfPeople) || 0;
+      tourPopularity[tourName].customers += Number.parseInt(tour.numberOfPeople?.toString() || '0') || 0;
       
       // Eğer seçilen para birimi tüm para birimleri ise veya tur para birimi seçilen para birimine eşitse
       if (selectedCurrency === "all" || tour.currency === selectedCurrency) {
-        tourPopularity[tourName].revenue += Number.parseFloat(tour.totalPrice) || 0;
+        tourPopularity[tourName].revenue += Number.parseFloat(tour.totalPrice?.toString() || '0') || 0;
       }
     });
     
@@ -67,7 +133,7 @@ export function TourDetailedAnalytics({ toursData, selectedCurrency, destination
 
   // Aylara göre tur dağılımı
   const getToursByMonth = () => {
-    const monthlyData = {};
+    const monthlyData: Record<string, MonthlyData> = {};
     
     // Son 12 ayı hazırla
     const now = new Date();
@@ -92,11 +158,11 @@ export function TourDetailedAnalytics({ toursData, selectedCurrency, destination
         
         if (monthlyData[monthKey]) {
           monthlyData[monthKey].tours += 1;
-          monthlyData[monthKey].customers += Number.parseInt(tour.numberOfPeople) || 0;
+          monthlyData[monthKey].customers += Number.parseInt(tour.numberOfPeople?.toString() || '0') || 0;
           
           // Eğer seçilen para birimi tüm para birimleri ise veya tur para birimi seçilen para birimine eşitse
           if (selectedCurrency === "all" || tour.currency === selectedCurrency) {
-            monthlyData[monthKey].revenue += Number.parseFloat(tour.totalPrice) || 0;
+            monthlyData[monthKey].revenue += Number.parseFloat(tour.totalPrice?.toString() || '0') || 0;
           }
         }
       } catch (e) {
@@ -109,14 +175,14 @@ export function TourDetailedAnalytics({ toursData, selectedCurrency, destination
 
   // Destinasyonlara göre tur dağılımı
   const getToursByDestination = () => {
-    const destinationData = {};
+    const destinationData: Record<string, DestinationData> = {};
     
     filteredToursData.forEach(tour => {
       if (!tour) return;
       const destination = tour.destinationId && destinations && destinations.length > 0 ? 
         destinations.find(d => d.id === tour.destinationId)?.name || "Belirtilmemiş" : 
         tour.destinationName || "Belirtilmemiş";
-      const customerCount = Number.parseInt(tour.numberOfPeople) || 0;
+      const customerCount = Number.parseInt(tour.numberOfPeople?.toString() || '0') || 0;
       
       if (!destinationData[destination]) {
         destinationData[destination] = {
@@ -131,7 +197,7 @@ export function TourDetailedAnalytics({ toursData, selectedCurrency, destination
       
       // Eğer seçilen para birimi tüm para birimleri ise veya tur para birimi seçilen para birimine eşitse
       if (selectedCurrency === "all" || tour.currency === selectedCurrency) {
-        destinationData[destination].revenue += Number.parseFloat(tour.totalPrice) || 0;
+        destinationData[destination].revenue += Number.parseFloat(tour.totalPrice?.toString() || '0') || 0;
       }
     });
     
@@ -147,7 +213,7 @@ export function TourDetailedAnalytics({ toursData, selectedCurrency, destination
 
   // Ödeme durumuna göre tur dağılımı
   const getToursByPaymentStatus = () => {
-    const statusLabels = {
+    const statusLabels: StatusLabelsType = {
       'paid': 'Ödenmiş',
       'pending': 'Beklemede',
       'partial': 'Kısmi Ödeme',
@@ -155,7 +221,7 @@ export function TourDetailedAnalytics({ toursData, selectedCurrency, destination
       'completed': 'Tamamlandı'
     };
     
-    const paymentData = {};
+    const paymentData: Record<string, PaymentData> = {};
     
     filteredToursData.forEach(tour => {
       if (!tour) return;
@@ -173,7 +239,7 @@ export function TourDetailedAnalytics({ toursData, selectedCurrency, destination
       
       // Eğer seçilen para birimi tüm para birimleri ise veya tur para birimi seçilen para birimine eşitse
       if (selectedCurrency === "all" || tour.currency === selectedCurrency) {
-        paymentData[statusLabel].revenue += Number.parseFloat(tour.totalPrice) || 0;
+        paymentData[statusLabel].revenue += Number.parseFloat(tour.totalPrice?.toString() || '0') || 0;
       }
     });
     
@@ -275,11 +341,11 @@ export function TourDetailedAnalytics({ toursData, selectedCurrency, destination
                   <YAxis yAxisId="left" orientation="left" stroke="#8884d8" />
                   <YAxis yAxisId="right" orientation="right" stroke="#82ca9d" />
                   <Tooltip
-                    formatter={(value, name) => {
+                    formatter={(value: any, name) => {
                       if (name === "revenue") {
                         return selectedCurrency !== "all"
-                          ? `${value.toFixed(2)} ${selectedCurrency}`
-                          : formatCurrency(value)
+                          ? `${Number(value).toFixed(2)} ${selectedCurrency}`
+                          : formatCurrency(Number(value))
                       }
                       return value
                     }}
@@ -311,11 +377,11 @@ export function TourDetailedAnalytics({ toursData, selectedCurrency, destination
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="name" />
                   <YAxis />
-                  <Tooltip formatter={(value, name) => {
+                  <Tooltip formatter={(value: any, name) => {
                     if (name === "revenue") {
                       return selectedCurrency !== "all"
-                        ? `${value.toFixed(2)} ${selectedCurrency}`
-                        : formatCurrency(value)
+                        ? `${Number(value).toFixed(2)} ${selectedCurrency}`
+                        : formatCurrency(Number(value))
                     }
                     return value
                   }} />
@@ -392,12 +458,12 @@ export function TourDetailedAnalytics({ toursData, selectedCurrency, destination
                         <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                       ))}
                     </Pie>
-                    <Tooltip formatter={(value, name, props) => {
+                    <Tooltip formatter={(value: any, name, props) => {
                       if (name === "count") return [`${value} tur`, "Tur Sayısı"];
                       if (name === "revenue") return [
                         selectedCurrency !== "all"
-                          ? `${value.toFixed(2)} ${selectedCurrency}`
-                          : formatCurrency(value),
+                          ? `${Number(value).toFixed(2)} ${selectedCurrency}`
+                          : formatCurrency(Number(value)),
                         "Gelir"
                       ];
                       return [value, name];
@@ -433,8 +499,8 @@ export function TourDetailedAnalytics({ toursData, selectedCurrency, destination
                   <td className="py-2 text-right">{tour.customers}</td>
                   <td className="py-2 text-right">
                     {selectedCurrency !== "all"
-                      ? `${tour.revenue.toFixed(2)} ${selectedCurrency}`
-                      : formatCurrency(tour.revenue)}
+                      ? `${Number(tour.revenue).toFixed(2)} ${selectedCurrency}`
+                      : formatCurrency(Number(tour.revenue))}
                   </td>
                 </tr>
               ))}

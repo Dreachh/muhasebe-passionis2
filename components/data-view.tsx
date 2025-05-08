@@ -22,7 +22,6 @@ import {
 import { Search, Edit, Trash2, Eye, Printer } from "lucide-react"
 import { formatCurrency, formatDate } from "@/lib/data-utils"
 import { deleteData } from "@/lib/db"
-import { PrintButton } from "@/components/ui/print-button"
 import { useToast } from "@/components/ui/use-toast"
 
 // Type definitions
@@ -30,7 +29,7 @@ interface TourActivity {
   name: string
   date?: string | Date
   duration?: string
-  price: number
+  price: number | string
   currency?: string
   participants?: string | number
   participantsType?: string
@@ -44,19 +43,27 @@ interface TourAdditionalCustomer {
 }
 
 interface TourExpense {
-  id?: string
-  type?: string
-  name?: string
-  provider?: string
-  description?: string
-  amount?: number
-  date?: string | Date
-  category?: string
-  currency?: string
+  id: string;
+  type: string;
+  name: string;
+  amount: string | number;
+  currency: string;
+  details?: string;
+  isIncludedInPrice?: boolean;
+  rehberInfo?: string;
+  transferType?: string;
+  transferPerson?: string;
+  acentaName?: string;
+  provider?: string;
+  description?: string;
+  date?: string | Date;
+  category?: string;
 }
 
 export interface TourData {
   destination?: string // EKLENDİ: Tur destinasyonu
+  nationality?: string // EKLENDİ: Müşteri vatandaşlık bilgisi
+  destinationName?: string // EKLENDİ: Destinasyon adı
 
   id: string
   serialNumber?: string
@@ -72,12 +79,12 @@ export interface TourData {
   customerTC?: string
   customerPassport?: string
   customerDrivingLicense?: string
-  pricePerPerson?: number
-  totalPrice?: number
+  pricePerPerson?: number | string
+  totalPrice?: number | string
   currency?: string
   paymentStatus?: string
   paymentMethod?: string
-  partialPaymentAmount?: number
+  partialPaymentAmount?: number | string
   partialPaymentCurrency?: string
   notes?: string
   activities?: TourActivity[]
@@ -104,6 +111,7 @@ export interface CustomerData {
   phone?: string
   email?: string
   idNumber?: string
+  citizenship?: string // Vatandaşlık/Ülke alanı eklenmiştir
   address?: string // EKLENDİ: Adres alanı
 }
 
@@ -148,6 +156,8 @@ export function DataView({
   const [itemToDelete, setItemToDelete] = useState<DeleteItem>({ type: "", id: "" })
   const [dateRange, setDateRange] = useState<DateRange | undefined>()
   const [destinations, setDestinations] = useState<any[]>([]);
+  // Tarih filtresinin aktif olup olmadığını kontrol eden state
+  const [dateFilterEnabled, setDateFilterEnabled] = useState(false);
 
   // Komponent yüklendiğinde destinasyon verilerini al
   useEffect(() => {
@@ -253,80 +263,39 @@ export function DataView({
     }
   }
   
-  // Function for printing financial records
-  const handlePrintFinancial = () => {
-    try {
-      const companyInfo = JSON.parse(localStorage.getItem('companyInfo') || '{}');
-      return (
-        <PrintButton
-          type="financial"
-          data={filteredFinancialData}
-          companyInfo={companyInfo}
-          dateRange={dateRange}
-        />
-      );
-    } catch (error) {
-      console.error('Error during print operation:', error);
-      toast({
-        title: "Hata",
-        description: "Yazdırma işlemi sırasında bir hata oluştu.",
-        variant: "destructive",
-      });
-      return null;
+  // İşlevsiz yazdır butonlarını kaldırıyoruz
+  // PrintButton fonksiyonları silindi
+  
+  // Tarih kontrolü yardımcı fonksiyonu - tarih, belirtilen aralıkta mı?
+  const isDateInRange = (date: string | Date | undefined, range: DateRange | undefined): boolean => {
+    if (!range || !date) return true; // Tarih aralığı belirtilmemişse veya tarih yoksa filtreleme yapma
+    
+    const checkDate = new Date(date);
+    
+    // Başlangıç tarihi kontrolü
+    if (range.from) {
+      const fromDate = new Date(range.from);
+      fromDate.setHours(0, 0, 0, 0);
+      if (checkDate < fromDate) return false;
     }
-  }
-  
-  // Add PrintButton component for financial data
-  const FinancialPrintButton = () => {
-    const companyInfo = JSON.parse(localStorage.getItem('companyInfo') || '{}');
-    return (
-      <PrintButton
-        type="financial"
-        data={filteredFinancialData}
-        companyInfo={companyInfo}
-        dateRange={dateRange}
-      />
-    );
-  }
-  
-  // Add PrintButton component for customers data
-  const CustomersPrintButton = () => {
-    const companyInfo = JSON.parse(localStorage.getItem('companyInfo') || '{}');
-    return (
-      <PrintButton
-        type="customers"
-        data={filteredCustomersData}
-        companyInfo={companyInfo}
-        dateRange={dateRange}
-      />
-    );
-  }
-  
-  // Add PrintButton component for analytics data
-  const AnalyticsPrintButton = () => {
-    const companyInfo = JSON.parse(localStorage.getItem('companyInfo') || '{}');
-    return (
-      <PrintButton
-        type="analytics"
-        data={{
-          financialData: filteredFinancialData,
-          toursData: filteredToursData,
-          customersData: filteredCustomersData
-        }}
-        companyInfo={companyInfo}
-        dateRange={dateRange}
-        selectedCurrency={selectedCurrency}
-        nationalityData={nationalityData}
-        referralSourceData={referralSourceData}
-        toursByDestination={toursByDestination}
-        toursByMonth={toursByMonth}
-        currencySummaries={currencySummaries}
-      />
-    );
-  }
+    
+    // Bitiş tarihi kontrolü
+    if (range.to) {
+      const toDate = new Date(range.to);
+      toDate.setHours(23, 59, 59, 999);
+      if (checkDate > toDate) return false;
+    }
+    
+    return true;
+  };
   
   const filteredToursData = toursData.filter(
     (item: TourData) => {
+      // Tarih aralığı kontrolü - sadece tarih filtresi etkinleştirilmişse çalıştır
+      if (dateFilterEnabled && dateRange && !isDateInRange(item.tourDate, dateRange)) {
+        return false;
+      }
+      
       if (!searchTerm) return true;
       
       const searchLower = searchTerm.toLowerCase();
@@ -384,12 +353,20 @@ export function DataView({
       };
     });
 
-    // Şimdi filtrele
-    if (!searchTerm) return financialWithSerialNumbers;
+    // Tarih aralığına göre filtrele - sadece tarih filtresi etkinleştirilmişse
+    const dateFiltered = financialWithSerialNumbers.filter(item => {
+      // Tarih filtresi etkin değilse tüm kayıtları göster
+      if (!dateFilterEnabled) return true;
+      // Filtre etkinse ve tarih aralığı seçiliyse, tarihi kontrol et
+      return isDateInRange(item.date, dateRange);
+    });
+
+    // Arama terimine göre filtrele    
+    if (!searchTerm) return dateFiltered;
     
     const searchLower = searchTerm.toLowerCase().trim();
     
-    return financialWithSerialNumbers.filter(item => {
+    return dateFiltered.filter(item => {
       // Sabit numarayı kullan
       const serialNumber = item._serialNumber;
       
@@ -427,12 +404,25 @@ export function DataView({
     });
   })();
 
-  const filteredCustomersData = customersData.filter(
-    (item: CustomerData) =>
-      (item.name?.toLowerCase().includes(searchTerm.toLowerCase()) || '') ||
-      (item.phone?.toLowerCase().includes(searchTerm.toLowerCase()) || '') ||
-      (item.email?.toLowerCase().includes(searchTerm.toLowerCase()) || '')
-  )
+  const filteredCustomersData = customersData
+    .filter((item: CustomerData) => {
+      // Not: Müşteri kayıtlarında doğrudan tarih alanı olmayabilir,
+      // Bu nedenle müşterilerin bu tarih filtrelerinden etkilenmeyebilir
+      // veya burada başka bir tarih alanı kullanılabilir
+
+      // Eğer arama terimi yoksa tüm müşterileri göster
+      if (!searchTerm) return true;
+      
+      // Arama terimine göre filtrele
+      const searchLower = searchTerm.toLowerCase();
+      return (
+        (item.name?.toLowerCase().includes(searchLower) || '') ||
+        (item.phone?.toLowerCase().includes(searchLower) || '') ||
+        (item.email?.toLowerCase().includes(searchLower) || '') ||
+        (item.citizenship?.toLowerCase().includes(searchLower) || '') ||
+        (item.idNumber?.toLowerCase().includes(searchLower) || '')
+      );
+    });
 
   // Tour Preview Component
   const TourPreview = ({ tour }: { tour: TourData | null }) => {
@@ -514,14 +504,22 @@ export function DataView({
             <div>
               <span className="text-sm text-muted-foreground">Ödeme Durumu:</span>
               <p>
-                {tour.paymentStatus === "paid" ? "Ödendi" : 
+                {tour.paymentStatus === "completed" ? "Tamamlandı" : 
                  tour.paymentStatus === "partial" ? "Kısmi Ödeme" : 
-                 tour.paymentStatus === "pending" ? "Beklemede" : "-"}
+                 tour.paymentStatus === "pending" ? "Beklemede" :
+                 tour.paymentStatus === "refunded" ? "İade" :
+                 tour.paymentStatus || "-"}
               </p>
             </div>
             <div>
               <span className="text-sm text-muted-foreground">Ödeme Yöntemi:</span>
-              <p>{tour.paymentMethod || '-'}</p>
+              <p>
+                {tour.paymentMethod === "cash" ? "Nakit" : 
+                 tour.paymentMethod === "credit_card" ? "Kredi Kartı" : 
+                 tour.paymentMethod === "bank_transfer" ? "Banka Havalesi" : 
+                 tour.paymentMethod === "online_payment" ? "Online Ödeme" : 
+                 tour.paymentMethod || "-"}
+              </p>
             </div>
             {tour.paymentStatus === "partial" && (
               <>
@@ -531,7 +529,7 @@ export function DataView({
                 </div>
                 <div>
                   <span className="text-sm text-muted-foreground">Kalan Miktar:</span>
-                  <p>{formatCurrency((tour.totalPrice || 0) - (tour.partialPaymentAmount || 0), tour.currency)}</p>
+                  <p>{formatCurrency(Number(tour.totalPrice || 0) - Number(tour.partialPaymentAmount || 0), tour.currency)}</p>
                 </div>
               </>
             )}
@@ -687,6 +685,9 @@ export function DataView({
     // Seri numarası
     const serialNumber = tourInfo?.serialNumber || "-";
 
+    // Destinasyon bilgisini bul
+    const destinationName = tourInfo ? (tourInfo.destinationName || tourInfo.destination || "-") : "-";
+
     // Tur tarihi formatı: "başlangıç / bitiş" (eğer bitiş varsa)
     let tourDateFormatted = "-";
     if (tourInfo) {
@@ -700,6 +701,17 @@ export function DataView({
       }
     }
 
+    // Finansal kaydın türüne göre başlık belirle
+    const getTitle = () => {
+      if (financial.relatedTourId && financial.category === "Tur Gideri") {
+        return "Finansal Kayıt Tur Gider Detayları";
+      } else if (financial.type === "income") {
+        return "Finansal Kayıt Gelir Detayları";
+      } else {
+        return "Finansal Kayıt Gider Detayları";
+      }
+    };
+
     return (
       <div className="space-y-6 max-h-[70vh] overflow-y-auto p-2">
         <table className="w-full border-collapse border border-gray-300">
@@ -710,7 +722,7 @@ export function DataView({
             </tr>
             <tr>
               <td className="border border-gray-300 px-4 py-2 font-semibold">Destinasyon:</td>
-              <td className="border border-gray-300 px-4 py-2">-</td>
+              <td className="border border-gray-300 px-4 py-2">{destinationName}</td>
             </tr>
             <tr className="bg-gray-50">
               <td className="border border-gray-300 px-4 py-2 font-semibold">İşlem Tarihi:</td>
@@ -765,9 +777,19 @@ export function DataView({
                 <p>{customer.email || '-'}</p>
               </div>
               <div>
-                <span className="text-sm text-muted-foreground">Kimlik No:</span>
+                <span className="text-sm text-muted-foreground">TC/Pasaport No:</span>
                 <p>{customer.idNumber || '-'}</p>
               </div>
+              <div>
+                <span className="text-sm text-muted-foreground">Vatandaşlık / Ülke:</span>
+                <p>{customer.citizenship || '-'}</p>
+              </div>
+              {customer.address && (
+                <div>
+                  <span className="text-sm text-muted-foreground">Adres:</span>
+                  <p>{customer.address}</p>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -777,25 +799,54 @@ export function DataView({
 
   return (
     <Card className="w-full">
-      <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle>Veri Görünümü</CardTitle>
-        <div className="flex items-center gap-2">
-          <div className="relative">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              type="search"
-              placeholder="Ara..."
-              className="w-[200px] pl-8"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
+      <CardHeader className="border-b pb-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4 flex-wrap">
+            <CardTitle className="text-xl">Veri Görünümü</CardTitle>
+            
+            <div className="flex items-center gap-3">
+              <div className="relative">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  type="search"
+                  placeholder="Ara..."
+                  className="w-[200px] pl-8"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+              </div>
+              
+              {/* Müşteriler sekmesi hariç tarih filtresi göster */}
+              {activeTab !== "customers" && (
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center">
+                    <input
+                      type="checkbox"
+                      id="dateFilterToggle"
+                      checked={dateFilterEnabled}
+                      onChange={(e) => setDateFilterEnabled(e.target.checked)}
+                      className="mr-2"
+                    />
+                    <label htmlFor="dateFilterToggle" className="text-sm whitespace-nowrap">
+                      Tarih Filtresini Etkinleştir
+                    </label>
+                  </div>
+                  
+                  <DatePickerWithRange 
+                    date={dateRange} 
+                    setDate={setDateRange} 
+                    className="w-[180px]"
+                    placeholder="Tarih Aralığı Seçin"
+                    disabled={!dateFilterEnabled}
+                  />
+                </div>
+              )}
+            </div>
           </div>
+          
           <Button variant="outline" size="sm" onClick={onClose}>
             Kapat
           </Button>
-          {activeTab === "financial" && <FinancialPrintButton />}
-          {activeTab === "customers" && <CustomersPrintButton />}
-          {activeTab === "tours" && <AnalyticsPrintButton />}
         </div>
       </CardHeader>
       <CardContent>
@@ -828,7 +879,7 @@ export function DataView({
                         <TableCell>{tour.tourName || '-'}</TableCell>
                         <TableCell>{tour.customerName || '-'}</TableCell>
                         <TableCell>
-                          {tour.destination || '-'}
+                          {tour.destinationName || tour.destination || '-'}
                         </TableCell>
                         <TableCell>{formatDate(tour.tourDate)}</TableCell>
                         <TableCell className="text-right">
@@ -877,20 +928,17 @@ export function DataView({
           </TabsContent>
           
           <TabsContent value="financial">
-            <div className="flex justify-end mb-2">
-              <FinancialPrintButton />
-            </div>
             <div className="rounded-md border">
               <Table className="w-full">
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-[80px]">İşlem No</TableHead>
-                    <TableHead className="w-[100px]">Tarih</TableHead>
-                    <TableHead className="w-[80px]">İşlem Tipi</TableHead>
-                    <TableHead className="w-[120px]">Kategori</TableHead>
-                    <TableHead>Açıklama</TableHead>
-                    <TableHead className="w-[100px] text-right">Tutar</TableHead>
-                    <TableHead className="w-[100px] text-right">İşlemler</TableHead>
+                    <TableHead className="w-[100px] font-bold whitespace-nowrap">İşlem No</TableHead>
+                    <TableHead className="w-[100px] font-bold">Tarih</TableHead>
+                    <TableHead className="w-[100px] font-bold">İşlem Tipi</TableHead>
+                    <TableHead className="w-[120px] font-bold">Kategori</TableHead>
+                    <TableHead className="pl-4 font-bold">Açıklama</TableHead>
+                    <TableHead className="w-[100px] text-right font-bold">Tutar</TableHead>
+                    <TableHead className="w-[100px] text-right font-bold">İşlemler</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -1032,9 +1080,6 @@ export function DataView({
           </TabsContent>
           
           <TabsContent value="customers">
-            <div className="flex justify-end mb-2">
-              <CustomersPrintButton />
-            </div>
             <div className="rounded-md border">
               <Table>
                 <TableHeader>
@@ -1042,7 +1087,8 @@ export function DataView({
                     <TableHead>Ad Soyad</TableHead>
                     <TableHead>Telefon</TableHead>
                     <TableHead>E-posta</TableHead>
-                    <TableHead>Kimlik No</TableHead>
+                    <TableHead>TC/Pasaport No</TableHead>
+                    <TableHead>Vatandaşlık / Ülke</TableHead>
                     <TableHead className="text-right">İşlemler</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -1054,6 +1100,7 @@ export function DataView({
                         <TableCell>{customer.phone || '-'}</TableCell>
                         <TableCell>{customer.email || '-'}</TableCell>
                         <TableCell>{customer.idNumber || '-'}</TableCell>
+                        <TableCell>{customer.citizenship || '-'}</TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-2">
                             <Button
@@ -1086,7 +1133,7 @@ export function DataView({
                     ))
                   ) : (
                     <TableRow>
-                      <TableCell colSpan={5} className="h-24 text-center">
+                      <TableCell colSpan={6} className="h-24 text-center">
                         Kayıt bulunamadı.
                       </TableCell>
                     </TableRow>
@@ -1106,7 +1153,11 @@ export function DataView({
               {activeTab === "tours" && selectedTour
                 ? `Tur Detayları: ${selectedTour.tourName || 'İsimsiz Tur'}`
                 : activeTab === "financial" && selectedFinancial
-                ? "Finansal Kayıt Detayları"
+                ? selectedFinancial.relatedTourId && selectedFinancial.category === "Tur Gideri" 
+                  ? "Finansal Kayıt Tur Gider Detayları"
+                  : selectedFinancial.type === "income"
+                    ? "Finansal Kayıt Gelir Detayları" 
+                    : "Finansal Kayıt Gider Detayları"
                 : activeTab === "customers" && selectedCustomer
                 ? `Müşteri Detayları: ${selectedCustomer.name || 'İsimsiz Müşteri'}`
                 : "Detaylar"}

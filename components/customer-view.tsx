@@ -19,6 +19,32 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Search, Edit, Trash2, Save, Plus, X } from "lucide-react"
 
+// Customer veri tipi tanımı
+interface Customer {
+  id: string;
+  name?: string;
+  phone?: string;
+  email?: string;
+  address?: string;
+  idNumber?: string;
+  citizenship?: string;
+  notes?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  deleted?: boolean;
+}
+
+interface CustomerViewProps {
+  initialData?: Customer;
+  onCancel?: () => void;
+  onSave?: (customer: Customer) => void; 
+  onUpdateData?: (customers: Customer[]) => void;
+  customersData: Customer[];
+  editingRecord?: any;
+  setEditingRecord?: (record: any) => void;
+  onNavigate?: (view: string) => void;
+}
+
 // Simple UUID generator function
 function generateUUID() {
   return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
@@ -29,20 +55,30 @@ function generateUUID() {
 }
 
 // onCancel fonksiyonu ana sayfaya yönlendirecek şekilde güncellendi
-export function CustomerView({ initialData, onCancel = () => { window.location.hash = '#main-dashboard'; }, onSave, onUpdateData, customersData = [], editingRecord, setEditingRecord }) {
+export function CustomerView({ 
+  initialData, 
+  onCancel = () => { window.location.hash = '#main-dashboard'; }, 
+  onSave, 
+  onUpdateData, 
+  customersData = [], 
+  editingRecord, 
+  setEditingRecord,
+  onNavigate
+}: CustomerViewProps) {
   // State tanımlamaları
   const [isEditing, setIsEditing] = useState(false)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
-  const [customerToDelete, setCustomerToDelete] = useState(null)
+  const [customerToDelete, setCustomerToDelete] = useState<Customer | null>(null)
   const [searchTerm, setSearchTerm] = useState("")
   const [showForm, setShowForm] = useState(false)
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<Customer>({
     id: generateUUID(),
     name: "",
     phone: "",
     email: "",
     address: "",
     idNumber: "",
+    citizenship: "", // Vatandaşlık/Ülke alanı eklendi
     notes: "",
     createdAt: new Date().toISOString(),
   })
@@ -59,6 +95,7 @@ export function CustomerView({ initialData, onCancel = () => { window.location.h
         email: initialData.email || "",
         address: initialData.address || "",
         idNumber: initialData.idNumber || "",
+        citizenship: initialData.citizenship || "", // Vatandaşlık/Ülke alanı eklendi
         notes: initialData.notes || "",
         createdAt: initialData.createdAt || new Date().toISOString(),
       })
@@ -69,19 +106,21 @@ export function CustomerView({ initialData, onCancel = () => { window.location.h
     }
   }, [initialData])
 
-  const handleChange = (e) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
     setFormData((prev) => ({ ...prev, [name]: value }))
   }
 
-  const handleSubmit = (e) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     
     // Form verilerini kaydet
-    onSave({
-      ...formData,
-      updatedAt: new Date().toISOString(),
-    })
+    if (typeof onSave === 'function') {
+      onSave({
+        ...formData,
+        updatedAt: new Date().toISOString(),
+      });
+    }
 
     // Form işleminden sonra durumu sıfırla
     if (!isEditing) {
@@ -92,6 +131,7 @@ export function CustomerView({ initialData, onCancel = () => { window.location.h
         email: "",
         address: "",
         idNumber: "",
+        citizenship: "", // Vatandaşlık/Ülke alanı eklendi
         notes: "",
         createdAt: new Date().toISOString(),
       })
@@ -101,7 +141,7 @@ export function CustomerView({ initialData, onCancel = () => { window.location.h
     setShowForm(false)
   }
 
-  const handleEdit = (customer) => {
+  const handleEdit = (customer: Customer) => {
     // Tablodaki düzenle butonuna tıklandığında
     setFormData({
       id: customer.id || generateUUID(),
@@ -110,6 +150,7 @@ export function CustomerView({ initialData, onCancel = () => { window.location.h
       email: customer.email || "",
       address: customer.address || "",
       idNumber: customer.idNumber || "",
+      citizenship: customer.citizenship || "", // Vatandaşlık/Ülke alanı eklendi
       notes: customer.notes || "",
       createdAt: customer.createdAt || new Date().toISOString(),
     })
@@ -117,7 +158,7 @@ export function CustomerView({ initialData, onCancel = () => { window.location.h
     setShowForm(true)
   }
 
-  const handleDelete = (customer) => {
+  const handleDelete = (customer: Customer) => {
     setCustomerToDelete(customer)
     setIsDeleteDialogOpen(true)
   }
@@ -150,6 +191,7 @@ export function CustomerView({ initialData, onCancel = () => { window.location.h
         email: "",
         address: "",
         idNumber: "",
+        citizenship: "", // Vatandaşlık/Ülke alanı eklendi
         notes: "",
         createdAt: new Date().toISOString(),
       })
@@ -161,7 +203,7 @@ export function CustomerView({ initialData, onCancel = () => { window.location.h
     setShowForm(!showForm)
   }
 
-  const openEditForm = (customer) => {
+  const openEditForm = (customer: Customer) => {
     handleEdit(customer)
   }
 
@@ -172,7 +214,7 @@ export function CustomerView({ initialData, onCancel = () => { window.location.h
       (
         (customer.name && customer.name.toLowerCase().includes(searchTerm.toLowerCase())) ||
         (customer.phone && customer.phone.includes(searchTerm)) ||
-        (customer.email && customer.email.toLowerCase().includes(searchTerm.toLowerCase()))
+        (customer.email && customer.email?.toLowerCase().includes(searchTerm.toLowerCase()))
       )
   )
 
@@ -247,6 +289,17 @@ export function CustomerView({ initialData, onCancel = () => { window.location.h
               </div>
 
               <div className="space-y-2">
+                <Label htmlFor="citizenship">Vatandaşlık/Ülke</Label>
+                <Input
+                  id="citizenship"
+                  name="citizenship"
+                  value={formData.citizenship}
+                  onChange={handleChange}
+                  placeholder="Vatandaşlık veya ülke"
+                />
+              </div>
+
+              <div className="space-y-2">
                 <Label htmlFor="address">Adres</Label>
                 <Textarea
                   id="address"
@@ -308,6 +361,7 @@ export function CustomerView({ initialData, onCancel = () => { window.location.h
                   <TableHead>Telefon</TableHead>
                   <TableHead>E-posta</TableHead>
                   <TableHead>TC/Pasaport No</TableHead>
+                  <TableHead>Vatandaşlık/Ülke</TableHead>
                   <TableHead className="text-right">İşlemler</TableHead>
                 </TableRow>
               </TableHeader>
@@ -319,6 +373,7 @@ export function CustomerView({ initialData, onCancel = () => { window.location.h
                       <TableCell>{customer.phone}</TableCell>
                       <TableCell>{customer.email}</TableCell>
                       <TableCell>{customer.idNumber}</TableCell>
+                      <TableCell>{customer.citizenship}</TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end space-x-1">
                           <Button variant="ghost" size="icon" onClick={() => openEditForm(customer)} title="Düzenle">
@@ -333,7 +388,7 @@ export function CustomerView({ initialData, onCancel = () => { window.location.h
                   ))
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center py-4">
+                    <TableCell colSpan={6} className="text-center py-4">
                       {searchTerm ? "Arama kriterlerine uygun müşteri bulunamadı." : "Henüz müşteri kaydı bulunmuyor."}
                     </TableCell>
                   </TableRow>

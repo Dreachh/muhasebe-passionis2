@@ -20,17 +20,27 @@ const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#8884D8", "#82ca9d"
 
 // CustomerAnalytics bileşeni için tür tanımı
 interface Tour {
+  id?: string;
   nationality?: string;
   referralSource?: string;
-  // Gerekirse diğer alanlar eklenebilir
+  tourDate?: string | Date;
+  tourName?: string;
+  destination?: string; 
+  destinationId?: string;
+  [key: string]: any; // Diğer özellikleri de kabul etmek için
 }
 
 interface CustomerAnalyticsProps {
   toursData: Tour[];
 }
 
+// Ay veri tipi
+interface MonthData {
+  name: string;
+  customers: number;
+}
+
 export function CustomerAnalytics({ toursData }: CustomerAnalyticsProps) {
-  // Müşteri vatandaşlık/ülke dağılımı
   // Müşteri vatandaşlık/ülke dağılımı
   const getCustomerNationalityData = () => {
     const nationalityData: Record<string, number> = {};
@@ -56,7 +66,6 @@ export function CustomerAnalytics({ toursData }: CustomerAnalyticsProps) {
       .sort((a, b) => b.value - a.value);
   };
 
-  // Referans kaynağı dağılımı
   // Referans kaynağı dağılımı
   const getReferralSourceData = () => {
     const referralData: Record<string, number> = {};
@@ -113,7 +122,7 @@ export function CustomerAnalytics({ toursData }: CustomerAnalyticsProps) {
 
   // Aylara göre müşteri dağılımı
   const getCustomersByMonth = () => {
-    const monthlyData = {};
+    const monthlyData: Record<string, MonthData> = {};
     
     // Son 12 ayı hazırla
     const now = new Date();

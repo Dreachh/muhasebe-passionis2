@@ -25,30 +25,44 @@ import { useRouter } from 'next/navigation'
 import { generateUUID } from "../lib/utils";
 
 interface TourActivity {
+  id: string;
+  activityId: string;
   name: string;
-  date?: string | Date;
+  date: string;
   duration?: string;
-  price: number;
-  currency?: string;
+  price: number | string;
+  currency: string;
+  participants: string | number;
+  participantsType: string;
+  providerId: string;
+  details?: string;
 }
 
 interface TourAdditionalCustomer {
+  id: string;
   name?: string;
   phone?: string;
   email?: string;
   idNumber?: string;
+  address?: string;
 }
 
 interface TourExpense {
-  id?: string;
-  type?: string;
-  name?: string;
+  id: string;
+  type: string;
+  name: string;
+  amount: string | number;
+  currency: string;
+  details?: string;
+  isIncludedInPrice: boolean;
+  rehberInfo?: string;
+  transferType?: string;
+  transferPerson?: string;
+  acentaName?: string;
   provider?: string;
   description?: string;
-  amount?: number;
   date?: string | Date;
   category?: string;
-  currency?: string;
 }
 
 interface TourData {
@@ -57,8 +71,8 @@ interface TourData {
   tourName?: string;
   tourDate: string | Date;
   tourEndDate?: string | Date;
-  numberOfPeople?: number;
-  numberOfChildren?: number;
+  numberOfPeople: number;
+  numberOfChildren: number;
   customerName?: string;
   customerPhone?: string;
   customerEmail?: string;
@@ -66,18 +80,26 @@ interface TourData {
   customerTC?: string;
   customerPassport?: string;
   customerDrivingLicense?: string;
-  pricePerPerson?: number;
-  totalPrice?: number;
+  customerAddress?: string;
+  pricePerPerson: string | number;
+  totalPrice: string | number;
   currency?: string;
   paymentStatus?: string;
   paymentMethod?: string;
-  partialPaymentAmount?: number;
+  partialPaymentAmount?: string | number;
   partialPaymentCurrency?: string;
   notes?: string;
   activities?: TourActivity[];
   companyName?: string;
   additionalCustomers?: TourAdditionalCustomer[];
   expenses?: TourExpense[];
+  nationality?: string;
+  destination?: string;
+  destinationId?: string;
+  destinationName?: string;
+  referralSource?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 interface FinancialData {
@@ -89,6 +111,9 @@ interface FinancialData {
   amount?: number;
   currency?: string;
   paymentMethod?: string;
+  relatedTourId?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 interface CustomerData {
@@ -97,8 +122,13 @@ interface CustomerData {
   phone?: string;
   email?: string;
   idNumber?: string;
+  citizenship?: string;
+  address?: string;
+  notes?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  deleted?: boolean;
 }
-
 
 export default function Home() {
   const [currentView, setCurrentView] = useState<string>("splash")
@@ -238,6 +268,45 @@ export default function Home() {
     setupDB()
   }, [])
 
+  // Müşteri verilerini güncelle citizenship değerlerini doldur
+  useEffect(() => {
+    const updateCustomersWithCitizenship = async () => {
+      try {
+        // Mevcut müşteri verilerini kontrol et
+        const updatedCustomers = customersData.map(customer => {
+          // Eğer citizenship yoksa ve tour dataları içinde bu müşteriye ait bir kayıt varsa nationality değerini citizenship'e ata
+          if (!customer.citizenship) {
+            // Müşteriye ait tour kaydını bul
+            const relatedTour = toursData.find(
+              tour => tour.customerPhone === customer.phone || 
+                     tour.customerEmail === customer.email || 
+                     tour.customerIdNumber === customer.idNumber
+            );
+            
+            // Tour kaydı varsa ve nationality değeri doluysa
+            if (relatedTour && relatedTour.nationality) {
+              return { ...customer, citizenship: relatedTour.nationality };
+            }
+          }
+          return customer;
+        });
+
+        // Değişiklik olan müşteri varsa veriyi güncelle
+        if (JSON.stringify(updatedCustomers) !== JSON.stringify(customersData)) {
+          console.log("Müşteri citizenship verileri güncelleniyor...");
+          await handleDataUpdate("customers", updatedCustomers);
+        }
+      } catch (error) {
+        console.error("Müşteri verileri güncellenirken hata:", error);
+      }
+    };
+
+    // Uygulamanın ilk yüklenmesinde bir kez çalıştır
+    if (customersData.length > 0 && toursData.length > 0) {
+      updateCustomersWithCitizenship();
+    }
+  }, [customersData, toursData]);
+
   const handleSplashFinish = () => {
     setCurrentView("main-dashboard")
   }
@@ -334,9 +403,9 @@ export default function Home() {
           // addData hata verirse updateData ile güncelle
           try {
             await addData("tours", item);
-          } catch (e) {
+          } catch (e: any) { // 'any' olarak belirtilen error tipi özelliklere erişim için
             // Eğer anahtar çakışması hatası ise, önce silip tekrar ekle
-            if (e && e.name === "ConstraintError") {
+            if (e && typeof e === 'object' && 'name' in e && e.name === "ConstraintError") {
               await deleteData("tours", item.id);
               await addData("tours", item);
             } else {
@@ -368,7 +437,7 @@ export default function Home() {
         title: "Başarılı!",
         description: "Veriler başarıyla güncellendi.",
       })
-    } catch (error) {
+    } catch (error: any) {
       console.error("Veri güncelleme hatası:", error)
       toast({
         title: "Hata",
@@ -379,10 +448,10 @@ export default function Home() {
   }
 
   // Tur giderlerini finansal kayıtlara ekleyen yardımcı fonksiyon
-  const addTourExpensesToFinancials = async (tourData: any) => {
+  const addTourExpensesToFinancials = async (tourData: TourData) => {
     try {
       // Önce bu tura ait eski giderleri sil
-      const allFinancials = await getAllData("financials");
+      const allFinancials = await getAllData("financials") as FinancialData[];
       const oldTourExpenses = allFinancials.filter(
         (item) => item.relatedTourId === tourData.id && item.type === "expense"
       );
@@ -393,7 +462,11 @@ export default function Home() {
       // Tur giderlerini finansal kayıtlara ekle
       if (tourData.expenses && tourData.expenses.length > 0) {
         for (const expense of tourData.expenses) {
-          if (!expense.amount || expense.amount <= 0) continue;
+          const expenseAmount = typeof expense.amount === "string" 
+            ? parseFloat(expense.amount) 
+            : expense.amount || 0;
+            
+          if (!expenseAmount || expenseAmount <= 0) continue;
 
           // Her gider için benzersiz bir id üret (turId + giderId)
           const expenseId = `${tourData.id}-${expense.id || generateUUID()}`;
@@ -404,7 +477,7 @@ export default function Home() {
             type: "expense",
             category: expense.category || "Tur Gideri",
             description: `${tourData.tourName || 'İsimsiz Tur'} - ${expense.name || 'Gider'} (${tourData.serialNumber || 'No'})`,
-            amount: expense.amount,
+            amount: expenseAmount,
             currency: expense.currency || "TRY",
             paymentMethod: "cash",
             relatedTourId: tourData.id,
@@ -420,20 +493,31 @@ export default function Home() {
           .filter((item) => !(item.relatedTourId === tourData.id && item.type === "expense"))
           .concat(
             tourData.expenses
-              .filter((expense) => expense.amount && expense.amount > 0)
-              .map((expense) => ({
-                id: `${tourData.id}-${expense.id || generateUUID()}`,
-                date: new Date().toISOString(),
-                type: "expense",
-                category: expense.category || "Tur Gideri",
-                description: `${tourData.tourName || 'İsimsiz Tur'} - ${expense.name || 'Gider'} (${tourData.serialNumber || 'No'})`,
-                amount: expense.amount,
-                currency: expense.currency || "TRY",
-                paymentMethod: "cash",
-                relatedTourId: tourData.id,
-                createdAt: new Date().toISOString(),
-                updatedAt: new Date().toISOString(),
-              }))
+              .filter((expense) => {
+                const expenseAmount = typeof expense.amount === "string" 
+                  ? parseFloat(expense.amount) 
+                  : expense.amount || 0;
+                return expenseAmount > 0;
+              })
+              .map((expense) => {
+                const expenseAmount = typeof expense.amount === "string" 
+                  ? parseFloat(expense.amount) 
+                  : expense.amount || 0;
+                  
+                return {
+                  id: `${tourData.id}-${expense.id || generateUUID()}`,
+                  date: new Date().toISOString(),
+                  type: "expense",
+                  category: expense.category || "Tur Gideri",
+                  description: `${tourData.tourName || 'İsimsiz Tur'} - ${expense.name || 'Gider'} (${tourData.serialNumber || 'No'})`,
+                  amount: expenseAmount,
+                  currency: expense.currency || "TRY",
+                  paymentMethod: "cash",
+                  relatedTourId: tourData.id,
+                  createdAt: new Date().toISOString(),
+                  updatedAt: new Date().toISOString(),
+                };
+              })
           );
         setFinancialData(updatedFinancials);
 
@@ -454,22 +538,26 @@ export default function Home() {
 
   const handleSaveTour = async (tourData: any) => {
     try {
-      // Önce müşteri verisini oluştur ve kaydet
-      const customerExists = customersData.some(
+      console.log("handleSaveTour başladı:", tourData);
+
+      // Öncelikle müşteri kaydetme kontrolü - eğer bu müşteri daha önce kaydedilmemişse
+      const existingCustomer = customersData.find(
         (customer) => 
-          customer.name === tourData.customerName && 
-          customer.phone === tourData.customerPhone
+          customer.phone === tourData.customerPhone || 
+          customer.idNumber === tourData.customerIdNumber ||
+          customer.email === tourData.customerEmail
       );
 
-      // Eğer müşteri veritabanında yoksa ekle
-      if (!customerExists && tourData.customerName) {
-        const newCustomer: CustomerData = {
+      if (!existingCustomer && tourData.customerName) {
+        // Yeni müşteri bilgisi oluştur
+        const newCustomer = {
           id: generateUUID(),
           name: tourData.customerName,
           phone: tourData.customerPhone,
           email: tourData.customerEmail,
           address: tourData.customerAddress,
           idNumber: tourData.customerIdNumber,
+          citizenship: tourData.nationality, // Nationality bilgisini citizenship alanına kaydet
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         };
@@ -686,7 +774,7 @@ export default function Home() {
           {currentView === "financial-entry" && (
             <FinancialEntryForm
               initialData={editingRecord}
-              onSave={(newEntry) => {
+              onSave={(newEntry: FinancialData) => {
                 // Yeni finansal kaydı ekle veya düzenle
                 const updatedData = editingRecord
                   ? financialData.map(item => item.id === newEntry.id ? newEntry : item)
@@ -704,7 +792,7 @@ export default function Home() {
               onSave={handleSaveTour}
               onCancel={() => { setEditingRecord(null); navigateTo("main-dashboard"); }}
               toursData={toursData}
-              onUpdateData={(data) => handleDataUpdate("tours", data)}
+              onUpdateData={(data: TourData[]) => handleDataUpdate("tours", data)}
               onNavigate={navigateTo}
               editingRecord={editingRecord}
               setEditingRecord={setEditingRecord}
@@ -731,27 +819,34 @@ export default function Home() {
           )}
           {currentView === "calendar" && (
             <CalendarView
-              toursData={toursData.map(tour => ({
-                id: tour.id,
-                date: new Date(tour.tourDate),
-                title: `#${tour.serialNumber || '----'} | ${tour.customerName || 'İsimsiz'} (${tour.numberOfPeople || 0} Kişi)`,
-                customers: `${tour.numberOfPeople || 0} Kişi`,
-                color: '#4f46e5',
-                location: tour.tourName || 'Belirtilmemiş',
-                time: new Date(tour.tourDate).getHours() + ':00',
-                tourName: tour.tourName,
-                customerName: tour.customerName,
-                totalPrice: tour.totalPrice,
-                currency: tour.currency,
-                serialNumber: tour.serialNumber
-              }))}
+              toursData={toursData.map(tour => {
+                // Güvenli tip dönüşümü için
+                const totalPriceValue = typeof tour.totalPrice === 'string' 
+                  ? parseFloat(tour.totalPrice) 
+                  : (tour.totalPrice || 0);
+                  
+                return {
+                  id: tour.id,
+                  date: new Date(tour.tourDate),
+                  title: `#${tour.serialNumber || '----'} | ${tour.customerName || 'İsimsiz'} (${tour.numberOfPeople || 0} Kişi)`,
+                  customers: `${tour.numberOfPeople || 0} Kişi`,
+                  color: '#4f46e5',
+                  location: tour.tourName || 'Belirtilmemiş',
+                  time: new Date(tour.tourDate).getHours() + ':00',
+                  tourName: tour.tourName,
+                  customerName: tour.customerName,
+                  totalPrice: totalPriceValue,
+                  currency: tour.currency,
+                  serialNumber: tour.serialNumber
+                };
+              })}
               onNavigate={navigateTo}
             />
           )}
           {currentView === "customers" && (
             <CustomerView
               customersData={customersData}
-              onUpdateData={(data) => handleDataUpdate("customers", data)}
+              onUpdateData={(data: CustomerData[]) => handleDataUpdate("customers", data)}
               onNavigate={navigateTo}
               editingRecord={editingRecord}
               setEditingRecord={setEditingRecord}
@@ -759,21 +854,36 @@ export default function Home() {
           )}
           {currentView === "analytics" && (
             <EnhancedAnalyticsView
-              financialData={financialData}
-              toursData={toursData}
+              financialData={financialData.map(item => {
+                // String tarihleri doğru formata dönüştürme
+                const processedDate = typeof item.date === 'string' ? item.date : item.date.toISOString();
+                return {
+                  ...item,
+                  date: processedDate
+                };
+              })}
+              toursData={toursData.map(tour => {
+                // String veya Date türündeki tourDate değerini uygun string formatına dönüştürme
+                const processedTourDate = typeof tour.tourDate === 'string' ? tour.tourDate : tour.tourDate.toISOString();
+                const processedTourEndDate = tour.tourEndDate 
+                  ? (typeof tour.tourEndDate === 'string' ? tour.tourEndDate : tour.tourEndDate.toISOString())
+                  : undefined;
+                
+                return {
+                  ...tour,
+                  tourDate: processedTourDate,
+                  tourEndDate: processedTourEndDate
+                };
+              })}
               customersData={customersData}
               onNavigate={navigateTo}
             />
           )}
           {currentView === "backup-restore" && (
             <BackupRestoreView
-              financialData={financialData}
-              toursData={toursData}
-              customersData={customersData}
-              onUpdateData={handleDataUpdate}
-              onNavigate={navigateTo}
-              exportData={exportData}
-              importData={importData}
+              onClose={() => navigateTo("main-dashboard")}
+              onExport={handleExportData}
+              onImport={handleImportData}
             />
           )}
           {currentView === "settings" && (
