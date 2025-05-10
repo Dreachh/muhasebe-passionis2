@@ -55,25 +55,62 @@ export function CurrencyFinancialSummary({
       return item && item.currency === cur;
     };
 
-    // Gelirler
+    // Gelirler (finansal kayıtlardaki gelirler)
     const income = financialData
       .filter(item => item && item.type === "income" && filterByCurrency(item))
-      .reduce((sum, item) => sum + (Number.parseFloat(item?.amount?.toString() || '0') || 0), 0);
+      .reduce((sum, item) => {
+        const amount = Number.parseFloat(item?.amount?.toString() || '0') || 0;
+        return sum + amount;
+      }, 0);
     
-    // Giderler (tur giderleri dahil)
+    // Giderler (finansal kayıtlardaki giderler)
     const expense = financialData
       .filter(item => item && item.type === "expense" && filterByCurrency(item))
-      .reduce((sum, item) => sum + (Number.parseFloat(item?.amount?.toString() || '0') || 0), 0);
+      .reduce((sum, item) => {
+        const amount = Number.parseFloat(item?.amount?.toString() || '0') || 0;
+        return sum + amount;
+      }, 0);
     
-    // Tur giderleri (finansal kayıtlarda tur gideri olarak işaretlenenler)
+    // Tur giderleri (finansal kayıtlardaki tur gideri olarak işaretlenenler)
     const tourExpenses = financialData
       .filter(item => item && item.type === "expense" && item.category === "Tur Gideri" && filterByCurrency(item))
-      .reduce((sum, item) => sum + (Number.parseFloat(item?.amount?.toString() || '0') || 0), 0);
-    
-    // Tur gelirleri
+      .reduce((sum, item) => {
+        const amount = Number.parseFloat(item?.amount?.toString() || '0') || 0;
+        return sum + amount;
+      }, 0);
+      
+    // Tur gelirleri (turların totalPrice değerleri)
     const tourIncome = toursData
-      .filter(tour => tour && filterByCurrency(tour))
-      .reduce((sum, tour) => sum + (Number.parseFloat(tour?.totalPrice?.toString() || '0') || 0), 0);
+      .filter(tour => tour && filterByCurrency(tour) && (tour.paymentStatus === 'completed' || tour.paymentStatus === 'partial'))
+      .reduce((sum, tour) => {
+        // Tamamlanmış veya kısmi ödeme durumuna göre hesapla
+        let amount = 0;
+        if (tour.paymentStatus === 'completed') {
+          // Tamamlanmış ödemeler için totalPrice kullan
+          amount = Number.parseFloat(tour?.totalPrice?.toString() || '0') || 0;
+        } else if (tour.paymentStatus === 'partial') {
+          // Kısmi ödemeler için partialPaymentAmount kullan
+          const partialAmount = Number.parseFloat(tour?.partialPaymentAmount?.toString() || '0') || 0;
+          // Eğer kısmi ödemenin para birimi aranılan para birimiyle aynıysa ekle
+          if (tour.partialPaymentCurrency === cur || cur === 'all') {
+            amount = partialAmount;
+          }
+          
+          // Aktiviteleri kontrol et
+          if (Array.isArray(tour.activities)) {
+            tour.activities.forEach(activity => {
+              if (activity.currency === cur && activity.price && activity.participants) {
+                const activityPrice = Number(activity.price) || 0;
+                const participants = Number(activity.participants) || 0;
+                amount += activityPrice * participants;
+              }
+            });
+          }
+        }
+        return sum + amount;
+      }, 0);
+    
+    console.log(`${cur} para birimi özeti hesaplandı:`, { income, expense, tourIncome, tourExpenses });
     
     return {
       income,

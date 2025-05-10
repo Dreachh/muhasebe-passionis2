@@ -23,6 +23,35 @@ import { MainHeader } from "../components/main-header"
 import { Sidebar } from "../components/sidebar"
 import { useRouter } from 'next/navigation'
 import { generateUUID } from "../lib/utils";
+import loadInitialData from "../data/reload-data"
+
+// Uygulama verilerini tamamen sıfırlamak için fonksiyon
+const resetAllData = async () => {
+  try {
+    // localStorage'da mevcut verileri temizle
+    localStorage.removeItem('financialData');
+    localStorage.removeItem('toursData');
+    localStorage.removeItem('customerData');
+    localStorage.removeItem('settings');
+    localStorage.removeItem('destinations');
+    localStorage.removeItem('activities');
+    localStorage.removeItem('providers');
+    localStorage.removeItem('expenses');
+    localStorage.removeItem('referral_sources');
+    
+    // Tüm verileri silme bayrağını ekle - bu, uygulamanın bir sonraki başlatılmasında tüm verileri silecek
+    localStorage.setItem('resetAllData', 'true');
+    
+    console.log("Tüm veriler temizlendi. Uygulama yeniden başlatılacak.");
+    
+    // Sayfayı yenileyerek yeni verileri yükle
+    window.location.reload();
+    
+  } catch (error) {
+    console.error("Veri sıfırlama hatası:", error);
+    alert("Veriler sıfırlanırken bir hata oluştu. Lütfen tekrar deneyin.");
+  }
+};
 
 interface TourActivity {
   id: string;
@@ -137,6 +166,7 @@ export default function Home() {
   const [customersData, setCustomersData] = useState<CustomerData[]>([])
   const [editingRecord, setEditingRecord] = useState<any>(null)
   const [isLoading, setIsLoading] = useState<boolean>(true)
+  const [forceReload, setForceReload] = useState<boolean>(false)
 
   const [splashFinished, setSplashFinished] = useState(false)
   const { toast } = useToast()
@@ -146,6 +176,13 @@ export default function Home() {
   // Add state to store temporary form data
   const [tempTourFormData, setTempTourFormData] = useState<any>(null)
   const [previousView, setPreviousView] = useState<string | null>(null)
+
+  // Yeniden yükle butonunu tıklandığında verileri sıfırla
+  const handleResetData = () => {
+    if (window.confirm("Bu işlem tüm verileri silecek ve Passionis Travel verilerini yükleyecektir. Devam etmek istiyor musunuz?")) {
+      resetAllData();
+    }
+  };
 
   useEffect(() => {
     try {
@@ -169,15 +206,56 @@ export default function Home() {
         if (typeof window !== 'undefined') {
           console.log("Veritabanından veriler yükleniyor...");
           await initializeDB();
+          
+          // Sıfırlama bayrağını kontrol et
+          const shouldResetData = localStorage.getItem('resetAllData') === 'true';
+          
+          if (shouldResetData) {
+            console.log("Tüm veriler sıfırlanıyor...");
+            localStorage.removeItem('resetAllData'); // Bayrağı kaldır
+            
+            // Tüm verileri temizle
+            await clearStore("tours");
+            await clearStore("financials");
+            await clearStore("customers");
+            await clearStore("settings");
+            await clearStore("activities");
+            await clearStore("destinations");
+            await clearStore("providers");
+            await clearStore("expenses");
+            await clearStore("referral_sources");
+            
+            // Passionis Travel verilerini yükle
+            console.log("Passionis Travel verileri yükleniyor...");
+            await loadInitialData();
+            
+            // Verileri al ve state'lere aktar
+            const updatedFinancialData = await getAllData("financials");
+            const updatedToursData = await getAllData("tours");
+            const updatedCustomersData = await getAllData("customers");
+            
+            setFinancialData(updatedFinancialData);
+            setToursData(updatedToursData);
+            setCustomersData(updatedCustomersData);
+            
+            setSplashFinished(true);
+            return;
+          }
 
+          // Normal veri yükleme işlemi
           // 1. IndexedDB'den veri yükle
           const financialDataFromDB = await getAllData("financials") as FinancialData[];
           const toursDataFromDB = await getAllData("tours") as TourData[];
           const customersDataFromDB = await getAllData("customers") as CustomerData[];
+          // Passionis için gerekli verileri yükle
+          const destinationsFromDB = await getAllData("destinations");
+          const activitiesFromDB = await getAllData("activities");
+          const providersFromDB = await getAllData("providers");
 
           let financialLoaded = false;
           let toursLoaded = false;
           let customersLoaded = false;
+          let passionisDataLoaded = false;
 
           if (financialDataFromDB && financialDataFromDB.length > 0) {
             setFinancialData(financialDataFromDB);
@@ -191,59 +269,48 @@ export default function Home() {
             setCustomersData(customersDataFromDB);
             customersLoaded = true;
           }
+          // Passionis verileri yüklendiyse işaretle
+          if (destinationsFromDB && destinationsFromDB.length > 0 &&
+              activitiesFromDB && activitiesFromDB.length > 0 &&
+              providersFromDB && providersFromDB.length > 0) {
+            passionisDataLoaded = true;
+          }
 
-          // 2. Eğer hiç veri yoksa örnek dosyadan yükle (örnekler sadece ilk açılışta)
-          if (!financialLoaded || !toursLoaded || !customersLoaded) {
-            const loadSample = async (file: string): Promise<any | null> => {
-              // public/data/ dizininde olmalı
-              try {
-                const res = await fetch(`/data/${file}`);
-                if (!res.ok) return null;
-                return await res.json();
-              } catch (err) { return null; }
-            };
-            if (!financialLoaded) {
-              const financeSample = await loadSample('sample-finance.json');
-              if (financeSample && financeSample.expenses && financeSample.incomes) {
-                const allFinancials = [
-                  ...financeSample.expenses.map((e: any) => ({ ...e, type: 'expense' })),
-                  ...financeSample.incomes.map((e: any) => ({ ...e, type: 'income' }))
-                ];
-                setFinancialData(allFinancials);
-                await clearStore("financials");
-                for (const item of allFinancials) {
-                  await addData("financials", item);
-                }
+          // 2. Eğer Passionis verileri yoksa reload-data.js'den yükle
+          if (!passionisDataLoaded || forceReload) {
+            console.log("Passionis Travel verileri yükleniyor...");
+            try {
+              await loadInitialData();
+              // Veriler yüklendikten sonra finansal verileri ve turları tekrar kontrol et
+              const updatedFinancialData = await getAllData("financials");
+              const updatedToursData = await getAllData("tours");
+              const updatedCustomersData = await getAllData("customers");
+              
+              if (updatedFinancialData && updatedFinancialData.length > 0) {
+                setFinancialData(updatedFinancialData);
+                financialLoaded = true;
               }
-            }
-            if (!toursLoaded) {
-              const toursSample = await loadSample('sample-tours.json');
-              if (toursSample && Array.isArray(toursSample)) {
-                setToursData(toursSample);
-                await clearStore("tours");
-                for (const item of toursSample) {
-                  await addData("tours", item);
-                }
+              if (updatedToursData && updatedToursData.length > 0) {
+                setToursData(updatedToursData);
+                toursLoaded = true;
               }
-            }
-            if (!customersLoaded) {
-              // Eğer müşteri dosyan yoksa, turlardan müşteri üret
-              const toursSample = await loadSample('sample-tours.json');
-              if (toursSample && Array.isArray(toursSample)) {
-                const customers = toursSample.map((t: any) => ({
-                  id: t.customerPhone || t.customerEmail || generateUUID(),
-                  name: t.customerName,
-                  phone: t.customerPhone,
-                  email: t.customerEmail
-                }));
-                setCustomersData(customers);
-                await clearStore("customers");
-                for (const item of customers) {
-                  await addData("customers", item);
-                }
+              if (updatedCustomersData && updatedCustomersData.length > 0) {
+                setCustomersData(updatedCustomersData);
+                customersLoaded = true;
               }
+              
+              if (forceReload) {
+                setForceReload(false);
+                toast({
+                  title: "Veriler Yüklendi",
+                  description: "Passionis Travel verileri başarıyla yüklendi.",
+                });
+              }
+            } catch (err) {
+              console.error("Passionis Travel verileri yüklenirken hata:", err);
             }
           }
+          
           setSplashFinished(true);
         }
       } catch (error) {
@@ -253,59 +320,7 @@ export default function Home() {
     }
 
     fetchData();
-  }, []);
-
-  useEffect(() => {
-    // Veritabanını başlat
-    const setupDB = async () => {
-      try {
-        await initializeDB()
-      } catch (error) {
-        console.error("Veritabanı başlatma hatası:", error)
-      }
-    }
-
-    setupDB()
-  }, [])
-
-  // Müşteri verilerini güncelle citizenship değerlerini doldur
-  useEffect(() => {
-    const updateCustomersWithCitizenship = async () => {
-      try {
-        // Mevcut müşteri verilerini kontrol et
-        const updatedCustomers = customersData.map(customer => {
-          // Eğer citizenship yoksa ve tour dataları içinde bu müşteriye ait bir kayıt varsa nationality değerini citizenship'e ata
-          if (!customer.citizenship) {
-            // Müşteriye ait tour kaydını bul
-            const relatedTour = toursData.find(
-              tour => tour.customerPhone === customer.phone || 
-                     tour.customerEmail === customer.email || 
-                     tour.customerIdNumber === customer.idNumber
-            );
-            
-            // Tour kaydı varsa ve nationality değeri doluysa
-            if (relatedTour && relatedTour.nationality) {
-              return { ...customer, citizenship: relatedTour.nationality };
-            }
-          }
-          return customer;
-        });
-
-        // Değişiklik olan müşteri varsa veriyi güncelle
-        if (JSON.stringify(updatedCustomers) !== JSON.stringify(customersData)) {
-          console.log("Müşteri citizenship verileri güncelleniyor...");
-          await handleDataUpdate("customers", updatedCustomers);
-        }
-      } catch (error) {
-        console.error("Müşteri verileri güncellenirken hata:", error);
-      }
-    };
-
-    // Uygulamanın ilk yüklenmesinde bir kez çalıştır
-    if (customersData.length > 0 && toursData.length > 0) {
-      updateCustomersWithCitizenship();
-    }
-  }, [customersData, toursData]);
+  }, [forceReload]);
 
   const handleSplashFinish = () => {
     setCurrentView("main-dashboard")
@@ -447,310 +462,6 @@ export default function Home() {
     }
   }
 
-  // Tur giderlerini finansal kayıtlara ekleyen yardımcı fonksiyon
-  const addTourExpensesToFinancials = async (tourData: TourData) => {
-    try {
-      // Önce bu tura ait eski giderleri sil
-      const allFinancials = await getAllData("financials") as FinancialData[];
-      const oldTourExpenses = allFinancials.filter(
-        (item) => item.relatedTourId === tourData.id && item.type === "expense"
-      );
-      for (const oldExpense of oldTourExpenses) {
-        await deleteData("financials", oldExpense.id);
-      }
-
-      // Tur giderlerini finansal kayıtlara ekle
-      if (tourData.expenses && tourData.expenses.length > 0) {
-        for (const expense of tourData.expenses) {
-          const expenseAmount = typeof expense.amount === "string" 
-            ? parseFloat(expense.amount) 
-            : expense.amount || 0;
-            
-          if (!expenseAmount || expenseAmount <= 0) continue;
-
-          // Her gider için benzersiz bir id üret (turId + giderId)
-          const expenseId = `${tourData.id}-${expense.id || generateUUID()}`;
-
-          const financialRecord: FinancialData = {
-            id: expenseId,
-            date: new Date().toISOString(),
-            type: "expense",
-            category: expense.category || "Tur Gideri",
-            description: `${tourData.tourName || 'İsimsiz Tur'} - ${expense.name || 'Gider'} (${tourData.serialNumber || 'No'})`,
-            amount: expenseAmount,
-            currency: expense.currency || "TRY",
-            paymentMethod: "cash",
-            relatedTourId: tourData.id,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-          };
-
-          await addData("financials", financialRecord);
-        }
-
-        // Ekrandaki state'i de güncelle
-        const updatedFinancials = allFinancials
-          .filter((item) => !(item.relatedTourId === tourData.id && item.type === "expense"))
-          .concat(
-            tourData.expenses
-              .filter((expense) => {
-                const expenseAmount = typeof expense.amount === "string" 
-                  ? parseFloat(expense.amount) 
-                  : expense.amount || 0;
-                return expenseAmount > 0;
-              })
-              .map((expense) => {
-                const expenseAmount = typeof expense.amount === "string" 
-                  ? parseFloat(expense.amount) 
-                  : expense.amount || 0;
-                  
-                return {
-                  id: `${tourData.id}-${expense.id || generateUUID()}`,
-                  date: new Date().toISOString(),
-                  type: "expense",
-                  category: expense.category || "Tur Gideri",
-                  description: `${tourData.tourName || 'İsimsiz Tur'} - ${expense.name || 'Gider'} (${tourData.serialNumber || 'No'})`,
-                  amount: expenseAmount,
-                  currency: expense.currency || "TRY",
-                  paymentMethod: "cash",
-                  relatedTourId: tourData.id,
-                  createdAt: new Date().toISOString(),
-                  updatedAt: new Date().toISOString(),
-                };
-              })
-          );
-        setFinancialData(updatedFinancials);
-
-        toast({
-          title: "Bilgi",
-          description: "Tur giderleri finansal kayıtlara aktarıldı.",
-        });
-      }
-    } catch (error) {
-      console.error("Tur giderleri finansal kayıtlara eklenirken hata:", error);
-      toast({
-        title: "Uyarı",
-        description: "Tur giderleri finansal kayıtlara eklenirken bir hata oluştu.",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const handleSaveTour = async (tourData: any) => {
-    try {
-      console.log("handleSaveTour başladı:", tourData);
-
-      // Öncelikle müşteri kaydetme kontrolü - eğer bu müşteri daha önce kaydedilmemişse
-      const existingCustomer = customersData.find(
-        (customer) => 
-          customer.phone === tourData.customerPhone || 
-          customer.idNumber === tourData.customerIdNumber ||
-          customer.email === tourData.customerEmail
-      );
-
-      if (!existingCustomer && tourData.customerName) {
-        // Yeni müşteri bilgisi oluştur
-        const newCustomer = {
-          id: generateUUID(),
-          name: tourData.customerName,
-          phone: tourData.customerPhone,
-          email: tourData.customerEmail,
-          address: tourData.customerAddress,
-          idNumber: tourData.customerIdNumber,
-          citizenship: tourData.nationality, // Nationality bilgisini citizenship alanına kaydet
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        };
-        
-        // Müşteriyi veritabanına ekle
-        await addData("customers", newCustomer);
-        setCustomersData([...customersData, newCustomer]);
-        
-        toast({
-          title: "Bilgi",
-          description: "Yeni müşteri kaydı otomatik olarak oluşturuldu.",
-        });
-      }
-
-      // Ek katılımcıları kaydetme işlemi kaldırıldı
-      // Kullanıcı isteğine göre sadece ana müşteri kaydedilecek, ek katılımcılar müşteriler kısmına kaydedilmeyecek
-      // Ek katılımcılar sadece tur kaydında tutulacak ve tur ön izlemesinde görüntülenecek
-
-      // Sonra tur kaydını kaydet
-      if (tourData.id && toursData.some((tour) => tour.id === tourData.id)) {
-        // Mevcut turu güncelle
-        await updateData("tours", tourData)
-        setToursData(toursData.map((tour) => (tour.id === tourData.id ? tourData : tour)))
-
-        // Tur tamamlandıysa giderleri finansal kayıtlara ekle
-        if (tourData.paymentStatus === "completed" && tourData.expenses && tourData.expenses.length > 0) {
-          await addTourExpensesToFinancials(tourData);
-        }
-      } else {
-        // Yeni tur ekle
-        await addData("tours", tourData)
-        setToursData([...toursData, tourData])
-
-        // Tur tamamlandıysa giderleri finansal kayıtlara ekle
-        if (tourData.paymentStatus === "completed" && tourData.expenses && tourData.expenses.length > 0) {
-          await addTourExpensesToFinancials(tourData);
-        }
-      }
-
-      toast({
-        title: "Başarılı!",
-        description: "Tur satışı başarıyla kaydedildi.",
-      })
-
-      // Clear temp form data after successful save
-      setTempTourFormData(null)
-      localStorage.removeItem("returnToTourSales")
-
-      // Navigate to dashboard
-      navigateTo("main-dashboard")
-    } catch (error) {
-      console.error("Tur kaydetme hatası:", error)
-      toast({
-        title: "Hata",
-        description: "Tur satışı kaydedilirken bir hata oluştu.",
-        variant: "destructive",
-      })
-    }
-  }
-
-  const handleSaveFinancial = async (data: FinancialData) => {
-    try {
-      if (data.id && financialData.some((item) => item.id === data.id)) {
-        // Mevcut finansal kaydı güncelle
-        await updateData("financials", data)
-        setFinancialData(financialData.map((item) => (item.id === data.id ? data : item)))
-      } else {
-        // Yeni finansal kayıt ekle
-        await addData("financials", data)
-        setFinancialData([...financialData, data])
-      }
-
-      toast({
-        title: "Başarılı!",
-        description: "Finansal kayıt başarıyla kaydedildi.",
-      })
-      // Artık ana sayfaya yönlendirme yapılmıyor, kullanıcı formda kalmaya devam eder.
-    } catch (error) {
-      console.error("Finansal kayıt hatası:", error)
-      toast({
-        title: "Hata",
-        description: "Finansal kayıt kaydedilirken bir hata oluştu.",
-        variant: "destructive",
-      })
-    }
-  }
-
-  const handleSaveCustomer = async (data: CustomerData) => {
-    try {
-      if (data.id && customersData.some((item) => item.id === data.id)) {
-        // Mevcut müşteri kaydını güncelle
-        await updateData("customers", data)
-        setCustomersData(customersData.map((item) => (item.id === data.id ? data : item)))
-      } else {
-        // Yeni müşteri kaydı ekle
-        await addData("customers", data)
-        setCustomersData([...customersData, data])
-      }
-
-      toast({
-        title: "Başarılı!",
-        description: "Müşteri kaydı başarıyla kaydedildi.",
-      })
-
-      navigateTo("main-dashboard")
-    } catch (error) {
-      console.error("Müşteri kayıt hatası:", error)
-      toast({
-        title: "Hata",
-        description: "Müşteri kaydı kaydedilirken bir hata oluştu.",
-        variant: "destructive",
-      })
-    }
-  }
-
-  // Store the type of record being edited so we know where to navigate after editingRecord is set
-  const [pendingEditType, setPendingEditType] = useState<string | null>(null);
-
-  const handleEditRecord = (type: string, record: any) => {
-    console.log("Düzenleme kaydı:", type, record);
-    const recordCopy = JSON.parse(JSON.stringify(record));
-    setEditingRecord(recordCopy);
-    setPendingEditType(type);
-  };
-
-  // Effect: When editingRecord and pendingEditType are set, navigate to the correct form
-  useEffect(() => {
-    if (editingRecord && pendingEditType) {
-      if (pendingEditType === "tours") {
-        console.log("Tur düzenleme verileri:", editingRecord);
-        navigateTo("tour-sales");
-      } else if (pendingEditType === "financial") {
-        console.log("Finansal düzenleme verileri:", editingRecord);
-        navigateTo("financial-entry");
-      } else if (pendingEditType === "customers") {
-        console.log("Müşteri düzenleme verileri:", editingRecord);
-        navigateTo("customers");
-      }
-      setPendingEditType(null); // Reset after navigation
-    }
-  }, [editingRecord, pendingEditType]);
-
-  // Function to temporarily store tour form data
-  const handleStoreTourFormData = (formData: any) => {
-    setTempTourFormData(formData)
-  }
-
-  // Function to return from settings to tour form
-  const handleReturnFromSettings = () => {
-    if (localStorage.getItem("returnToTourSales") === "true") {
-      localStorage.removeItem("returnToTourSales")
-      navigateTo("tour-sales")
-    } else {
-      navigateTo("main-dashboard")
-    }
-  }
-
-  const handleExportData = async () => {
-    try {
-      const success = await exportData()
-      if (success) {
-        toast({
-          title: "Başarılı!",
-          description: "Veriler başarıyla dışa aktarıldı.",
-        })
-      }
-    } catch (error: any) {
-      toast({
-        title: "Hata",
-        description: "Veriler dışa aktarılırken bir hata oluştu: " + error.message,
-        variant: "destructive",
-      })
-    }
-  }
-
-  const handleImportData = async () => {
-    try {
-      await importData()
-      toast({
-        title: "Başarılı!",
-        description: "Veriler başarıyla içe aktarıldı.",
-      })
-      // Sayfayı yenile
-      window.location.reload()
-    } catch (error: any) {
-      toast({
-        title: "Hata",
-        description: "Veriler içe aktarılırken bir hata oluştu: " + error.message,
-        variant: "destructive",
-      })
-    }
-  }
-
   // Splash screen göster
   if (currentView === "splash") {
     return <SplashScreen onFinish={handleSplashFinish} />
@@ -762,7 +473,20 @@ export default function Home() {
       <div className="flex-1 flex flex-col min-h-screen">
         <div className="flex-1">
           <Toaster />
+
           {/* Ana içerik */}
+          {/* Sıfırlama butonu sadece geliştirme ortamında gösterilsin */}
+          {process.env.NODE_ENV === 'development' && (
+            <div className="absolute top-4 right-4 z-50">
+              <button 
+                onClick={handleResetData}
+                className="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded shadow"
+              >
+                Tüm Verileri Sıfırla
+              </button>
+            </div>
+          )}
+          
           {currentView === "main-dashboard" && (
             <MainDashboard
               onNavigate={navigateTo}
@@ -781,7 +505,6 @@ export default function Home() {
                   : [...financialData, newEntry];
                 handleDataUpdate("financial", updatedData);
                 setEditingRecord(null);
-                // navigateTo("main-dashboard"); // Yönlendirme kaldırıldı, formda kalınacak
               }}
               onCancel={() => { setEditingRecord(null); navigateTo("main-dashboard"); }}
             />
@@ -789,7 +512,14 @@ export default function Home() {
           {currentView === "tour-sales" && (
             <TourSalesForm
               initialData={editingRecord}
-              onSave={handleSaveTour}
+              onSave={(tourData: any) => {
+                // Yeni tur kaydı ekle veya düzenle
+                const updatedData = editingRecord
+                  ? toursData.map(item => item.id === tourData.id ? tourData : item)
+                  : [...toursData, tourData];
+                handleDataUpdate("tours", updatedData);
+                setEditingRecord(null);
+              }}
               onCancel={() => { setEditingRecord(null); navigateTo("main-dashboard"); }}
               toursData={toursData}
               onUpdateData={(data: TourData[]) => handleDataUpdate("tours", data)}
@@ -893,7 +623,7 @@ export default function Home() {
               customersData={customersData}
               onUpdateData={handleDataUpdate}
               onNavigate={navigateTo}
-              onClose={handleReturnFromSettings}
+              onClose={() => navigateTo("main-dashboard")}
             />
           )}
           {currentView === "currency" && (

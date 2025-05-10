@@ -70,10 +70,20 @@ export function MainDashboard({ onNavigate, financialData = [], toursData = [], 
   // Tur Gideri: Her döviz için ayrı ayrı topla
   const tourExpenseByCurrency = toursData.reduce((acc, tour) => {
     if (Array.isArray(tour.expenses)) {
+      // Her gideri kendi para birimi için ayrı ayrı topla
       tour.expenses.forEach((expense) => {
+        // Giderin para birimi ve tutarını doğru şekilde al
         const currency = expense.currency || tour.currency || "TRY";
-        const amount = Number.parseFloat(expense.amount?.toString() || "0") || 0;
-        acc[currency] = (acc[currency] || 0) + amount;
+        
+        // Tutarı doğru şekilde sayısal değere çevir
+        const amount = typeof expense.amount === "string" ? 
+          parseFloat(expense.amount) : 
+          (expense.amount || 0);
+        
+        // Eğer geçerli bir tutarsa toplama ekle
+        if (!isNaN(amount) && amount > 0) {
+          acc[currency] = (acc[currency] || 0) + amount;
+        }
       });
     }
     return acc;

@@ -184,11 +184,46 @@ export function TourSalesForm({
     }
   })
 
-  // Aktivitelerin toplam fiyatını hesapla (para birimi ayrımı yapmadan tümünü hesapla)
+  // Toplam fiyatı otomatik güncelle (kişi başı fiyat * kişi sayısı + aktiviteler)
+  useEffect(() => {
+    // Kişi başı fiyat * kişi sayısı hesaplanır
+    const basePrice = Number(formData.pricePerPerson || 0) * Number(formData.numberOfPeople || 1);
+    
+    // Aktivitelerin toplam tutarı hesaplanırken, sadece ana tur para birimi ile aynı olanlar eklenir
+    let activitiesTotal = 0;
+    if (formData.activities && formData.activities.length > 0) {
+      activitiesTotal = formData.activities.reduce((sum, activity) => {
+        // Sadece ana tur para birimi ile aynı olanları topla
+        if (activity.currency === formData.currency) {
+          const price = Number(activity.price || 0);
+          let participants = 0;
+          
+          if (activity.participantsType === "all") {
+            participants = Number(formData.numberOfPeople || 0);
+          } else {
+            participants = Number(activity.participants || 0);
+          }
+          
+          return sum + (price * participants);
+        }
+        return sum;
+      }, 0);
+    }
+    
+    const total = basePrice + activitiesTotal;
+    console.log(`Tur fiyatı hesaplanıyor: Temel fiyat=${basePrice}, Aktiviteler=${activitiesTotal}, Toplam=${total} ${formData.currency}`);
+    
+    setFormData((prev) => ({ 
+      ...prev, 
+      totalPrice: total ? total.toString() : "" 
+    }));
+  }, [formData.pricePerPerson, formData.numberOfPeople, formData.activities, formData.currency]);
+
+  // Aktivitelerin toplam fiyatını hesapla (para birimi ayrımı yaparak hesapla)
   const calculateTotalActivitiesPrice = () => {
     if (!formData.activities || formData.activities.length === 0) return 0;
 
-    // Tüm aktiviteleri ana para birimine çevirerek topla
+    // Sadece ana tur para birimi ile aynı olan aktiviteleri hesapla
     return formData.activities.reduce((sum, activity) => {
       if (activity.currency === formData.currency) {
         const price = Number(activity.price) || 0;
@@ -201,20 +236,11 @@ export function TourSalesForm({
           participants = Number(activity.participants) || 0;
         }
         
-        return sum + price * (participants > 0 ? participants : 1);
+        return sum + price * (participants > 0 ? participants : 0);
       }
       return sum;
     }, 0);
   };
-
-  // Toplam fiyatı otomatik güncelle (kişi başı fiyat * kişi sayısı + aktiviteler)
-  useEffect(() => {
-    const base = Number(formData.pricePerPerson) * Number(formData.numberOfPeople || 1);
-    const activitiesTotal = calculateTotalActivitiesPrice();
-    const total = base + activitiesTotal;
-    setFormData((prev) => ({ ...prev, totalPrice: total ? total.toString() : "" }));
-    // eslint-disable-next-line
-  }, [formData.pricePerPerson, formData.numberOfPeople, formData.activities, formData.currency]);
 
   // Adım geçiş fonksiyonları
   const nextStep = () => setCurrentStep((prev) => Math.min(prev + 1, steps.length - 1));
