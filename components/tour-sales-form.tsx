@@ -628,6 +628,66 @@ export function TourSalesForm({
     loadData();
   }, [toast])
 
+  // Aktivite sayfasında sağlayıcıların yüklenmesini ve görüntülenmesini sağlamak için geliştirme
+  useEffect(() => {
+    // Sağlayıcı ve diğer verileri en başta önbellekten yükle
+    const loadInitialCachedProviders = () => {
+      try {
+        // providers verisini localStorage'dan yükle
+        const cachedProviders = localStorage.getItem('providers');
+        if (cachedProviders) {
+          const parsedProviders = JSON.parse(cachedProviders);
+          if (Array.isArray(parsedProviders) && parsedProviders.length > 0) {
+            console.log("Sağlayıcılar önbellekten yüklendi:", parsedProviders.length, "adet");
+            setProviders(parsedProviders);
+          } else {
+            console.log("Önbellekte sağlayıcı verisi bulunamadı veya boş dizi");
+            loadDefaultProviders();
+          }
+        } else {
+          console.log("Önbellekte providers anahtarı bulunamadı");
+          loadDefaultProviders();
+        }
+      } catch (error) {
+        console.error("Önbellekten sağlayıcı yükleme hatası:", error);
+        loadDefaultProviders();
+      }
+    };
+
+    // Varsayılan sağlayıcıları yükle (önbellekte veri yoksa)
+    const loadDefaultProviders = () => {
+      const defaultProviders = [
+        { id: "provider-1", name: "Tura Tur", contactPerson: "Ahmet Yılmaz", category: "tur_operatörü" },
+        { id: "provider-2", name: "Grand Otel", contactPerson: "Ayşe Kaya", category: "konaklama" },
+        { id: "provider-3", name: "Akdeniz Transfer", contactPerson: "Mehmet Demir", category: "ulaşım" }
+      ];
+      console.log("Varsayılan sağlayıcılar yükleniyor:", defaultProviders.length, "adet");
+      setProviders(defaultProviders);
+      
+      try {
+        localStorage.setItem('providers', JSON.stringify(defaultProviders));
+        console.log("Varsayılan sağlayıcılar önbelleğe kaydedildi");
+      } catch (error) {
+        console.error("Varsayılan sağlayıcılar önbelleğe kaydedilemedi:", error);
+      }
+    };
+
+    loadInitialCachedProviders();
+  }, []);
+
+  // Debug: Sağlayıcı verisini konsola yazdır
+  useEffect(() => {
+    console.log("Güncel providers durumu:", providers);
+  }, [providers]);
+
+  // Aktivitelerde kullanılan sağlayıcıların güncel durumunu konsola yazdır
+  useEffect(() => {
+    if (currentStep === 3 && formData.activities && formData.activities.length > 0) {
+      console.log("Aktivite adımında, mevcut aktiviteler:", formData.activities);
+      console.log("Aktivite adımında, mevcut sağlayıcılar:", providers);
+    }
+  }, [currentStep, formData.activities, providers]);
+
   // Store form data when component unmounts or when navigating away
   useEffect(() => {
     return () => {
@@ -661,6 +721,16 @@ export function TourSalesForm({
       }
       return updated;
     });
+  };
+
+  const handleSaveCustomerEmail = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { value } = e.target;
+    // E-posta değerini doğrudan formData'ya kaydet, hiçbir düzenleme yapmadan
+    setFormData((prev: any) => ({
+      ...prev,
+      customerEmail: value
+    }));
+    console.log("E-posta kaydediliyor:", value);
   };
 
   // Destinasyon seçildiğinde, adı da otomatik olarak kaydedilsin
@@ -919,7 +989,7 @@ export function TourSalesForm({
                     name="customerEmail"
                     type="email"
                     value={formData.customerEmail ?? ""}
-                    onChange={handleChange}
+                    onChange={handleSaveCustomerEmail}
                     placeholder="E-posta adresi"
                   />
                 </div>

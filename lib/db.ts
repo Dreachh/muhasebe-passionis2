@@ -75,48 +75,131 @@ export const openDB = (): Promise<IDBDatabase> => {
 // Veri ekle
 export const addData = async (storeName: string, data: any): Promise<any> => {
   try {
-    const db = await openDB()
-
-    return new Promise((resolve, reject) => {
-      const transaction = db.transaction(storeName, "readwrite")
-      const store = transaction.objectStore(storeName)
-      const request = store.add(data)
-
-      request.onsuccess = () => {
-        resolve(data)
+    const db = await openDB();
+    
+    if (!db) {
+      console.error("Veritabanı bulunamadı");
+      
+      // IndexedDB başarısız olursa localStorage'a kaydet
+      try {
+        const storageKey = `${storeName}_backup`;
+        const existingData = localStorage.getItem(storageKey);
+        const parsedData = existingData ? JSON.parse(existingData) : [];
+        
+        // Verileri ekle
+        parsedData.push(data);
+        
+        // localStorage'a kaydet
+        localStorage.setItem(storageKey, JSON.stringify(parsedData));
+        console.log(`Veri localStorage'a kaydedildi: ${storeName}`);
+        return data;
+      } catch (storageError) {
+        console.error(`localStorage'a kaydetme hatası:`, storageError);
+        throw new Error("Veri kaydedilemedi, lütfen daha sonra tekrar deneyin");
       }
+    }
 
-      request.onerror = () => {
-        reject("Veri eklenirken hata oluştu: " + request.error)
-      }
-    })
+    const transaction = db.transaction(storeName, "readwrite");
+    const store = transaction.objectStore(storeName);
+    const result = await store.add(data);
+    
+    // Başarılı kayıt için ek önlem olarak localStorage'a da kaydet
+    try {
+      const storageKey = `recent_${storeName}`;
+      localStorage.setItem(storageKey, JSON.stringify(data));
+      localStorage.setItem(`${storageKey}_timestamp`, new Date().toISOString());
+    } catch (e) {
+      console.warn("localStorage önbelleğe kaydetme başarısız:", e);
+    }
+    
+    return result;
   } catch (error) {
-    console.error(`Veri ekleme hatası (${storeName}):`, error)
-    throw error
+    console.error(`${storeName} verisini eklerken hata:`, error);
+    
+    // IndexedDB başarısız olursa localStorage'a kaydet
+    try {
+      const storageKey = `${storeName}_backup`;
+      const existingData = localStorage.getItem(storageKey);
+      const parsedData = existingData ? JSON.parse(existingData) : [];
+      
+      // Verileri ekle
+      parsedData.push(data);
+      
+      // localStorage'a kaydet
+      localStorage.setItem(storageKey, JSON.stringify(parsedData));
+      console.log(`Veri localStorage'a kaydedildi (hata durumu): ${storeName}`);
+      return data;
+    } catch (storageError) {
+      console.error(`localStorage'a kaydetme hatası:`, storageError);
+      throw error;
+    }
   }
 }
 
 // Veri güncelle
 export const updateData = async (storeName: string, data: any): Promise<any> => {
   try {
-    const db = await openDB()
-
-    return new Promise((resolve, reject) => {
-      const transaction = db.transaction(storeName, "readwrite")
-      const store = transaction.objectStore(storeName)
-      const request = store.put(data)
-
-      request.onsuccess = () => {
-        resolve(data)
+    const db = await openDB();
+    if (!db) {
+      console.error("Veritabanı bulunamadı");
+      
+      // IndexedDB başarısız olursa localStorage'a kaydet
+      try {
+        const storageKey = `${storeName}_backup`;
+        const existingData = localStorage.getItem(storageKey);
+        let parsedData = existingData ? JSON.parse(existingData) : [];
+        
+        // Mevcut kaydı güncelle
+        parsedData = parsedData.map((item: any) => 
+          item.id === data.id ? data : item
+        );
+        
+        // localStorage'a kaydet
+        localStorage.setItem(storageKey, JSON.stringify(parsedData));
+        console.log(`Veri localStorage'da güncellendi: ${storeName}`);
+        return data;
+      } catch (storageError) {
+        console.error(`localStorage güncelleme hatası:`, storageError);
+        throw new Error("Veri güncellenemedi, lütfen daha sonra tekrar deneyin");
       }
+    }
 
-      request.onerror = () => {
-        reject("Veri güncellenirken hata oluştu: " + request.error)
-      }
-    })
+    const transaction = db.transaction(storeName, "readwrite");
+    const store = transaction.objectStore(storeName);
+    await store.put(data);
+    
+    // Başarılı güncelleme için ek önlem olarak localStorage'a da kaydet
+    try {
+      const storageKey = `recent_${storeName}_update`;
+      localStorage.setItem(storageKey, JSON.stringify(data));
+      localStorage.setItem(`${storageKey}_timestamp`, new Date().toISOString());
+    } catch (e) {
+      console.warn("localStorage önbelleğe kaydetme başarısız:", e);
+    }
+    
+    return data;
   } catch (error) {
-    console.error(`Veri güncelleme hatası (${storeName}):`, error)
-    throw error
+    console.error(`${storeName} verisini güncellerken hata:`, error);
+    
+    // IndexedDB başarısız olursa localStorage'a kaydet
+    try {
+      const storageKey = `${storeName}_backup`;
+      const existingData = localStorage.getItem(storageKey);
+      let parsedData = existingData ? JSON.parse(existingData) : [];
+      
+      // Mevcut kaydı güncelle
+      parsedData = parsedData.map((item: any) => 
+        item.id === data.id ? data : item
+      );
+      
+      // localStorage'a kaydet
+      localStorage.setItem(storageKey, JSON.stringify(parsedData));
+      console.log(`Veri localStorage'da güncellendi (hata durumu): ${storeName}`);
+      return data;
+    } catch (storageError) {
+      console.error(`localStorage güncelleme hatası:`, storageError);
+      throw error;
+    }
   }
 }
 
