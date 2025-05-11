@@ -177,10 +177,40 @@ export default function Home() {
   const [tempTourFormData, setTempTourFormData] = useState<any>(null)
   const [previousView, setPreviousView] = useState<string | null>(null)
 
-  // Yeniden yükle butonunu tıklandığında verileri sıfırla
-  const handleResetData = () => {
-    if (window.confirm("Bu işlem tüm verileri silecek ve Passionis Travel verilerini yükleyecektir. Devam etmek istiyor musunuz?")) {
-      resetAllData();
+  // Yedekleme ve geri yükleme işlemleri için fonksiyonlar
+  const handleExportData = async () => {
+    try {
+      await exportData();
+      toast({
+        title: "Başarılı!",
+        description: "Veriler başarıyla dışa aktarıldı.",
+      });
+    } catch (error) {
+      console.error("Dışa aktarma hatası:", error);
+      toast({
+        title: "Hata",
+        description: "Veriler dışa aktarılırken bir hata oluştu.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleImportData = async () => {
+    try {
+      await importData();
+      // Verileri yeniden yükle
+      window.location.reload();
+      toast({
+        title: "Başarılı!",
+        description: "Veriler başarıyla içe aktarıldı. Sayfa yenileniyor...",
+      });
+    } catch (error) {
+      console.error("İçe aktarma hatası:", error);
+      toast({
+        title: "Hata",
+        description: "Veriler içe aktarılırken bir hata oluştu.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -475,18 +505,6 @@ export default function Home() {
           <Toaster />
 
           {/* Ana içerik */}
-          {/* Sıfırlama butonu sadece geliştirme ortamında gösterilsin */}
-          {process.env.NODE_ENV === 'development' && (
-            <div className="absolute top-4 right-4 z-50">
-              <button 
-                onClick={handleResetData}
-                className="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded shadow"
-              >
-                Tüm Verileri Sıfırla
-              </button>
-            </div>
-          )}
-          
           {currentView === "main-dashboard" && (
             <MainDashboard
               onNavigate={navigateTo}

@@ -88,6 +88,17 @@ interface Destination {
   description: string;
 }
 
+// Tur modeli ekleniyor
+interface Tour {
+  id: string;
+  name: string;
+  description: string;
+  destinationId: string;  
+  price: number;  // kişi başı fiyat
+  duration: string;
+  currency: string;
+}
+
 interface CompanyInfo {
   name: string;
   address: string;
@@ -192,6 +203,23 @@ export function SettingsView({
   const [isEditingDestination, setIsEditingDestination] = useState(false)
   const [isDeleteDestinationDialogOpen, setIsDeleteDestinationDialogOpen] = useState(false)
   const [destinationToDelete, setDestinationToDelete] = useState<Destination | null>(null)
+
+  // Tur şablonları için state
+  const [tourTemplates, setTourTemplates] = useState<Tour[]>([])
+  const [newTourTemplate, setNewTourTemplate] = useState<Tour>({
+    id: "",
+    name: "",
+    description: "",
+    destinationId: "",
+    price: 0,
+    duration: "",
+    currency: "EUR",
+  })
+  const [selectedDestinationId, setSelectedDestinationId] = useState<string>("")
+  const [isTourDialogOpen, setIsTourDialogOpen] = useState(false)
+  const [isEditingTour, setIsEditingTour] = useState(false)
+  const [isDeleteTourDialogOpen, setIsDeleteTourDialogOpen] = useState(false)
+  const [tourToDelete, setTourToDelete] = useState<Tour | null>(null)
 
   // Ayarları ve gider türlerini yükle
   useEffect(() => {
@@ -486,10 +514,124 @@ export function SettingsView({
       }
     }
 
+    // Tur şablonlarını yükle
+    const loadTourTemplates = async () => {
+      try {
+        const { getTourTemplates } = await import("@/lib/db");
+        const tourTemplatesData = await getTourTemplates();
+        setTourTemplates(tourTemplatesData);
+      } catch (error) {
+        console.error("Tur şablonları yüklenirken hata:", error);
+        
+        // Örnek tur şablonları (boş destinasyon gelirse örnek eklenmesin)
+        if (destinations.length > 0) {
+          const istanbulDestination = destinations.find(d => d.name === "İstanbul");
+          const kapadokyaDestination = destinations.find(d => d.name === "Kapadokya");
+          const antalyaDestination = destinations.find(d => d.name === "Antalya");
+          const trabzonDestination = destinations.find(d => d.name === "Trabzon");
+          
+          if (istanbulDestination || kapadokyaDestination || antalyaDestination) {
+            const exampleTours = [];
+            
+            // İstanbul turları
+            if (istanbulDestination) {
+              exampleTours.push({
+                id: generateUUID(),
+                name: "İstanbul Klasik Eski Şehir Turu",
+                description: "İstanbul'un tarihi yerlerini kapsayan günübirlik tur",
+                destinationId: istanbulDestination.id,
+                price: 150,
+                duration: "8 saat",
+                currency: "EUR"
+              });
+              
+              exampleTours.push({
+                id: generateUUID(),
+                name: "Boğaz'da Akşam Yemek Turu",
+                description: "Boğaz'da eğlenceli akşam yemeği turu",
+                destinationId: istanbulDestination.id,
+                price: 60,
+                duration: "3 saat",
+                currency: "EUR"
+              });
+            }
+            
+            // Kapadokya turları
+            if (kapadokyaDestination) {
+              exampleTours.push({
+                id: generateUUID(),
+                name: "Sıcak Hava Balonu Turu",
+                description: "Kapadokya manzarası üzerinde balon uçuşu",
+                destinationId: kapadokyaDestination.id,
+                price: 280,
+                duration: "1 saat",
+                currency: "EUR"
+              });
+              
+              exampleTours.push({
+                id: generateUUID(),
+                name: "Günübirlik Kapadokya Kuzey (Kırmızı Tur)",
+                description: "Kuzey Kapadokya günübirlik turu",
+                destinationId: kapadokyaDestination.id,
+                price: 475,
+                duration: "8 saat",
+                currency: "EUR"
+              });
+              
+              exampleTours.push({
+                id: generateUUID(),
+                name: "2 Gün 1 Gece Sıcak Hava Balonlu Kapadokya Turu",
+                description: "Sıcak hava balonu, Güllü Vadi, Kaymaklı Yeraltı Şehri, kaya oyma köyler, Göreme Açık Hava Müzesi dahil konaklama turu",
+                destinationId: kapadokyaDestination.id,
+                price: 850,
+                duration: "2 gün, 1 gece",
+                currency: "EUR"
+              });
+            }
+            
+            // Antalya turları
+            if (antalyaDestination) {
+              exampleTours.push({
+                id: generateUUID(),
+                name: "3 Gün 2 Gece Antalya Turu",
+                description: "Antalya'da çok günlü tur",
+                destinationId: antalyaDestination.id,
+                price: 750,
+                duration: "3 gün, 2 gece",
+                currency: "EUR"
+              });
+            }
+            
+            // Trabzon turları
+            if (trabzonDestination) {
+              exampleTours.push({
+                id: generateUUID(),
+                name: "3 Gün 2 Gece Trabzon & Uzungöl Turu",
+                description: "Trabzon ve Uzungöl'ün çok günlü turu",
+                destinationId: trabzonDestination.id,
+                price: 600,
+                duration: "3 gün, 2 gece",
+                currency: "EUR"
+              });
+            }
+            
+            if (exampleTours.length > 0) {
+              setTourTemplates(exampleTours);
+              
+              // Tur şablonlarını veritabanına kaydet
+              const { saveTourTemplates } = await import("@/lib/db");
+              await saveTourTemplates(exampleTours);
+            }
+          }
+        }
+      }
+    };
+
     loadSettings()
     loadProviders()
     loadActivities()
     loadDestinations()
+    loadTourTemplates()
   }, [])
 
   const handleCompanyInfoChange = (e: InputChangeEvent) => {
@@ -956,6 +1098,30 @@ export function SettingsView({
     }
   }
 
+  // Tur şablonu sil
+  const handleDeleteTourTemplate = async () => {
+    const updatedTourTemplates = tourTemplates.filter((item) => item.id !== tourToDelete?.id)
+    setTourTemplates(updatedTourTemplates)
+    setIsDeleteTourDialogOpen(false)
+
+    // Değişiklikleri hemen kaydet
+    try {
+      const { saveTourTemplates } = await import("@/lib/db");
+      await saveTourTemplates(updatedTourTemplates);
+      toast({
+        title: "Başarılı",
+        description: "Tur şablonu silindi.",
+      })
+    } catch (error) {
+      console.error("Tur şablonları kaydedilirken hata:", error)
+      toast({
+        title: "Hata",
+        description: "Tur şablonları kaydedilirken bir hata oluştu.",
+        variant: "destructive",
+      })
+    }
+  }
+
   // Benzersiz gider türlerini al
   const getUniqueExpenseTypes = () => {
     const types = new Set(expenseTypes.map((item) => item.type))
@@ -986,12 +1152,13 @@ export function SettingsView({
       </CardHeader>
       <CardContent>
         <Tabs defaultValue="company" className="w-full">
-          <TabsList className="grid w-full md:w-auto md:inline-flex grid-cols-5">
+          <TabsList className="grid w-full md:w-auto md:inline-flex grid-cols-6">
             <TabsTrigger value="company">Şirket</TabsTrigger>
             <TabsTrigger value="providers">Sağlayıcılar</TabsTrigger>
             <TabsTrigger value="expense-types">Gider Türleri</TabsTrigger>
             <TabsTrigger value="activities">Aktiviteler</TabsTrigger>
             <TabsTrigger value="destinations">Destinasyonlar</TabsTrigger>
+            <TabsTrigger value="tours">Tur Şablonları</TabsTrigger>
           </TabsList>
 
           {/* Şirket Bilgileri */}
@@ -1070,7 +1237,6 @@ export function SettingsView({
                 <Save className="h-4 w-4 mr-2" />
                 Şirket Bilgilerini Kaydet
               </Button>
-
             </div>
           </TabsContent>
 
@@ -1206,7 +1372,7 @@ export function SettingsView({
                       </div>
                       </TableCell>
                     </TableRow>
-                  )}
+                  )} 
                 </TableBody>
               </Table>
           </TabsContent>
@@ -1320,6 +1486,158 @@ export function SettingsView({
                   )}
                 </TableBody>
               </Table>
+            </div>
+          </TabsContent>
+
+          {/* Tur Şablonları */}
+          <TabsContent value="tours" className="space-y-4">
+            <div className="flex flex-col space-y-4">
+              <div className="flex justify-between items-center">
+                <h3 className="text-lg font-medium">Tur Şablonları</h3>
+                <div className="space-x-2">
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => {
+                      if (!selectedDestinationId) {
+                        toast({
+                          title: "Uyarı",
+                          description: "Lütfen önce bir destinasyon seçin.",
+                          variant: "destructive",
+                        });
+                        return;
+                      }
+                      setNewTourTemplate({
+                        id: generateUUID(),
+                        name: "",
+                        description: "",
+                        destinationId: selectedDestinationId,
+                        price: 0,
+                        duration: "",
+                        currency: "EUR",
+                      });
+                      setIsEditingTour(false);
+                      setIsTourDialogOpen(true);
+                    }}
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Yeni Tur Ekle
+                  </Button>
+                </div>
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <Label htmlFor="destinationSelect" className="whitespace-nowrap">Destinasyon Seçin:</Label>
+                <Select 
+                  value={selectedDestinationId} 
+                  onValueChange={(value) => setSelectedDestinationId(value)}
+                >
+                  <SelectTrigger className="flex-1">
+                    <SelectValue placeholder="Bir destinasyon seçin" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {destinations.map((destination) => (
+                      <SelectItem key={destination.id} value={destination.id}>
+                        {destination.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {selectedDestinationId ? (
+                <div className="rounded-md border">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Tur Adı</TableHead>
+                        <TableHead>Açıklama</TableHead>
+                        <TableHead>Süre</TableHead>
+                        <TableHead>Fiyat</TableHead>
+                        <TableHead>İşlemler</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {tourTemplates
+                        .filter(tour => tour.destinationId === selectedDestinationId)
+                        .length > 0 ? (
+                        tourTemplates
+                          .filter(tour => tour.destinationId === selectedDestinationId)
+                          .map((tour) => (
+                            <TableRow key={`${tour.id}-${selectedDestinationId}`}>
+                              <TableCell className="font-medium">{tour.name}</TableCell>
+                              <TableCell>{tour.description}</TableCell>
+                              <TableCell>{tour.duration}</TableCell>
+                              <TableCell>
+                                {tour.price} {tour.currency === "EUR" ? "€" : tour.currency === "TRY" ? "₺" : tour.currency}
+                              </TableCell>
+                              <TableCell>
+                                <div className="flex items-center gap-1">
+                                  <Button 
+                                    variant="ghost" 
+                                    size="icon" 
+                                    onClick={() => {
+                                      setNewTourTemplate(tour);
+                                      setIsEditingTour(true);
+                                      setIsTourDialogOpen(true);
+                                    }}
+                                  >
+                                    <Edit className="h-4 w-4" />
+                                  </Button>
+                                  <Button 
+                                    variant="ghost" 
+                                    size="icon" 
+                                    onClick={() => {
+                                      setTourToDelete(tour);
+                                      setIsDeleteTourDialogOpen(true);
+                                    }}
+                                  >
+                                    <Trash2 className="h-4 w-4 text-red-500" />
+                                  </Button>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          ))
+                      ) : (
+                        <TableRow>
+                          <TableCell colSpan={5} className="text-center py-4">
+                            <div className="flex flex-col items-center justify-center space-y-3 py-8">
+                              <div className="text-sm text-muted-foreground">Bu destinasyon için henüz tur eklenmemiş</div>
+                              <Button 
+                                variant="outline" 
+                                size="sm" 
+                                onClick={() => {
+                                  setNewTourTemplate({
+                                    id: generateUUID(),
+                                    name: "",
+                                    description: "",
+                                    destinationId: selectedDestinationId,
+                                    price: 0,
+                                    duration: "",
+                                    currency: "EUR",
+                                  });
+                                  setIsEditingTour(false);
+                                  setIsTourDialogOpen(true);
+                                }}
+                              >
+                                <Plus className="mr-2 h-4 w-4" /> Tur Ekle
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+              ) : (
+                <div className="rounded-md border p-8 text-center bg-muted/20">
+                  <div className="flex flex-col items-center justify-center space-y-3">
+                    <MapPin className="h-8 w-8 text-muted-foreground" />
+                    <p className="text-muted-foreground">Turları görmek için lütfen bir destinasyon seçin</p>
+                  </div>
+                </div>
+              )}
             </div>
           </TabsContent>
         </Tabs>
@@ -1614,14 +1932,14 @@ export function SettingsView({
             <Button variant="outline" onClick={() => setIsActivityDialogOpen(false)}>
               İptal
             </Button>
-            <Button className="bg-[#00a1c6] hover:bg-[#00a1c6]" onClick={handleSaveActivity}>
+            <Button type="submit" onClick={handleSaveActivity}>
               {isEditingActivity ? "Güncelle" : "Ekle"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Aktivite Silme Dialog */}
+      {/* Aktivite Silme Dialogu */}
       <AlertDialog open={isDeleteActivityDialogOpen} onOpenChange={setIsDeleteActivityDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -1639,73 +1957,6 @@ export function SettingsView({
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Destinasyon Ekleme/Düzenleme Dialog */}
-      <Dialog open={isDestinationDialogOpen} onOpenChange={setIsDestinationDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{isEditingDestination ? "Destinasyonu Düzenle" : "Yeni Destinasyon Ekle"}</DialogTitle>
-          </DialogHeader>
-
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="destinationName">Destinasyon Adı</Label>
-              <Input
-                id="destinationName"
-                name="name"
-                value={newDestination.name}
-                onChange={handleDestinationChange}
-                placeholder="Destinasyon adı"
-              />
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="country">Ülke</Label>
-                <Input
-                  id="country"
-                  name="country"
-                  value={newDestination.country}
-                  onChange={handleDestinationChange}
-                  placeholder="Ülke"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="region">Bölge</Label>
-                <Input
-                  id="region"
-                  name="region"
-                  value={newDestination.region}
-                  onChange={handleDestinationChange}
-                  placeholder="Bölge"
-                />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="destinationDescription">Açıklama</Label>
-              <Textarea
-                id="destinationDescription"
-                name="description"
-                value={newDestination.description}
-                onChange={handleDestinationChange}
-                placeholder="Destinasyon açıklaması"
-                rows={3}
-              />
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsDestinationDialogOpen(false)}>
-              İptal
-            </Button>
-            <Button className="bg-[#00a1c6] hover:bg-[#00a1c6]" onClick={handleSaveDestination}>
-              {isEditingDestination ? "Güncelle" : "Ekle"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
       {/* Destinasyon Silme Dialog */}
       <AlertDialog open={isDeleteDestinationDialogOpen} onOpenChange={setIsDeleteDestinationDialogOpen}>
         <AlertDialogContent>
@@ -1718,6 +1969,163 @@ export function SettingsView({
           <AlertDialogFooter>
             <AlertDialogCancel>İptal</AlertDialogCancel>
             <AlertDialogAction className="bg-red-600 hover:bg-red-700" onClick={handleDeleteDestination}>
+              Sil
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Tur Şablonu Ekleme/Düzenleme Dialog */}
+      <Dialog open={isTourDialogOpen} onOpenChange={setIsTourDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{isEditingTour ? "Tur Şablonunu Düzenle" : "Yeni Tur Şablonu Ekle"}</DialogTitle>
+            <DialogDescription>
+              {destinations.find(d => d.id === selectedDestinationId)?.name || "Seçili destinasyon"} için tur şablonu ekleyin
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="tourName">Tur Adı</Label>
+              <Input
+                id="tourName"
+                name="name"
+                value={newTourTemplate.name}
+                onChange={(e) => setNewTourTemplate({...newTourTemplate, name: e.target.value})}
+                placeholder="Tur adı"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="tourDescription">Açıklama</Label>
+              <Textarea
+                id="tourDescription"
+                name="description"
+                value={newTourTemplate.description}
+                onChange={(e) => setNewTourTemplate({...newTourTemplate, description: e.target.value})}
+                placeholder="Tur açıklaması"
+                rows={3}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="tourDuration">Süre</Label>
+              <Input
+                id="tourDuration"
+                name="duration"
+                value={newTourTemplate.duration}
+                onChange={(e) => setNewTourTemplate({...newTourTemplate, duration: e.target.value})}
+                placeholder="Örn: 2 saat, 1 gün, 3 gün 2 gece"
+              />
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="tourPrice">Kişi Başı Fiyat</Label>
+                <Input
+                  id="tourPrice"
+                  name="price"
+                  type="number"
+                  step="0.01"
+                  value={newTourTemplate.price}
+                  onChange={(e) => setNewTourTemplate({...newTourTemplate, price: parseFloat(e.target.value)})}
+                  placeholder="0.00"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="tourCurrency">Para Birimi</Label>
+                <Select
+                  value={newTourTemplate.currency}
+                  onValueChange={(value) => setNewTourTemplate({...newTourTemplate, currency: value})}
+                >
+                  <SelectTrigger id="tourCurrency">
+                    <SelectValue placeholder="Para birimi seçin" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="TRY">Türk Lirası (₺)</SelectItem>
+                    <SelectItem value="USD">Amerikan Doları ($)</SelectItem>
+                    <SelectItem value="EUR">Euro (€)</SelectItem>
+                    <SelectItem value="GBP">İngiliz Sterlini (£)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsTourDialogOpen(false)}>
+              İptal
+            </Button>
+            <Button 
+              className="bg-[#00a1c6] hover:bg-[#00a1c6]" 
+              onClick={async () => {
+                // Validasyon yap
+                if (!newTourTemplate.name || !newTourTemplate.duration) {
+                  toast({
+                    title: "Hata",
+                    description: "Lütfen tur adı ve süresini belirtin.",
+                    variant: "destructive",
+                  });
+                  return;
+                }
+
+                try {
+                  let updatedTours = [...tourTemplates];
+                  
+                  if (isEditingTour) {
+                    // Mevcut turu güncelle
+                    updatedTours = tourTemplates.map(tour => 
+                      tour.id === newTourTemplate.id ? newTourTemplate : tour
+                    );
+                  } else {
+                    // Yeni tur ekle
+                    updatedTours = [...tourTemplates, newTourTemplate];
+                  }
+                  
+                  // State'i güncelle
+                  setTourTemplates(updatedTours);
+                  
+                  // Veritabanına kaydet
+                  const { saveTourTemplates } = await import("@/lib/db");
+                  await saveTourTemplates(updatedTours);
+                  
+                  toast({
+                    title: "Başarılı",
+                    description: isEditingTour ? "Tur şablonu güncellendi." : "Yeni tur şablonu eklendi.",
+                  });
+                  
+                  // Dialog'u kapat
+                  setIsTourDialogOpen(false);
+                } catch (error) {
+                  console.error("Tur şablonu kaydedilirken hata:", error);
+                  toast({
+                    title: "Hata",
+                    description: "Tur şablonu kaydedilirken bir hata oluştu.",
+                    variant: "destructive",
+                  });
+                }
+              }}
+            >
+              {isEditingTour ? "Güncelle" : "Ekle"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Tur Şablonu Silme Dialog */}
+      <AlertDialog open={isDeleteTourDialogOpen} onOpenChange={setIsDeleteTourDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Tur Şablonunu Sil</AlertDialogTitle>
+            <AlertDialogDescription>
+              Bu tur şablonunu silmek istediğinize emin misiniz? Bu işlem geri alınamaz.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>İptal</AlertDialogCancel>
+            <AlertDialogAction className="bg-red-600 hover:bg-red-700" onClick={handleDeleteTourTemplate}>
               Sil
             </AlertDialogAction>
           </AlertDialogFooter>

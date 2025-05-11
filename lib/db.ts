@@ -1,8 +1,41 @@
-// IndexedDB işlemleri için yardımcı fonksiyonlar
-const DB_NAME = "passionistravelDB"
-const DB_VERSION = 2 // Versiyon 1'den 2'ye yükseltildi
+// IndexedDB'den Firebase Firestore'a geçiş için yönlendirme modülü
+// Bu dosya, mevcut IndexedDB fonksiyonlarını Firebase'e yönlendirir
 
-// Store konfigürasyonu için arayüz tanımlaması
+import {
+  addData as addFirestoreData,
+  updateData as updateFirestoreData,
+  deleteData as deleteFirestoreData,
+  getAllData as getAllFirestoreData,
+  getDataById as getFirestoreDataById,
+  clearCollection,
+  getSettings as getFirestoreSettings,
+  saveSettings as saveFirestoreSettings,
+  getExpenseTypes as getFirestoreExpenseTypes,
+  saveExpenseTypes as saveFirestoreExpenseTypes,
+  getProviders as getFirestoreProviders,
+  saveProviders as saveFirestoreProviders,
+  getActivities as getFirestoreActivities,
+  saveActivities as saveFirestoreActivities,
+  getDestinations as getFirestoreDestinations,
+  saveDestinations as saveFirestoreDestinations,
+  getReferralSources as getFirestoreReferralSources,
+  saveReferralSources as saveFirestoreReferralSources,
+  getTourTemplates as getFirestoreTourTemplates,
+  saveTourTemplates as saveFirestoreTourTemplates,
+  getTourTemplate as getFirestoreTourTemplate,
+  getTourTemplatesByDestination as getFirestoreTourTemplatesByDestination,
+  getTours as getFirestoreTours,
+  saveTours as saveFirestoreTours,
+  generateUUID
+} from "./db-firebase";
+
+import { COLLECTIONS } from "./db-firebase";
+
+// Veritabanı adı ve sürümü (eski bilgileri koruyoruz)
+const DB_NAME = "passionistravelDB";
+const DB_VERSION = 3;
+
+// Store konfigürasyonu için arayüz tanımlaması (eski tanımlamaları koruyoruz)
 interface StoreConfig {
   keyPath: string;
   indexes?: string[];
@@ -13,110 +46,51 @@ interface StoreCollection {
   [key: string]: StoreConfig;
 }
 
-// Veritabanı şeması
+// Veritabanı şeması (eski tanımlamaları koruyoruz)
 const STORES: StoreCollection = {
   tours: { keyPath: "id", indexes: ["customerName", "tourDate"] },
   financials: { keyPath: "id", indexes: ["date", "type"] },
   customers: { keyPath: "id", indexes: ["name", "phone"] },
   settings: { keyPath: "id" },
   expenses: { keyPath: "id", indexes: ["type", "name"] },
-  providers: { keyPath: "id", indexes: ["name"] },
+  providers: { keyPath: "id", indexes: ["name", "category"] },
   activities: { keyPath: "id", indexes: ["name"] },
   destinations: { keyPath: "id", indexes: ["name", "country"] },
   ai_conversations: { keyPath: "id", indexes: ["timestamp"] },
   customer_notes: { keyPath: "id", indexes: ["customerId", "timestamp"] },
   referral_sources: { keyPath: "id", indexes: ["name", "type"] },
-}
+  tourTemplates: { keyPath: "id", indexes: ["name", "destinationId"] },
+};
 
-// Veritabanını başlat
+// Veritabanını başlat (Firebase için bir uyarlama)
 export const initializeDB = async (): Promise<void> => {
   try {
-    await openDB()
-    console.log("Veritabanı başarıyla başlatıldı.")
+    console.log("Firebase veritabanı başlatıldı.");
+    return Promise.resolve();
   } catch (error) {
-    console.error("Veritabanı başlatılırken hata:", error)
-    throw error
+    console.error("Firebase başlatılırken hata:", error);
+    throw error;
   }
-}
+};
 
-// IndexedDB veritabanını aç
-export const openDB = (): Promise<IDBDatabase> => {
-  return new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, DB_VERSION)
+// IndexedDB veritabanını açma fonksiyonunu yeniden tanımlıyoruz
+// Bu fonksiyon artık sadece geriye dönük uyumluluk için burada duruyor
+export const openDB = (): Promise<any> => {
+  console.warn("Firebase kullanıldığından openDB fonksiyonu artık gerekli değil");
+  return Promise.resolve(null);
+};
 
-    request.onerror = (event) => {
-      reject("Veritabanı açılırken hata oluştu: " + request.error)
-    }
-
-    request.onsuccess = (event) => {
-      resolve(request.result)
-    }
-
-    request.onupgradeneeded = (event) => {
-      const db = request.result
-
-      // Veri depolarını oluştur
-      Object.entries(STORES).forEach(([storeName, storeConfig]) => {
-        if (!db.objectStoreNames.contains(storeName)) {
-          const store = db.createObjectStore(storeName, { keyPath: storeConfig.keyPath })
-
-          // İndeksleri oluştur
-          if (storeConfig.indexes) {
-            storeConfig.indexes.forEach((indexName) => {
-              store.createIndex(indexName, indexName, { unique: false })
-            })
-          }
-        }
-      })
-    }
-  })
-}
-
-// Veri ekle
+// Veri ekleme
 export const addData = async (storeName: string, data: any): Promise<any> => {
+  // Firebase koleksiyon adını bul
+  const collectionName = COLLECTIONS[storeName as keyof typeof COLLECTIONS] || storeName;
+  
   try {
-    const db = await openDB();
-    
-    if (!db) {
-      console.error("Veritabanı bulunamadı");
-      
-      // IndexedDB başarısız olursa localStorage'a kaydet
-      try {
-        const storageKey = `${storeName}_backup`;
-        const existingData = localStorage.getItem(storageKey);
-        const parsedData = existingData ? JSON.parse(existingData) : [];
-        
-        // Verileri ekle
-        parsedData.push(data);
-        
-        // localStorage'a kaydet
-        localStorage.setItem(storageKey, JSON.stringify(parsedData));
-        console.log(`Veri localStorage'a kaydedildi: ${storeName}`);
-        return data;
-      } catch (storageError) {
-        console.error(`localStorage'a kaydetme hatası:`, storageError);
-        throw new Error("Veri kaydedilemedi, lütfen daha sonra tekrar deneyin");
-      }
-    }
-
-    const transaction = db.transaction(storeName, "readwrite");
-    const store = transaction.objectStore(storeName);
-    const result = await store.add(data);
-    
-    // Başarılı kayıt için ek önlem olarak localStorage'a da kaydet
-    try {
-      const storageKey = `recent_${storeName}`;
-      localStorage.setItem(storageKey, JSON.stringify(data));
-      localStorage.setItem(`${storageKey}_timestamp`, new Date().toISOString());
-    } catch (e) {
-      console.warn("localStorage önbelleğe kaydetme başarısız:", e);
-    }
-    
-    return result;
+    return await addFirestoreData(collectionName, data);
   } catch (error) {
     console.error(`${storeName} verisini eklerken hata:`, error);
     
-    // IndexedDB başarısız olursa localStorage'a kaydet
+    // Hata durumunda localStorage'a kaydetme yedeklemesini korudum
     try {
       const storageKey = `${storeName}_backup`;
       const existingData = localStorage.getItem(storageKey);
@@ -127,61 +101,26 @@ export const addData = async (storeName: string, data: any): Promise<any> => {
       
       // localStorage'a kaydet
       localStorage.setItem(storageKey, JSON.stringify(parsedData));
-      console.log(`Veri localStorage'a kaydedildi (hata durumu): ${storeName}`);
+      console.log(`Veri localStorage'a kaydedildi: ${storeName}`);
       return data;
     } catch (storageError) {
       console.error(`localStorage'a kaydetme hatası:`, storageError);
       throw error;
     }
   }
-}
+};
 
-// Veri güncelle
+// Veri güncelleme
 export const updateData = async (storeName: string, data: any): Promise<any> => {
+  // Firebase koleksiyon adını bul
+  const collectionName = COLLECTIONS[storeName as keyof typeof COLLECTIONS] || storeName;
+  
   try {
-    const db = await openDB();
-    if (!db) {
-      console.error("Veritabanı bulunamadı");
-      
-      // IndexedDB başarısız olursa localStorage'a kaydet
-      try {
-        const storageKey = `${storeName}_backup`;
-        const existingData = localStorage.getItem(storageKey);
-        let parsedData = existingData ? JSON.parse(existingData) : [];
-        
-        // Mevcut kaydı güncelle
-        parsedData = parsedData.map((item: any) => 
-          item.id === data.id ? data : item
-        );
-        
-        // localStorage'a kaydet
-        localStorage.setItem(storageKey, JSON.stringify(parsedData));
-        console.log(`Veri localStorage'da güncellendi: ${storeName}`);
-        return data;
-      } catch (storageError) {
-        console.error(`localStorage güncelleme hatası:`, storageError);
-        throw new Error("Veri güncellenemedi, lütfen daha sonra tekrar deneyin");
-      }
-    }
-
-    const transaction = db.transaction(storeName, "readwrite");
-    const store = transaction.objectStore(storeName);
-    await store.put(data);
-    
-    // Başarılı güncelleme için ek önlem olarak localStorage'a da kaydet
-    try {
-      const storageKey = `recent_${storeName}_update`;
-      localStorage.setItem(storageKey, JSON.stringify(data));
-      localStorage.setItem(`${storageKey}_timestamp`, new Date().toISOString());
-    } catch (e) {
-      console.warn("localStorage önbelleğe kaydetme başarısız:", e);
-    }
-    
-    return data;
+    return await updateFirestoreData(collectionName, data);
   } catch (error) {
     console.error(`${storeName} verisini güncellerken hata:`, error);
     
-    // IndexedDB başarısız olursa localStorage'a kaydet
+    // IndexedDB başarısız olursa localStorage'a kaydet (eski yedekleme davranışını koruyoruz)
     try {
       const storageKey = `${storeName}_backup`;
       const existingData = localStorage.getItem(storageKey);
@@ -194,360 +133,236 @@ export const updateData = async (storeName: string, data: any): Promise<any> => 
       
       // localStorage'a kaydet
       localStorage.setItem(storageKey, JSON.stringify(parsedData));
-      console.log(`Veri localStorage'da güncellendi (hata durumu): ${storeName}`);
+      console.log(`Veri localStorage'da güncellendi: ${storeName}`);
       return data;
     } catch (storageError) {
       console.error(`localStorage güncelleme hatası:`, storageError);
       throw error;
     }
   }
-}
+};
 
-// Veri sil
+// Veri silme
 export const deleteData = async (storeName: string, id: string): Promise<void> => {
+  const collectionName = COLLECTIONS[storeName as keyof typeof COLLECTIONS] || storeName;
+  
   try {
-    const db = await openDB()
-
-    return new Promise((resolve, reject) => {
-      const transaction = db.transaction(storeName, "readwrite")
-      const store = transaction.objectStore(storeName)
-      const request = store.delete(id)
-
-      request.onsuccess = () => {
-        resolve()
-      }
-
-      request.onerror = () => {
-        reject("Veri silinirken hata oluştu: " + request.error)
-      }
-    })
+    return await deleteFirestoreData(collectionName, id);
   } catch (error) {
-    console.error(`Veri silme hatası (${storeName}):`, error)
-    throw error
+    console.error(`${storeName} verisini silerken hata:`, error);
+    throw error;
   }
-}
+};
 
 // Tüm verileri getir
 export const getAllData = async (storeName: string): Promise<any[]> => {
+  const collectionName = COLLECTIONS[storeName as keyof typeof COLLECTIONS] || storeName;
+  
   try {
-    const db = await openDB()
-
-    return new Promise((resolve, reject) => {
-      const transaction = db.transaction(storeName, "readonly")
-      const store = transaction.objectStore(storeName)
-      const request = store.getAll()
-
-      request.onsuccess = () => {
-        resolve(request.result)
-      }
-
-      request.onerror = () => {
-        reject("Veriler alınırken hata oluştu: " + request.error)
-      }
-    })
+    return await getAllFirestoreData(collectionName);
   } catch (error) {
-    console.error(`Veri alma hatası (${storeName}):`, error)
-    throw error
+    console.error(`${storeName} verilerini alırken hata:`, error);
+    
+    // Firebase başarısız olursa localStorage'dan dene (eski davranışı koruyoruz)
+    try {
+      const storageKey = `${storeName}_backup`;
+      const data = localStorage.getItem(storageKey);
+      if (data) {
+        return JSON.parse(data);
+      }
+    } catch (e) {
+      console.error(`localStorage'dan veriler alınırken hata:`, e);
+    }
+    
+    return [];
   }
-}
+};
 
 // ID ile veri getir
 export const getDataById = async (storeName: string, id: string): Promise<any> => {
+  const collectionName = COLLECTIONS[storeName as keyof typeof COLLECTIONS] || storeName;
+  
   try {
-    const db = await openDB()
-
-    return new Promise((resolve, reject) => {
-      const transaction = db.transaction(storeName, "readonly")
-      const store = transaction.objectStore(storeName)
-      const request = store.get(id)
-
-      request.onsuccess = () => {
-        resolve(request.result)
-      }
-
-      request.onerror = () => {
-        reject("Veri alınırken hata oluştu: " + request.error)
-      }
-    })
+    return await getFirestoreDataById(collectionName, id);
   } catch (error) {
-    console.error(`ID ile veri alma hatası (${storeName}):`, error)
-    throw error
+    console.error(`${storeName} verisi alınırken hata:`, error);
+    throw error;
   }
-}
+};
 
 // Veritabanını temizle
 export const clearStore = async (storeName: string): Promise<void> => {
+  const collectionName = COLLECTIONS[storeName as keyof typeof COLLECTIONS] || storeName;
+  
   try {
-    const db = await openDB()
-
-    return new Promise((resolve, reject) => {
-      const transaction = db.transaction(storeName, "readwrite")
-      const store = transaction.objectStore(storeName)
-      const request = store.clear()
-
-      request.onsuccess = () => {
-        resolve()
-      }
-
-      request.onerror = () => {
-        reject("Veri deposu temizlenirken hata oluştu: " + request.error)
-      }
-    })
+    return await clearCollection(collectionName);
   } catch (error) {
-    console.error(`Veri deposu temizleme hatası (${storeName}):`, error)
-    throw error
+    console.error(`Veri deposu temizleme hatası (${storeName}):`, error);
+    throw error;
   }
-}
+};
 
-// Local Storage'dan verileri yükle (fallback olarak)
+// Local Storage yardımcı fonksiyonları (eski davranışı koruyoruz)
 const loadFromLocalStorage = (key: string): any[] => {
   if (typeof localStorage !== "undefined") {
-    const data = localStorage.getItem(key)
-    return data ? JSON.parse(data) : []
+    const data = localStorage.getItem(key);
+    return data ? JSON.parse(data) : [];
   }
-  return []
-}
+  return [];
+};
 
-// Local Storage'a verileri kaydet (yedekleme olarak)
 const saveToLocalStorage = (key: string, data: any[]): void => {
   if (typeof localStorage !== "undefined") {
-    localStorage.setItem(key, JSON.stringify(data))
+    localStorage.setItem(key, JSON.stringify(data));
   }
-}
+};
 
 // Ayarları getir
 export const getSettings = async (): Promise<any> => {
   try {
-    const settings = await getDataById("settings", "app-settings")
-    return settings || {}
+    return await getFirestoreSettings();
   } catch (error) {
-    console.error("Ayarlar alınırken hata:", error)
-    // LocalStorage'dan almayı dene
-    const settings = typeof localStorage !== "undefined" ? localStorage.getItem("settings") : null
-    return settings ? JSON.parse(settings) : {}
+    console.error("Ayarlar alınırken hata:", error);
+    
+    // Son çare olarak localStorage'a bakalım (eski davranışı koruyoruz)
+    try {
+      const localSettings = localStorage.getItem("app_settings");
+      return localSettings ? JSON.parse(localSettings) : {};
+    } catch (e) {
+      console.error("LocalStorage'dan ayarlar alınamadı:", e);
+      return {};
+    }
   }
-}
+};
 
 // Ayarları kaydet
-export const saveSettings = async (settings: any): Promise<any> => {
-  settings.id = "app-settings" // Sabit bir ID kullan
-  
+export const saveSettings = async (settings: any): Promise<void> => {
   try {
-    // LocalStorage'a da kaydet
-    if (typeof localStorage !== "undefined") {
-      localStorage.setItem("settings", JSON.stringify(settings))
+    await saveFirestoreSettings(settings);
+    
+    // Yedek olarak localStorage'a da kaydet (eski davranışı koruyoruz)
+    localStorage.setItem("app_settings", JSON.stringify(settings));
+  } catch (error) {
+    console.error("Ayarlar kaydedilirken hata:", error);
+    
+    // Hata durumunda en azından localStorage'a kaydedelim
+    try {
+      const currentSettings = await getSettings();
+      const updatedSettings = {
+        ...currentSettings,
+        ...settings,
+        updatedAt: new Date().toISOString()
+      };
+      localStorage.setItem("app_settings", JSON.stringify(updatedSettings));
+    } catch (e) {
+      console.error("Ayarlar localStorage'a da kaydedilemedi:", e);
     }
     
-    return await updateData("settings", settings)
-  } catch (error) {
-    console.error("Ayarlar kaydedilirken hata:", error)
-    try {
-      return await addData("settings", settings)
-    } catch (innerError) {
-      console.error("Ayarlar eklenirken hata:", innerError)
-      throw innerError
-    }
+    throw error;
   }
-}
+};
 
 // Gider türlerini kaydet
-export const saveExpenseTypes = async (expenses: any[]): Promise<void> => {
-  try {
-    // Önce mevcut gider türlerini temizle
-    await clearStore("expenses")
-    
-    // Yeni gider türlerini ekle
-    for (const expense of expenses) {
-      await addData("expenses", expense)
-    }
-    
-    // LocalStorage'a da kaydet
-    saveToLocalStorage("expenses", expenses)
-  } catch (error) {
-    console.error("Gider türleri kaydedilirken hata:", error)
-    throw error
-  }
-}
+export const saveExpenseTypes = async (expenseTypes: any[]): Promise<void> => {
+  return saveFirestoreExpenseTypes(expenseTypes);
+};
 
 // Gider türlerini getir
-export const getExpenseTypes = async (type?: string): Promise<any[]> => {
-  try {
-    const expenses = await getAllData("expenses")
-    
-    // Eğer tip belirtilmişse, filtreleme yap
-    if (type) {
-      return expenses.filter(expense => expense.type === type)
-    }
-    
-    return expenses
-  } catch (error) {
-    console.error("Gider türleri alınırken hata:", error)
-    // LocalStorage'dan almayı dene
-    const expenses = loadFromLocalStorage("expenses")
-    
-    // Eğer tip belirtilmişse, filtreleme yap
-    if (type && expenses.length > 0) {
-      return expenses.filter((expense: any) => expense.type === type)
-    }
-    
-    return expenses
-  }
-}
+export const getExpenseTypes = async (): Promise<any[]> => {
+  return getFirestoreExpenseTypes();
+};
 
 // Sağlayıcıları kaydet
 export const saveProviders = async (providers: any[]): Promise<void> => {
-  try {
-    // Önce mevcut sağlayıcıları temizle
-    await clearStore("providers")
-    
-    // Yeni sağlayıcıları ekle
-    for (const provider of providers) {
-      await addData("providers", provider)
-    }
-    
-    // LocalStorage'a da kaydet
-    saveToLocalStorage("providers", providers)
-  } catch (error) {
-    console.error("Sağlayıcılar kaydedilirken hata:", error)
-    throw error
-  }
-}
+  return saveFirestoreProviders(providers);
+};
 
 // Sağlayıcıları getir
 export const getProviders = async (): Promise<any[]> => {
-  try {
-    const providers = await getAllData("providers")
-    return providers
-  } catch (error) {
-    console.error("Sağlayıcılar alınırken hata:", error)
-    // LocalStorage'dan almayı dene
-    return loadFromLocalStorage("providers")
-  }
-}
+  return getFirestoreProviders();
+};
 
 // Aktiviteleri kaydet
 export const saveActivities = async (activities: any[]): Promise<void> => {
-  try {
-    // Önce mevcut aktiviteleri temizle
-    await clearStore("activities")
-    
-    // Yeni aktiviteleri ekle
-    for (const activity of activities) {
-      await addData("activities", activity)
-    }
-    
-    // LocalStorage'a da kaydet
-    saveToLocalStorage("activities", activities)
-  } catch (error) {
-    console.error("Aktiviteler kaydedilirken hata:", error)
-    throw error
-  }
-}
+  return saveFirestoreActivities(activities);
+};
 
 // Aktiviteleri getir
 export const getActivities = async (): Promise<any[]> => {
-  try {
-    const activities = await getAllData("activities")
-    return activities
-  } catch (error) {
-    console.error("Aktiviteler alınırken hata:", error)
-    // LocalStorage'dan almayı dene
-    return loadFromLocalStorage("activities")
-  }
-}
+  return getFirestoreActivities();
+};
 
 // Destinasyonları kaydet
 export const saveDestinations = async (destinations: any[]): Promise<void> => {
-  try {
-    // Önce mevcut destinasyonları temizle
-    await clearStore("destinations")
-    
-    // Yeni destinasyonları ekle
-    for (const destination of destinations) {
-      await addData("destinations", destination)
-    }
-    
-    // LocalStorage'a da kaydet
-    saveToLocalStorage("destinations", destinations)
-  } catch (error) {
-    console.error("Destinasyonlar kaydedilirken hata:", error)
-    throw error
-  }
-}
+  return saveFirestoreDestinations(destinations);
+};
 
 // Destinasyonları getir
 export const getDestinations = async (): Promise<any[]> => {
-  try {
-    const destinations = await getAllData("destinations")
-    return destinations
-  } catch (error) {
-    console.error("Destinasyonlar alınırken hata:", error)
-    // LocalStorage'dan almayı dene
-    return loadFromLocalStorage("destinations")
-  }
-}
+  return getFirestoreDestinations();
+};
 
 // Referans kaynaklarını kaydet
 export const saveReferralSources = async (sources: any[]): Promise<void> => {
-  try {
-    // Önce mevcut referans kaynaklarını temizle
-    await clearStore("referral_sources")
-    
-    // Yeni referans kaynaklarını ekle
-    for (const source of sources) {
-      await addData("referral_sources", source)
-    }
-    
-    // LocalStorage'a da kaydet
-    saveToLocalStorage("referral_sources", sources)
-  } catch (error) {
-    console.error("Referans kaynakları kaydedilirken hata:", error)
-    throw error
-  }
-}
+  return saveFirestoreReferralSources(sources);
+};
 
 // Referans kaynaklarını getir
 export const getReferralSources = async (): Promise<any[]> => {
-  try {
-    const sources = await getAllData("referral_sources")
-    return sources
-  } catch (error) {
-    console.error("Referans kaynakları alınırken hata:", error)
-    // LocalStorage'dan almayı dene
-    const localSources = loadFromLocalStorage("referral_sources")
-    
-    // Eğer hiç kaynak yoksa, varsayılan bazı kaynaklar ekleyelim
-    if (!localSources || localSources.length === 0) {
-      const defaultSources = [
-        { id: "website", name: "İnternet Sitemiz", type: "online" },
-        { id: "hotel", name: "Otel Yönlendirmesi", type: "partner" },
-        { id: "local_guide", name: "Hanutçu / Yerel Rehber", type: "partner" },
-        { id: "walk_in", name: "Kapı Önü Müşterisi", type: "direct" },
-        { id: "repeat", name: "Tekrar Gelen Müşteri", type: "direct" },
-        { id: "recommendation", name: "Tavsiye", type: "referral" },
-        { id: "social_media", name: "Sosyal Medya", type: "online" },
-        { id: "other", name: "Diğer", type: "other" }
-      ];
-      
-      // Varsayılan değerleri localStorage'a da kaydedelim
-      try {
-        saveToLocalStorage("referral_sources", defaultSources);
-      } catch (e) {
-        console.error("Varsayılan referans kaynakları localStorage'a kaydedilemedi", e);
-      }
-      
-      return defaultSources;
-    }
-    
-    return localSources;
-  }
-}
+  return getFirestoreReferralSources();
+};
 
-// Simple UUID generator function to replace the uuid package
-export function generateUUID() {
-  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
-    const r = (Math.random() * 16) | 0
-    const v = c === "x" ? r : (r & 0x3) | 0x8
-    return v.toString(16)
-  })
-}
+// Turları kaydet
+export const saveTours = async (tours: any[]): Promise<void> => {
+  return saveFirestoreTours(tours);
+};
+
+// Tüm turları getir
+export const getTours = async (): Promise<any[]> => {
+  return getFirestoreTours();
+};
+
+// Destinasyona göre turları getir
+export const getToursByDestination = async (destinationId: string): Promise<any[]> => {
+  try {
+    if (!destinationId) return [];
+    
+    const allTours = await getTours();
+    // Belirtilen destinasyona ait turları filtrele
+    return allTours.filter((tour) => tour.destinationId === destinationId);
+  } catch (error) {
+    console.error(`Destinasyon (${destinationId}) için turlar alınırken hata:`, error);
+    
+    // LocalStorage'dan yüklemeyi dene (eski davranışı koruyoruz)
+    try {
+      const localTours = loadFromLocalStorage("tours");
+      return localTours.filter((tour: any) => tour.destinationId === destinationId);
+    } catch (storageError) {
+      console.error("LocalStorage'dan turlar yüklenemedi:", storageError);
+      return [];
+    }
+  }
+};
+
+// Destinasyona ait turları getir
+export const getTourTemplatesByDestination = async (destinationId: string): Promise<any[]> => {
+  return getFirestoreTourTemplatesByDestination(destinationId);
+};
+
+// Tüm turları getir
+export const getTourTemplates = async (): Promise<any[]> => {
+  return getFirestoreTourTemplates();
+};
+
+// Turları kaydet
+export const saveTourTemplates = async (tourTemplates: any[]): Promise<void> => {
+  return saveFirestoreTourTemplates(tourTemplates);
+};
+
+// Tek bir tur şablonu getir
+export const getTourTemplate = async (id: string): Promise<any> => {
+  return getFirestoreTourTemplate(id);
+};
+
+// ID üretici fonksiyonunu dışa aktarıyoruz
+export { generateUUID };

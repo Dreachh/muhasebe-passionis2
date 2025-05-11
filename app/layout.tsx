@@ -1,27 +1,47 @@
 // This is the new ROOT layout for the entire app.
-import type { Metadata } from 'next'
-import './globals.css';
-import { Inter } from 'next/font/google'
-import SessionProvider from "@/components/providers/session-provider";
+import "./globals.css";
+import { Inter } from "next/font/google";
+import { ThemeProvider } from "@/components/theme-provider";
+import { Toaster } from "@/components/ui/toaster";
+import { SessionProvider } from "@/components/providers/session-provider";
+// Firebase başlatma
+import firebase from "@/lib/firebase";
+import { initializeDB } from "@/lib/db"; // Bu işlev artık Firebase için çalışacak
 
-// Inter fontunu yükle
-const inter = Inter({ subsets: ['latin'] })
+const inter = Inter({ subsets: ["latin"] });
 
-export const metadata: Metadata = {
-  title: 'Passionis Travel',
-  description: 'Seyahat Acentesi Yönetim Sistemi',
+export const metadata = {
+  title: "Passionis Tour - Seyahat Turizm Muhasebe Yazılımı",
+  description: "Passionis Tour için özel olarak geliştirilmiş turizm muhasebe yazılımı",
 };
 
-// RootLayout'u async yap
-export default function RootLayout({ 
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+export default function RootLayout({ children, params: { locale } }) {
   return (
-    <html lang="tr" suppressHydrationWarning>
+    <html lang={locale ?? "tr"} suppressHydrationWarning>
+      <head />
       <body className={inter.className}>
-        <SessionProvider>{children}</SessionProvider>
+        <SessionProvider>
+          <ThemeProvider attribute="class" defaultTheme="light">
+            {children}
+            <Toaster />
+          </ThemeProvider>
+        </SessionProvider>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              // Firebase başlatma ve veritabanını hazırlama
+              document.addEventListener('DOMContentLoaded', async function() {
+                try {
+                  console.log("Firebase veritabanı başlatılıyor...");
+                  await initializeDB();
+                  console.log("Firebase veritabanı hazır!");
+                } catch (error) {
+                  console.error("Firebase veritabanı başlatılırken hata:", error);
+                }
+              });
+            `,
+          }}
+        />
       </body>
     </html>
   );

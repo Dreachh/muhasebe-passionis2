@@ -143,6 +143,11 @@ export function TourSalesForm({
   const [currencyRates, setCurrencyRates] = useState<any[]>([]);
   const [currencyLastUpdated, setCurrencyLastUpdated] = useState<string | null>(null)
 
+  // Tur verilerini destinasyona göre filtrelemek için yeni durumlar ekleyelim
+  const [destinationTours, setDestinationTours] = useState<any[]>([]);
+  const [selectedTourId, setSelectedTourId] = useState<string>("");
+  const [isLoadingTours, setIsLoadingTours] = useState<boolean>(false);
+
   // Adım göstergesi için referans
   const stepsRef = useRef<HTMLDivElement | null>(null)
 
@@ -714,6 +719,32 @@ export function TourSalesForm({
     }
   }, [currentStep, formData.activities, providers]);
 
+  // Destinasyon değiştiğinde turları getirmek için useEffect
+  useEffect(() => {
+    const loadToursForDestination = async () => {
+      if (formData.destinationId) {
+        setIsLoadingTours(true);
+        try {
+          // İlgili destinasyona ait turları yükle
+          const { getToursByDestination } = await import('@/lib/db');
+          const tours = await getToursByDestination(formData.destinationId);
+          console.log(`${formData.destinationId} destinasyonuna ait ${tours.length} tur yüklendi.`);
+          setDestinationTours(tours);
+        } catch (error) {
+          console.error(`Destinasyon turları yüklenirken hata:`, error);
+          setDestinationTours([]);
+        } finally {
+          setIsLoadingTours(false);
+        }
+      } else {
+        setDestinationTours([]);
+        setSelectedTourId("");
+      }
+    };
+
+    loadToursForDestination();
+  }, [formData.destinationId]);
+
   // Store form data when component unmounts or when navigating away
   useEffect(() => {
     return () => {
@@ -1261,6 +1292,66 @@ export function TourSalesForm({
                   </Select>
                 )}
               </div>
+
+              {/* Destinasyona Ait Turlar - Yeni Eklenen Bölüm */}
+              {formData.destinationId && (
+                <div className="space-y-2 border-t border-dashed pt-4 mt-4">
+                  <Label htmlFor="selectedTourId">Destinasyondaki Mevcut Turlar</Label>
+                  {isLoadingTours ? (
+                    <div className="flex items-center space-x-2 p-2 border rounded-md bg-slate-50">
+                      <div className="animate-spin h-4 w-4 border-2 border-teal-500 rounded-full border-t-transparent"></div>
+                      <span className="text-sm text-muted-foreground">Turlar yükleniyor...</span>
+                    </div>
+                  ) : destinationTours.length > 0 ? (
+                    <Select
+                      value={selectedTourId}
+                      onValueChange={(value) => {
+                        setSelectedTourId(value);
+                        // Seçilen tur bilgilerini formda kullan
+                        const selectedTour = destinationTours.find(tour => tour.id === value);
+                        if (selectedTour) {
+                          setFormData(prev => ({
+                            ...prev,
+                            tourName: selectedTour.name || prev.tourName,
+                            pricePerPerson: selectedTour.defaultPrice || prev.pricePerPerson,
+                            currency: selectedTour.currency || prev.currency
+                          }));
+                          toast({
+                            title: "Tur Seçildi",
+                            description: `${selectedTour.name} turu seçildi ve bilgiler forma yüklendi.`,
+                            variant: "default"
+                          });
+                        }
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Tur seçin" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Tur seçmeyin</SelectItem>
+                        {destinationTours.map((tour) => (
+                          <SelectItem key={tour.id} value={tour.id}>
+                            {tour.name} ({tour.defaultPrice} {tour.currency})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <div className="text-sm text-muted-foreground p-2 border rounded-md">
+                      Bu destinasyona ait tur kaydı bulunamadı. Ayarlar bölümünde tur ekleyebilirsiniz.
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="ml-2"
+                        onClick={handleNavigateToSettings}
+                      >
+                        <Settings className="h-3 w-3 mr-1" /> Ayarlara Git
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              )}
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
