@@ -378,134 +378,83 @@ export function TourSalesForm({
   useEffect(() => {
     const loadData = async () => {
       setIsLoading(true); // Yükleme başladığında yükleme durumunu güncelle
-
+      
       try {
         console.log('Veri yükleme başlıyor...');
 
-        // Öncelikle localStorage'dan destinasyonları direkt olarak yükleyelim
-        try {
-          const cachedDestinations = localStorage.getItem('destinations');
-          if (cachedDestinations) {
-            const parsedDestinations = JSON.parse(cachedDestinations);
-            if (parsedDestinations && Array.isArray(parsedDestinations) && parsedDestinations.length > 0) {
-              console.log('Destinasyonlar önbellekten yüklendi:', parsedDestinations.length, 'adet');
-              setDestinations(parsedDestinations);
-              // Eğer localStorage'dan başarıyla yüklediyse, isLoading'i false yap
-              setIsLoading(false);
-            }
-          }
-        } catch (cacheError) {
-          console.warn("Destinasyonlar localStorage'dan yüklenemedi:", cacheError);
-        }
-
-        // Tüm verileri paralel olarak yükle ve her bir isteğe timeout ekle
-        const fetchWithTimeout = async (
-          fetchPromise: Promise<any>, // API çağrısı için Promise türü
-          name: string, // Veri adı
-          fallbackStorageKey: string // LocalStorage anahtarı
-        ): Promise<any[]> => {
-          // Önce localStorage'dan yüklemeyi dene
+        // Veritabanından veri yüklemek için bir fonksiyon tanımlayalım
+        const fetchFromDatabase = async (
+          fetchFunction: () => Promise<any[]>,
+          name: string,
+          fallbackStorageKey: string
+        ) => {
           try {
-            const cachedData = localStorage.getItem(fallbackStorageKey);
-            if (cachedData) {
-              const parsedData = JSON.parse(cachedData);
-              if (parsedData && Array.isArray(parsedData) && parsedData.length > 0) {
-                console.log(`${name} önbellekten yüklendi:`, parsedData.length, 'adet veri');
-                return parsedData;
-              }
-            }
-          } catch (cacheError) {
-            console.warn(`${name} önbellekten yüklenemedi:`, cacheError);
-          }
-
-          // Önbellekte yoksa API'den yüklemeyi dene
-          const timeoutPromise = new Promise((_, reject) => {
-            setTimeout(() => reject(new Error(`${name} yüklenirken zaman aşımına uğradı`)), 10000);
-          });
-
-          try {
-            const result = await Promise.race([fetchPromise, timeoutPromise]);
+            // Önce API'den yüklemeyi dene
+            console.log(`${name} veritabanından yükleniyor...`);
+            const result = await fetchFunction();
+            
             if (result && Array.isArray(result) && result.length > 0) {
-              console.log(`${name} API'den başarıyla yüklendi:`, result.length, 'adet veri');
-
+              console.log(`${name} veritabanından başarıyla yüklendi:`, result.length, 'adet veri');
+              
               // Başarılı sonuçları önbelleğe kaydet
               try {
                 localStorage.setItem(fallbackStorageKey, JSON.stringify(result));
+                console.log(`${name} önbelleğe kaydedildi`);
               } catch (storageError) {
                 console.warn(`${name} önbelleğe kaydedilemedi:`, storageError);
               }
-
+              
               return result;
             } else {
-              console.warn(`${name} API'den yüklendi fakat veri yok veya boş dizi döndü`);
-              // Referans kaynakları için özel olarak hata fırlatmak yerine varsayılan değerleri döndür
-              if (name === 'Referans Kaynakları') {
-                const defaultSources = [
-                  { id: "website", name: "İnternet Sitemiz", type: "online" },
-                  { id: "hotel", name: "Otel Yönlendirmesi", type: "partner" },
-                  { id: "local_guide", name: "Hanutçu / Yerel Rehber", type: "partner" },
-                  { id: "walk_in", name: "Kapı Önü Müşterisi", type: "direct" },
-                  { id: "repeat", name: "Tekrar Gelen Müşteri", type: "direct" },
-                  { id: "recommendation", name: "Tavsiye", type: "referral" },
-                  { id: "social_media", name: "Sosyal Medya", type: "online" },
-                  { id: "other", name: "Diğer", type: "other" }
-                ];
-                
-                try {
-                  localStorage.setItem(fallbackStorageKey, JSON.stringify(defaultSources));
-                  console.log(`Varsayılan ${name} kaydedildi:`, defaultSources.length, 'adet');
-                } catch (storageError) {
-                  console.warn(`Varsayılan ${name} önbelleğe kaydedilemedi:`, storageError);
+              throw new Error(`${name} verisi bulunamadı veya boş`);
+            }
+          } catch (apiError) {
+            console.warn(`${name} veritabanından yüklenirken hata:`, apiError);
+            
+            // Hata durumunda önbellekten yüklemeyi dene
+            try {
+              const cachedData = localStorage.getItem(fallbackStorageKey);
+              if (cachedData) {
+                const parsedData = JSON.parse(cachedData);
+                if (parsedData && Array.isArray(parsedData) && parsedData.length > 0) {
+                  console.log(`${name} önbellekten yüklendi:`, parsedData.length, 'adet veri');
+                  return parsedData;
                 }
-                
-                return defaultSources;
               }
-              
-              // Diğer veri türleri için hata fırlatmaya devam et
-              throw new Error(`${name} için veri bulunamadı`);
+            } catch (cacheError) {
+              console.warn(`${name} önbellekten yüklenemedi:`, cacheError);
             }
-          } catch (error) {
-            console.error(`${name} yüklenirken hata:`, error);
-
-            // Hata durumunda varsayılan veriler
-            if (name === 'Destinasyonlar') {
-              const defaultData = [
-                { id: "dest-1", name: "Antalya", country: "Türkiye", description: "Güzel sahiller" },
-                { id: "dest-2", name: "İstanbul", country: "Türkiye", description: "Tarihi yarımada" },
-                { id: "dest-3", name: "Kapadokya", country: "Türkiye", description: "Peri bacaları" },
-                { id: "dest-4", name: "Bursa", country: "Türkiye", description: "Tarihi şehir ve doğal güzellikler" },
-                { id: "dest-5", name: "Efes", country: "Türkiye", description: "Antik kent" }
+            
+            // Referans kaynakları için varsayılan değerler
+            if (name === 'Referans Kaynakları') {
+              const defaultSources = [
+                { id: "website", name: "İnternet Sitemiz", type: "online" },
+                { id: "hotel", name: "Otel Yönlendirmesi", type: "partner" },
+                { id: "local_guide", name: "Hanutçu / Yerel Rehber", type: "partner" },
+                { id: "walk_in", name: "Kapı Önü Müşterisi", type: "direct" },
+                { id: "repeat", name: "Tekrar Gelen Müşteri", type: "direct" },
+                { id: "recommendation", name: "Tavsiye", type: "referral" },
+                { id: "social_media", name: "Sosyal Medya", type: "online" },
+                { id: "other", name: "Diğer", type: "other" }
               ];
-              try {
-                localStorage.setItem(fallbackStorageKey, JSON.stringify(defaultData));
-              } catch (storageError) { }
-              return defaultData;
-            } else if (name === 'Aktiviteler') {
-              const defaultData = [
-                { id: "act-1", name: "Tekne Turu", destinationId: "dest-1", price: "300", currency: "TRY", description: "Güzel bir tekne turu" },
-                { id: "act-2", name: "Müze Gezisi", destinationId: "dest-2", price: "150", currency: "TRY", description: "Tarihi müze gezisi" },
-                { id: "act-3", name: "Balon Turu", destinationId: "dest-3", price: "2000", currency: "TRY", description: "Kapadokya'da balon turu" }
-              ];
-              try {
-                localStorage.setItem(fallbackStorageKey, JSON.stringify(defaultData));
-              } catch (storageError) { }
-              return defaultData;
+              return defaultSources;
             }
-
+            
+            // Diğer durumlar için boş dizi döndür
             return [];
           }
         };
 
         // Verileri paralel olarak getir
         try {
-          console.log('Referans kaynakları ve diğer veriler yükleniyor...');
-
+          console.log('Tüm veriler yükleniyor...');
+          
           const [types, providersData, activitiesData, destinationsData, referralSourcesData] = await Promise.all([
-            fetchWithTimeout(getExpenseTypes(), 'Gider türleri', 'expenseTypes'),
-            fetchWithTimeout(getProviders(), 'Sağlayıcılar', 'providers'),
-            fetchWithTimeout(getActivities(), 'Aktiviteler', 'activities'),
-            fetchWithTimeout(getDestinations(), 'Destinasyonlar', 'destinations'),
-            fetchWithTimeout(getReferralSources(), 'Referans Kaynakları', 'referralSources')
+            fetchFromDatabase(getExpenseTypes, 'Gider türleri', 'expenseTypes'),
+            fetchFromDatabase(getProviders, 'Sağlayıcılar', 'providers'),
+            fetchFromDatabase(getActivities, 'Aktiviteler', 'activities'),
+            fetchFromDatabase(getDestinations, 'Destinasyonlar', 'destinations'),
+            fetchFromDatabase(getReferralSources, 'Referans Kaynakları', 'referralSources')
           ]);
           
           console.log('Yüklenen veriler:', {
@@ -516,51 +465,20 @@ export function TourSalesForm({
             'Referans Kaynakları': referralSourcesData?.length || 0
           });
 
-          // Verileri yerel değişkenlere kaydet ve null kontrolü yap
-          const typesResult = Array.isArray(types) ? types : [];
-          const providersResult = Array.isArray(providersData) ? providersData : [];
-          const activitiesResult = Array.isArray(activitiesData) ? activitiesData : [];
-          const destinationsResult = Array.isArray(destinationsData) ? destinationsData : [];
-          const referralSourcesResult = Array.isArray(referralSourcesData) ? referralSourcesData : [];
-
-          // Verileri localStorage'a da kaydet (adımlar arası geçişte kaybolmaması için)
-          try {
-            localStorage.setItem('expenseTypes', JSON.stringify(typesResult));
-            localStorage.setItem('providers', JSON.stringify(providersResult));
-            localStorage.setItem('activities', JSON.stringify(activitiesResult));
-            localStorage.setItem('destinations', JSON.stringify(destinationsResult));
-            localStorage.setItem('referralSources', JSON.stringify(referralSourcesResult));
-            console.log('Tüm veriler localStorage\'a başarıyla kaydedildi');
-          } catch (storageError) {
-            console.warn('Veriler önbelleğe kaydedilemedi:', storageError);
-          }
-
           // Verileri state'e kaydet
-          setExpenseTypes(typesResult);
-          setProviders(providersResult);
-          setActivities(activitiesResult);
-          setDestinations(destinationsResult);
-          setReferralSources(referralSourcesResult);
+          setExpenseTypes(Array.isArray(types) ? types : []);
+          setProviders(Array.isArray(providersData) ? providersData : []);
+          setActivities(Array.isArray(activitiesData) ? activitiesData : []);
+          setDestinations(Array.isArray(destinationsData) ? destinationsData : []);
+          setReferralSources(Array.isArray(referralSourcesData) ? referralSourcesData : []);
 
-          console.log('Yüklenen destinasyonlar:', destinationsResult.length, 'adet');
-          console.log('Yüklenen aktiviteler:', activitiesResult.length, 'adet');
-          console.log('Yüklenen referans kaynakları:', referralSourcesResult.length, 'adet');
-        } catch (parallelLoadError) {
-          console.error('Paralel veri yükleme sırasında hata:', parallelLoadError);
-
-          // Hata durumunda localStorage'dan yüklemeyi dene
-          try {
-            const cachedReferralSources = localStorage.getItem('referralSources');
-            if (cachedReferralSources) {
-              const parsedReferralSources = JSON.parse(cachedReferralSources);
-              if (Array.isArray(parsedReferralSources) && parsedReferralSources.length > 0) {
-                console.log('Referans kaynakları önbellekten yüklendi:', parsedReferralSources.length, 'adet');
-                setReferralSources(parsedReferralSources);
-              }
-            }
-          } catch (cacheError) {
-            console.warn('Referans kaynakları önbellekten yüklenemedi:', cacheError);
-          }
+        } catch (error) {
+          console.error('Veri yükleme sırasında hata:', error);
+          toast({
+            title: "Uyarı",
+            description: "Veriler yüklenirken sorun oluştu. Lütfen internet bağlantınızı kontrol edin.",
+            variant: "destructive",
+          });
         }
 
         // Gider kategorilerini oluştur
@@ -577,82 +495,10 @@ export function TourSalesForm({
           { value: "other", label: "Diğer" },
         ];
         setExpenseCategories(categories);
-
-        // Veri yükleme tamamlandı
-        setIsLoading(false);
       } catch (error) {
-        console.error("Veri yüklenirken hata:", error);
-
-        // Hata durumunda localStorage'dan veri yüklemeyi dene
-        try {
-          const cachedTypes = localStorage.getItem('expenseTypes');
-          const cachedProviders = localStorage.getItem('providers');
-          const cachedActivities = localStorage.getItem('activities');
-          const cachedDestinations = localStorage.getItem('destinations');
-          const cachedReferralSources = localStorage.getItem('referralSources');
-
-          if (cachedTypes) setExpenseTypes(JSON.parse(cachedTypes));
-          if (cachedProviders) setProviders(JSON.parse(cachedProviders));
-          if (cachedActivities) setActivities(JSON.parse(cachedActivities));
-          if (cachedDestinations) {
-            const parsedDestinations = JSON.parse(cachedDestinations);
-            setDestinations(parsedDestinations);
-            console.log('Önbellek destinasyonlar yüklendi:', parsedDestinations.length, 'adet');
-          } else {
-            // Eğer önbellekte destinasyon verisi yoksa, varsayılan değerleri yükle
-            const defaultDestinations = [
-              { id: "dest-1", name: "Antalya", country: "Türkiye", description: "Güzel sahiller" },
-              { id: "dest-2", name: "İstanbul", country: "Türkiye", description: "Tarihi yarımada" },
-              { id: "dest-3", name: "Kapadokya", country: "Türkiye", description: "Peri bacaları" },
-              { id: "dest-4", name: "Bursa", country: "Türkiye", description: "Tarihi şehir ve doğal güzellikler" },
-              { id: "dest-5", name: "Efes", country: "Türkiye", description: "Antik kent" }
-            ];
-            setDestinations(defaultDestinations);
-            // Varsayılan değerleri localStorage'a kaydet
-            localStorage.setItem('destinations', JSON.stringify(defaultDestinations));
-            console.log('Varsayılan destinasyonlar yüklendi:', defaultDestinations.length, 'adet');
-          }
-          
-          if (cachedReferralSources) {
-            const parsedReferralSources = JSON.parse(cachedReferralSources);
-            setReferralSources(parsedReferralSources);
-            console.log('Önbellek referans kaynakları yüklendi:', parsedReferralSources.length, 'adet');
-          }
-
-          toast({
-            title: "Uyarı",
-            description: "Veriler önbellekten yüklendi. Güncel olmayabilir.",
-            variant: "default",
-          });
-        } catch (cacheError) {
-          console.error("Önbellekten veri yükleme hatası:", cacheError);
-          
-          // Bu noktada son çare olarak varsayılan destinasyon verilerini yükleyelim
-          const defaultDestinations = [
-            { id: "dest-1", name: "Antalya", country: "Türkiye", description: "Güzel sahiller" },
-            { id: "dest-2", name: "İstanbul", country: "Türkiye", description: "Tarihi yarımada" },
-            { id: "dest-3", name: "Kapadokya", country: "Türkiye", description: "Peri bacaları" },
-            { id: "dest-4", name: "Bursa", country: "Türkiye", description: "Tarihi şehir ve doğal güzellikler" },
-            { id: "dest-5", name: "Efes", country: "Türkiye", description: "Antik kent" }
-          ];
-          setDestinations(defaultDestinations);
-          
-          // Varsayılan değerleri localStorage'a kaydet
-          try {
-            localStorage.setItem('destinations', JSON.stringify(defaultDestinations));
-            console.log('Varsayılan destinasyonlar yüklendi:', defaultDestinations.length, 'adet');
-          } catch (e) {
-            console.error('Varsayılan destinasyonlar localStorage\'a kaydedilemedi', e);
-          }
-          
-          toast({
-            title: "Hata",
-            description: "Veriler yüklenemedi. Varsayılan veriler kullanılıyor.",
-            variant: "destructive",
-          });
-        }
-
-        setIsLoading(false); // Hata durumunda da yükleme durumunu güncelle
+        console.error("Veri yükleme işlemi sırasında beklenmeyen hata:", error);
+      } finally {
+        setIsLoading(false); // Yükleme işlemi tamamlandı
       }
     };
 
@@ -725,30 +571,14 @@ export function TourSalesForm({
       if (formData.destinationId) {
         setIsLoadingTours(true);
         try {
-          // İlgili destinasyona ait TUR ŞABLONLARINI yükle (tours değil, tourTemplates)
-          const { getTourTemplatesByDestination } = await import('@/lib/db');
-          console.log(`${formData.destinationId} destinasyonuna ait şablonlar yükleniyor...`);
-          const templates = await getTourTemplatesByDestination(formData.destinationId);
-          console.log(`${formData.destinationId} destinasyonuna ait ${templates.length} tur şablonu yüklendi.`);
-          setDestinationTours(templates);
+          // İlgili destinasyona ait turları yükle
+          const { getToursByDestination } = await import('@/lib/db');
+          const tours = await getToursByDestination(formData.destinationId);
+          console.log(`${formData.destinationId} destinasyonuna ait ${tours.length} tur yüklendi.`);
+          setDestinationTours(tours);
         } catch (error) {
-          console.error(`Destinasyon tur şablonları yüklenirken hata:`, error);
-          
-          // Hata durumunda localStorage'dan yüklemeyi dene
-          try {
-            const cachedTemplates = localStorage.getItem('tourTemplates');
-            if (cachedTemplates) {
-              const allTemplates = JSON.parse(cachedTemplates);
-              const filteredTemplates = allTemplates.filter((t: any) => t.destinationId === formData.destinationId);
-              console.log(`Önbellekten ${filteredTemplates.length} tur şablonu yüklendi.`);
-              setDestinationTours(filteredTemplates);
-            } else {
-              setDestinationTours([]);
-            }
-          } catch (e) {
-            console.error('Önbellekten tur şablonları yüklenemedi:', e);
-            setDestinationTours([]);
-          }
+          console.error(`Destinasyon turları yüklenirken hata:`, error);
+          setDestinationTours([]);
         } finally {
           setIsLoadingTours(false);
         }

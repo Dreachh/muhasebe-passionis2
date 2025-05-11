@@ -5,8 +5,7 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/toaster";
 import { SessionProvider } from "@/components/providers/session-provider";
 // Firebase başlatma
-import firebase from "@/lib/firebase";
-import { initializeDB } from "@/lib/db"; // Bu işlev artık Firebase için çalışacak
+import { initializeFirebase } from "@/lib/firebase";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -32,9 +31,13 @@ export default function RootLayout({ children, params: { locale } }) {
               // Firebase başlatma ve veritabanını hazırlama
               document.addEventListener('DOMContentLoaded', async function() {
                 try {
-                  console.log("Firebase veritabanı başlatılıyor...");
-                  await initializeDB();
-                  console.log("Firebase veritabanı hazır!");
+                  if (typeof initializeFirebase === 'function') {
+                    console.log("Firebase başlatma fonksiyonu çağrılıyor...");
+                    window.firestore = initializeFirebase();
+                    console.log("Firebase veritabanı başarıyla başlatıldı!");
+                  } else {
+                    console.error("Firebase başlatma fonksiyonu bulunamadı!");
+                  }
                 } catch (error) {
                   console.error("Firebase veritabanı başlatılırken hata:", error);
                 }

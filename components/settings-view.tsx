@@ -1098,6 +1098,56 @@ export function SettingsView({
     }
   }
 
+  // Tur şablonu kaydet
+  const handleSaveTourTemplate = async () => {
+    // Validasyon yap
+    if (!newTourTemplate.name || !newTourTemplate.duration) {
+      toast({
+        title: "Hata",
+        description: "Lütfen tur adı ve süresini belirtin.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      let updatedTours = [...tourTemplates];
+      
+      if (isEditingTour) {
+        // Mevcut turu güncelle
+        updatedTours = tourTemplates.map(tour => 
+          tour.id === newTourTemplate.id ? newTourTemplate : tour
+        );
+      } else {
+        // Yeni tur ekle
+        updatedTours = [...tourTemplates, newTourTemplate];
+      }
+      
+      // State'i güncelle
+      console.log("Tur şablonları güncelleniyor:", updatedTours.length);
+      setTourTemplates(updatedTours);
+      
+      // Veritabanına kaydet
+      const { saveTourTemplates } = await import("@/lib/db");
+      await saveTourTemplates(updatedTours);
+      
+      // Dialog'u kapat
+      setIsTourDialogOpen(false);
+      
+      toast({
+        title: "Başarılı",
+        description: isEditingTour ? "Tur şablonu güncellendi." : "Yeni tur şablonu eklendi.",
+      });
+    } catch (error) {
+      console.error("Tur şablonu kaydedilirken hata:", error);
+      toast({
+        title: "Hata",
+        description: "Tur şablonu kaydedilirken bir hata oluştu.",
+        variant: "destructive",
+      });
+    }
+  }
+
   // Tur şablonu sil
   const handleDeleteTourTemplate = async () => {
     const updatedTourTemplates = tourTemplates.filter((item) => item.id !== tourToDelete?.id)
@@ -1564,8 +1614,8 @@ export function SettingsView({
                         .length > 0 ? (
                         tourTemplates
                           .filter(tour => tour.destinationId === selectedDestinationId)
-                          .map((tour) => (
-                            <TableRow key={`${tour.id}-${selectedDestinationId}`}>
+                          .map((tour, index) => (
+                            <TableRow key={`tour-row-${tour.id}-${index}`}>
                               <TableCell className="font-medium">{tour.name}</TableCell>
                               <TableCell>{tour.description}</TableCell>
                               <TableCell>{tour.duration}</TableCell>
@@ -1957,6 +2007,90 @@ export function SettingsView({
         </AlertDialogContent>
       </AlertDialog>
 
+      {/* Destinasyon Ekleme/Düzenleme Dialog */}
+      <Dialog open={isDestinationDialogOpen} onOpenChange={setIsDestinationDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{isEditingDestination ? "Destinasyonu Düzenle" : "Yeni Destinasyon Ekle"}</DialogTitle>
+            <DialogDescription>
+              Turlarda kullanılacak yeni bir destinasyon ekleyin veya mevcut destinasyonu düzenleyin.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="destinationName">Destinasyon Adı <span className="text-red-500">*</span></Label>
+              <Input
+                id="destinationName"
+                name="name"
+                value={newDestination.name}
+                onChange={handleDestinationChange}
+                placeholder="Örn: İstanbul, Antalya, Paris"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="country">Ülke</Label>
+              <Input
+                id="country"
+                name="country"
+                value={newDestination.country}
+                onChange={handleDestinationChange}
+                placeholder="Örn: Türkiye, Fransa, İtalya"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="region">Bölge</Label>
+              <Input
+                id="region"
+                name="region" 
+                value={newDestination.region}
+                onChange={handleDestinationChange}
+                placeholder="Örn: Akdeniz, Ege, Avrupa"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="description">Açıklama</Label>
+              <Textarea
+                id="description"
+                name="description"
+                value={newDestination.description}
+                onChange={handleDestinationChange}
+                placeholder="Destinasyon hakkında kısa bir açıklama..."
+                rows={3}
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsDestinationDialogOpen(false)}>
+              İptal
+            </Button>
+            <Button 
+              className="bg-[#00a1c6] hover:bg-[#00a1c6]" 
+              onClick={async () => {
+                try {
+                  console.log("Destinasyon kaydetme işlemi başladı...");
+                  await handleSaveDestination();
+                  console.log("Destinasyon kaydetme işlemi tamamlandı!");
+                } catch (error) {
+                  console.error("Destinasyon kaydetme hatası:", error);
+                  toast({
+                    title: "Hata",
+                    description: "Destinasyon kaydedilirken bir hata oluştu: " + (error as Error).message,
+                    variant: "destructive",
+                  });
+                }
+              }}
+            >
+              {isEditingDestination ? "Güncelle" : "Ekle"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Destinasyon Silme Dialog */}
       <AlertDialog open={isDeleteDestinationDialogOpen} onOpenChange={setIsDeleteDestinationDialogOpen}>
         <AlertDialogContent>
@@ -2060,53 +2194,7 @@ export function SettingsView({
             </Button>
             <Button 
               className="bg-[#00a1c6] hover:bg-[#00a1c6]" 
-              onClick={async () => {
-                // Validasyon yap
-                if (!newTourTemplate.name || !newTourTemplate.duration) {
-                  toast({
-                    title: "Hata",
-                    description: "Lütfen tur adı ve süresini belirtin.",
-                    variant: "destructive",
-                  });
-                  return;
-                }
-
-                try {
-                  let updatedTours = [...tourTemplates];
-                  
-                  if (isEditingTour) {
-                    // Mevcut turu güncelle
-                    updatedTours = tourTemplates.map(tour => 
-                      tour.id === newTourTemplate.id ? newTourTemplate : tour
-                    );
-                  } else {
-                    // Yeni tur ekle
-                    updatedTours = [...tourTemplates, newTourTemplate];
-                  }
-                  
-                  // State'i güncelle
-                  setTourTemplates(updatedTours);
-                  
-                  // Veritabanına kaydet
-                  const { saveTourTemplates } = await import("@/lib/db");
-                  await saveTourTemplates(updatedTours);
-                  
-                  toast({
-                    title: "Başarılı",
-                    description: isEditingTour ? "Tur şablonu güncellendi." : "Yeni tur şablonu eklendi.",
-                  });
-                  
-                  // Dialog'u kapat
-                  setIsTourDialogOpen(false);
-                } catch (error) {
-                  console.error("Tur şablonu kaydedilirken hata:", error);
-                  toast({
-                    title: "Hata",
-                    description: "Tur şablonu kaydedilirken bir hata oluştu.",
-                    variant: "destructive",
-                  });
-                }
-              }}
+              onClick={handleSaveTourTemplate}
             >
               {isEditingTour ? "Güncelle" : "Ekle"}
             </Button>

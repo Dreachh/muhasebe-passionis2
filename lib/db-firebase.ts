@@ -20,6 +20,7 @@ import {
   Timestamp,
 } from "firebase/firestore";
 import { db } from "./firebase";
+import { getDatabase, ref, set, get } from "firebase/database";
 
 // IndexedDB'deki STORES koleksiyonuna karşılık gelen koleksiyonlar
 export const COLLECTIONS = {
@@ -257,7 +258,27 @@ export const getSettings = async (): Promise<any> => {
 // Ayarları kaydet - IndexedDB uyumlu
 export const saveSettings = async (settings: any): Promise<void> => {
   try {
-    const currentSettings = await getSettings();
+    // Mevcut ayarları almaya çalış
+    let currentSettings = await getDataById(COLLECTIONS.settings, "general");
+    
+    // Eğer "general" id'li döküman yoksa, yeni bir döküman oluştur
+    if (!currentSettings) {
+      console.log("Ayarlar dökümanı bulunamadı, yeni döküman oluşturuluyor...");
+      
+      const newSettings = {
+        ...settings,
+        id: "general",
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      };
+      
+      // Yeni dökümanı ekle
+      await addData(COLLECTIONS.settings, newSettings);
+      console.log("Yeni ayarlar dökümanı başarıyla oluşturuldu");
+      return;
+    }
+    
+    // Mevcut döküman varsa güncelle
     const updatedSettings = {
       ...currentSettings,
       ...settings,
@@ -267,8 +288,9 @@ export const saveSettings = async (settings: any): Promise<void> => {
     
     // Firestore'a kaydet
     await updateData(COLLECTIONS.settings, updatedSettings);
+    console.log("Ayarlar dökümanı başarıyla güncellendi");
   } catch (error) {
-    console.error("Ayarlar kaydedilirken hata:", error);
+    console.error("settings verisini güncellerken hata:", error);
     throw error;
   }
 };
@@ -356,43 +378,171 @@ export const getReferralSources = async (): Promise<any[]> => {
   return getAllData(COLLECTIONS.referral_sources);
 };
 
-// Tur şablonlarını kaydet
+// Tur şablonları için işlevler
 export const saveTourTemplates = async (tourTemplates: any[]): Promise<void> => {
   try {
-    await clearCollection(COLLECTIONS.tourTemplates);
-    await bulkSaveData(COLLECTIONS.tourTemplates, tourTemplates);
+    // rtdb import ediliyor
+    const { rtdb } = await import("./firebase");
+    const { ref, set, get } = await import("firebase/database");
+    
+    if (!rtdb) {
+      throw new Error("Realtime Database bağlantısı kurulamadı.");
+    }
+    
+    if (!tourTemplates || !Array.isArray(tourTemplates)) {
+      console.error("Geçersiz tur şablonları verisi:", tourTemplates);
+      throw new Error("Geçersiz tur şablonları verisi");
+    }
+
+    // ID'si olmayan şablonlara ID ekle ve tüm verileri doğrula
+    const validatedTemplates = tourTemplates.map(template => {
+      if (!template.id) {
+        console.log('ID eksik şablon tespit edildi, yeni ID ekleniyor');
+        return { ...template, id: generateUUID() };
+      }
+      return template;
+    }).filter(Boolean); // null ve undefined değerlerini temizle
+    
+    console.log(`${validatedTemplates.length} tur şablonu kaydediliyor. İçerik:`, JSON.stringify(validatedTemplates));
+    
+    // Tüm güncel listeyi doğrudan kaydet - önceki kayıtları birleştirme
+    await set(ref(rtdb, 'tourTemplates'), validatedTemplates);
+    
+    // Yerel depolama yedeklemesi
+    try {
+      localStorage.setItem('tour_templates_backup', JSON.stringify(validatedTemplates));
+      console.log('Yedekleme için tur şablonları localStorage\'a kaydedildi');
+    } catch (localErr) {
+      console.warn('localStorage yedeklemesi yapılamadı:', localErr);
+    }
+    
+    // Doğrulama ve log
+    try {
+      const verifySnapshot = await get(ref(rtdb, 'tourTemplates'));
+      if (verifySnapshot.exists()) {
+        const savedData = verifySnapshot.val();
+        
+        if (Array.isArray(savedData)) {
+          console.log(`Doğrulama başarılı: ${savedData.length} tur şablonu kaydedildi!`);
+        } else {
+          console.log('Doğrulama uyarısı: Veri dizi formatında değil, ancak kaydedildi');
+          console.log('Kaydedilen veri tipi:', typeof savedData);
+        }
+      } else {
+        console.error('Veri kaydedilmiş gibi görünüyor ama doğrulanamadı!');
+      }
+    } catch (verifyError) {
+      console.warn('Doğrulama hatası:', verifyError);
+    }
   } catch (error) {
-    console.error("Tur şablonları kaydedilirken hata:", error);
+    console.error('Tur şablonları kaydedilirken hata:', error);
     throw error;
   }
 };
 
-// Tüm tur şablonlarını getir
 export const getTourTemplates = async (): Promise<any[]> => {
-  return getAllData(COLLECTIONS.tourTemplates);
+  try {
+    // rtdb import ediliyor
+    const { rtdb } = await import("./firebase");
+    const { ref, get } = await import("firebase/database");
+    
+    if (!rtdb) {
+      throw new Error("Realtime Database bağlantısı kurulamadı.");
+    }
+    
+    console.log('Tur şablonları getiriliyor...');
+    const snapshot = await get(ref(rtdb, 'tourTemplates'));
+    
+    if (snapshot.exists()) {
+      const data = snapshot.val();
+      
+      // Firebase'den gelen veri dizi formunda değilse dönüştür
+      if (Array.isArray(data)) {
+        // Null değerleri temizle
+        const filteredData = data.filter(Boolean);
+        console.log(`${filteredData.length} tur şablonu bulundu.`);
+        return filteredData;
+      } else if (typeof data === 'object' && data !== null) {
+        // Obje formunda ise diziye dönüştür
+        const objData = Object.values(data).filter(Boolean);
+        console.log(`Obje olarak ${objData.length} tur şablonu bulundu.`);
+        return objData;
+      }
+      
+      console.log('Veri bulunamadı veya geçersiz format.');
+      return [];
+    }
+    
+    console.log('Tur şablonu bulunamadı, localStorage kontrolü yapılıyor...');
+    
+    // Veritabanında veri yoksa, localStorage'dan kurtarma dene
+    try {
+      const backupData = localStorage.getItem('tour_templates_backup');
+      if (backupData) {
+        const parsedData = JSON.parse(backupData);
+        console.log('Tur şablonları localStorage\'dan alındı');
+        return Array.isArray(parsedData) ? parsedData : [];
+      }
+    } catch (localStorageError) {
+      console.warn('localStorage\'dan veri alınamadı:', localStorageError);
+    }
+    
+    return [];
+  } catch (error) {
+    console.error('Tur şablonları getirilirken hata:', error);
+    
+    // Hata durumunda localStorage'dan kurtarma dene
+    try {
+      const backupData = localStorage.getItem('tour_templates_backup');
+      if (backupData) {
+        const parsedData = JSON.parse(backupData);
+        console.log('Hata sonrası tur şablonları localStorage\'dan kurtarıldı');
+        return Array.isArray(parsedData) ? parsedData : [];
+      }
+    } catch (localStorageError) {
+      console.warn('localStorage\'dan veri alınamadı:', localStorageError);
+    }
+    
+    return [];
+  }
 };
 
-// Tek bir tur şablonu getir
-export const getTourTemplate = async (id: string): Promise<any> => {
-  return getDataById(COLLECTIONS.tourTemplates, id);
-};
-
-// Destinasyona ait tur şablonlarını getir
 export const getTourTemplatesByDestination = async (destinationId: string): Promise<any[]> => {
   try {
-    if (!destinationId) return [];
+    // Tüm tur şablonlarını getir
+    const allTemplates = await getTourTemplates();
     
-    const colRef = collection(db, COLLECTIONS.tourTemplates);
-    const q = query(colRef, where("destinationId", "==", destinationId));
-    const snapshot = await getDocs(q);
+    // Verilen destinationId'ye göre filtrele
+    const filteredTemplates = allTemplates.filter((template) => 
+      template.destinationId === destinationId
+    );
     
-    return snapshot.docs.map(doc => ({
-      ...doc.data(),
-      id: doc.id
-    }));
+    console.log(`${destinationId} ID'li destinasyona ait ${filteredTemplates.length} tur şablonu bulundu.`);
+    return filteredTemplates;
   } catch (error) {
-    console.error(`Destinasyon (${destinationId}) için turlar alınırken hata:`, error);
-    return [];
+    console.error(`Destinasyon ID: ${destinationId} için tur şablonları getirilirken hata:`, error);
+    throw error;
+  }
+};
+
+// Belirli bir tur şablonunu getir
+export const getTourTemplate = async (id: string): Promise<any> => {
+  try {
+    // Önce tüm şablonları al
+    const allTemplates = await getTourTemplates();
+    
+    // ID'ye göre filtrele
+    const template = allTemplates.find(template => template.id === id);
+    
+    if (template) {
+      return template;
+    } else {
+      console.log(`ID: ${id} olan tur şablonu bulunamadı.`);
+      return null;
+    }
+  } catch (error) {
+    console.error(`ID: ${id} olan tur şablonu alınırken hata:`, error);
+    throw error;
   }
 };
 
