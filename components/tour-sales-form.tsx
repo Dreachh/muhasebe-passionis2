@@ -1365,7 +1365,7 @@ export function TourSalesForm({
               <div className="flex justify-between items-center">
                 <h3 className="text-lg font-medium text-[#00a1c6]">Tur Giderleri (Muhasebe)</h3>
                 <Button type="button" variant="outline" size="sm" onClick={handleNavigateToSettings}>
-                  Ayarlara Git
+                  <Settings className="h-3 w-3 mr-1" /> Ayarlar
                 </Button>
               </div>
 
@@ -1376,7 +1376,7 @@ export function TourSalesForm({
                 </p>
                 <p className="text-sm text-muted-foreground">
                   Gider türleri ve sağlayıcılar ayarlar sayfasından eklenebilir. Eğer istediğiniz gider türü listede yoksa,
-                  "Ayarlara Git" düğmesini kullanarak yeni gider türleri ekleyebilirsiniz.
+                  "Ayarlar" düğmesini kullanarak yeni gider türleri ekleyebilirsiniz.
                 </p>
               </div>
 
@@ -1402,34 +1402,99 @@ export function TourSalesForm({
                       </div>
 
                       <div className="space-y-4">
+                        {/* Gider Kategorisi Seçimi */}
                         <div className="space-y-2">
-                          <Label>Gider Türü</Label>
+                          <Label>Gider Kategorisi</Label>
                           <Select
-                            value={expense.type}
-                            onValueChange={(value) => updateExpense(expense.id, "type", value)}
+                            value={expense.category || expense.type || ""}
+                            onValueChange={(value) => {
+                              // Kategori değiştiğinde hem category hem de type alanlarını güncelle
+                              updateExpense(expense.id, "category", value);
+                              updateExpense(expense.id, "type", value);
+                              // Kategori değiştiğinde, ilgili gider türünü sıfırla
+                              updateExpense(expense.id, "expenseTypeId", "");
+                              updateExpense(expense.id, "name", "");
+                            }}
                             required
                           >
                             <SelectTrigger>
-                              <SelectValue placeholder="Gider türü seçin" />
+                              <SelectValue placeholder="Gider kategorisi seçin" />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="konaklama">Konaklama</SelectItem>
-                              <SelectItem value="ulasim">Ulaşım</SelectItem>
-                              <SelectItem value="rehber">Rehber</SelectItem>
-                              <SelectItem value="acenta">Acenta / Hanutçu</SelectItem>
-                              <SelectItem value="aktivite">Aktivite</SelectItem>
-                              <SelectItem value="yemek">Yemek</SelectItem>
-                              <SelectItem value="genel">Genel</SelectItem>
-                              <SelectItem value="diger">Diğer</SelectItem>
+                              {expenseCategories.map((category) => (
+                                <SelectItem key={category.value} value={category.value}>
+                                  {category.label}
+                                </SelectItem>
+                              ))}
                             </SelectContent>
                           </Select>
-                          {(!expense.type || expense.type === "") && (
-                            <div className="text-red-500 text-xs mt-1">Gider türü seçilmelidir.</div>
+                          {(!expense.category && !expense.type) && (
+                            <div className="text-red-500 text-xs mt-1">Gider kategorisi seçilmelidir.</div>
                           )}
                         </div>
 
-                        {/* Gider Türüne Göre Dinamik Alanlar */}
-                        {expense.type === "rehber" && (
+                        {/* Gider Türü Seçimi (Kategori seçildiyse göster) */}
+                        {(expense.category || expense.type) && (
+                          <div className="space-y-2">
+                            <Label>Gider Türü</Label>
+                            <Select
+                              value={expense.expenseTypeId || ""}
+                              onValueChange={(value) => {
+                                // Gider türü seçildiğinde expenseTypeId ve name alanlarını güncelle
+                                updateExpense(expense.id, "expenseTypeId", value);
+                                
+                                // Seçilen gider türünün adını otomatik olarak name alanına aktar
+                                const selectedExpenseType = expenseTypes.find(et => et.id === value);
+                                if (selectedExpenseType) {
+                                  updateExpense(expense.id, "name", selectedExpenseType.name);
+                                }
+                              }}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Gider türü seçin" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {isLoading ? (
+                                  <SelectItem value="loading" disabled>Gider türleri yükleniyor...</SelectItem>
+                                ) : (
+                                  <>
+                                    {/* İlgili kategoriye ait gider türlerini filtrele ve listele */}
+                                    {expenseTypes
+                                      .filter(et => et.category === expense.category || et.category === expense.type || et.type === expense.category || et.type === expense.type)
+                                      .map((expenseType) => (
+                                        <SelectItem key={expenseType.id} value={expenseType.id}>
+                                          {expenseType.name}
+                                        </SelectItem>
+                                      ))}
+                                    
+                                    {/* Eğer hiç gider türü yoksa veya listelenecek gider türü bulunamazsa */}
+                                    {expenseTypes.filter(et => et.category === expense.category || et.category === expense.type || et.type === expense.category || et.type === expense.type).length === 0 && (
+                                      <SelectItem value="none" disabled>
+                                        Bu kategoride gider türü bulunamadı. Lütfen ayarlardan ekleyin.
+                                      </SelectItem>
+                                    )}
+                                    
+                                    {/* Özel gider türü ekleme seçeneği */}
+                                    <SelectItem value="custom">+ Özel gider ekle</SelectItem>
+                                  </>
+                                )}
+                              </SelectContent>
+                            </Select>
+
+                            {/* Özel gider türü seçildiyse göster */}
+                            {expense.expenseTypeId === "custom" && (
+                              <Input
+                                className="mt-2"
+                                value={expense.name || ""}
+                                onChange={(e) => updateExpense(expense.id, "name", e.target.value)}
+                                placeholder="Özel gider adı girin"
+                              />
+                            )}
+                          </div>
+                        )}
+
+                        {/* Kategori türlerine göre dinamik alanlar */}
+                        {expense.category === "guide" && (
                           <div className="space-y-2">
                             <Label>Rehber Bilgisi</Label>
                             <Input
@@ -1440,7 +1505,7 @@ export function TourSalesForm({
                           </div>
                         )}
 
-                        {expense.type === "ulasim" && (
+                        {expense.category === "transportation" && (
                           <div className="space-y-4">
                             <div className="space-y-2">
                               <Label>Ulaşım Tipi</Label>
@@ -1474,9 +1539,9 @@ export function TourSalesForm({
                           </div>
                         )}
 
-                        {expense.type === "acenta" && (
+                        {(expense.category === "agency" || expense.category === "porter") && (
                           <div className="space-y-2">
-                            <Label>Acenta İsmi</Label>
+                            <Label>Acenta/Hanutçu İsmi</Label>
                             <Input
                               value={expense.acentaName ?? ""}
                               onChange={(e) => updateExpense(expense.id, "acentaName", e.target.value)}
@@ -1485,18 +1550,21 @@ export function TourSalesForm({
                           </div>
                         )}
 
-                        <div className="space-y-2">
-                          <Label>Açıklama</Label>
-                          <Input
-                            value={expense.name ?? ""}
-                            onChange={(e) => updateExpense(expense.id, "name", e.target.value)}
-                            placeholder="Gider açıklaması"
-                            required
-                          />
-                          {(!expense.name || expense.name === "") && (
-                            <div className="text-red-500 text-xs mt-1">Açıklama girilmelidir.</div>
-                          )}
-                        </div>
+                        {/* Sadece özel gider eklemediysek ve bir gider türü seçilmediyse açıklama alanını göster */}
+                        {expense.expenseTypeId !== "custom" && !expense.expenseTypeId && (
+                          <div className="space-y-2">
+                            <Label>Açıklama</Label>
+                            <Input
+                              value={expense.name ?? ""}
+                              onChange={(e) => updateExpense(expense.id, "name", e.target.value)}
+                              placeholder="Gider açıklaması"
+                              required
+                            />
+                            {(!expense.name || expense.name === "") && (
+                              <div className="text-red-500 text-xs mt-1">Açıklama girilmelidir.</div>
+                            )}
+                          </div>
+                        )}
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <div className="space-y-2">
@@ -1510,7 +1578,7 @@ export function TourSalesForm({
                                 placeholder="0.00"
                               />
                               <Select
-                                value={expense.currency}
+                                value={expense.currency || "TRY"}
                                 onValueChange={(value) => updateExpense(expense.id, "currency", value)}
                               >
                                 <SelectTrigger className="w-[100px]">
@@ -1540,7 +1608,7 @@ export function TourSalesForm({
                         <div className="flex items-center space-x-2 mt-4">
                           <Checkbox
                             id={`included-${expense.id}`}
-                            checked={expense.isIncludedInPrice}
+                            checked={expense.isIncludedInPrice || false}
                             onCheckedChange={(checked) =>
                               updateExpense(expense.id, "isIncludedInPrice", checked === true)
                             }
