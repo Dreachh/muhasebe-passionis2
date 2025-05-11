@@ -51,6 +51,16 @@ function generateUUID() {
   })
 }
 
+// Debug fonksiyonu - konsol çıktılarını daha net görmek için
+const debugLog = (message: string, data?: any) => {
+  const now = new Date();
+  const timestamp = now.toLocaleTimeString();
+  console.log(`[${timestamp}] 🔍 DEBUG: ${message}`);
+  if (data !== undefined) {
+    console.log(JSON.stringify(data, null, 2));
+  }
+}
+
 // Gerekli arayüz tanımlamaları ekleniyor
 interface ExpenseType {
   id: string;
@@ -122,6 +132,41 @@ interface SettingsViewProps {
 // Event tipleri için değişiklikler
 type InputChangeEvent = React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>;
 type FileChangeEvent = React.ChangeEvent<HTMLInputElement>;
+
+// Tur şablonlarını doğrudan Firebase Firestore'a kaydet
+const saveTourTemplatesDirectly = async (tours: Tour[]) => {
+  try {
+    // Firebase modüllerini doğrudan import et
+    const { collection, doc, setDoc, writeBatch } = await import("firebase/firestore");
+    const { db } = await import("@/lib/firebase");
+    
+    // Önce local storage'a yedek olarak kaydet
+    localStorage.setItem('tourTemplates', JSON.stringify(tours));
+    console.log(`${tours.length} tur şablonu localStorage'a yedeklendi`);
+    
+    // Batch işlemi başlat
+    const batch = writeBatch(db);
+    
+    // Koleksiyonu işaretleyip tüm turları ekle
+    const colRef = collection(db, "tourTemplates");
+    tours.forEach(tour => {
+      const docRef = doc(colRef, tour.id);
+      batch.set(docRef, {
+        ...tour,
+        updatedAt: new Date(),
+      });
+    });
+    
+    // Batch işlemini tamamla
+    await batch.commit();
+    console.log(`${tours.length} tur şablonu başarıyla Firestore'a kaydedildi!`);
+    
+    return true;
+  } catch (error) {
+    console.error("Doğrudan Firestore kaydetme hatası:", error);
+    throw error;
+  }
+};
 
 // onClose fonksiyonu ana sayfaya yönlendirecek şekilde güncellendi
 export function SettingsView({ 
@@ -1097,20 +1142,81 @@ export function SettingsView({
       })
     }
   }
-
-  // Tur şablonu kaydet
-  const handleSaveTourTemplate = async () => {
-    // Validasyon yap
-    if (!newTourTemplate.name || !newTourTemplate.duration) {
-      toast({
-        title: "Hata",
-        description: "Lütfen tur adı ve süresini belirtin.",
-        variant: "destructive",
-      });
-      return;
+  
+  // Destinasyon seçimi için handler güncellemesi
+  const handleDestinationSelect = async (value: string) => {
+    setSelectedDestinationId(value);
+    
+    console.log("Seçilen destinasyon ID:", value);
+    
+    if (value) {
+      try {
+        // Doğrudan seçili destinasyon için tur şablonlarını getir
+        const { getTourTemplatesByDestination } = await import("@/lib/db-firebase");
+        const destinationTours = await getTourTemplatesByDestination(value);
+        
+        // Eğer mevcut şablonları güncellememiz gerekiyorsa
+        if (destinationTours && destinationTours.length > 0) {
+          console.log(`${destinationTours.length} tur şablonu yüklendi`);
+          
+          // Mevcut tur şablonlarını koruyarak sadece seçili destinasyona ait turları güncelleyelim
+          const updatedTourTemplates = tourTemplates.filter(tour => tour.destinationId !== value);
+          setTourTemplates([...updatedTourTemplates, ...destinationTours]);
+        } else {
+          console.log("Seçilen destinasyon için hiç tur şablonu bulunamadı");
+        }
+      } catch (error) {
+        console.error("Destinasyon turları yüklenirken hata:", error);
+        toast({
+          title: "Hata",
+          description: "Turlar yüklenirken bir sorun oluştu.",
+          variant: "destructive",
+        });
+      }
     }
+  }
 
+  // Tur şablonu dialog'unu aç
+  const openTourDialog = (tour: Tour | null = null) => {
+    if (tour) {
+      setNewTourTemplate({...tour});
+      setIsEditingTour(true);
+    } else {
+      setNewTourTemplate({
+        id: generateUUID(),
+        name: "",
+        description: "",
+        destinationId: selectedDestinationId,
+        price: 0,
+        duration: "",
+        currency: "EUR",
+      });
+      setIsEditingTour(false);
+    }
+    setIsTourDialogOpen(true);
+  }
+
+  // Tur şablonu kaydetme işlemini yönet
+  const handleSaveTourTemplate = async () => {
     try {
+      // Validasyon
+      if (!newTourTemplate.name || !newTourTemplate.duration) {
+        toast({
+          title: "Hata",
+          description: "Lütfen tur adı ve süresini belirtin.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // ID olmadan kaydetme yapmayalım
+      if (!newTourTemplate.id) {
+        newTourTemplate.id = generateUUID();
+      }
+      
+      debugLog("Kaydedilecek tur şablonu:", newTourTemplate);
+
+      // State'i güncelleyelim
       let updatedTours = [...tourTemplates];
       
       if (isEditingTour) {
@@ -1118,31 +1224,51 @@ export function SettingsView({
         updatedTours = tourTemplates.map(tour => 
           tour.id === newTourTemplate.id ? newTourTemplate : tour
         );
+        debugLog(`Mevcut tur güncellendi: ${newTourTemplate.name}`);
       } else {
         // Yeni tur ekle
         updatedTours = [...tourTemplates, newTourTemplate];
+        debugLog(`Yeni tur eklendi: ${newTourTemplate.name}`);
       }
-      
-      // State'i güncelle
-      console.log("Tur şablonları güncelleniyor:", updatedTours.length);
+
+      // Önce state'i güncelleyip UI'ı hızlı gösterelim
       setTourTemplates(updatedTours);
       
-      // Veritabanına kaydet
-      const { saveTourTemplates } = await import("@/lib/db");
-      await saveTourTemplates(updatedTours);
-      
-      // Dialog'u kapat
+      // Dialog'u kapatalım
       setIsTourDialogOpen(false);
       
+      // Başarı mesajı gösterelim
       toast({
-        title: "Başarılı",
-        description: isEditingTour ? "Tur şablonu güncellendi." : "Yeni tur şablonu eklendi.",
+        title: "İşlem başarılı",
+        description: isEditingTour 
+          ? "Tur şablonu güncellendi." 
+          : "Yeni tur şablonu eklendi.",
       });
+      
+      // YENİ: Doğrudan Firebase Firestore'a kaydetme metodunu kullan
+      try {
+        await saveTourTemplatesDirectly(updatedTours);
+        debugLog("Tur şablonları doğrudan Firebase'e kaydedildi!");
+      } catch (directError) {
+        debugLog(`Doğrudan kaydetme hatası: ${(directError as Error).message}`);
+        
+        // Yedek yöntem: db.ts üzerinden kaydet
+        try {
+          const { saveTourTemplates } = await import("@/lib/db");
+          await saveTourTemplates(updatedTours);
+          debugLog('Tur şablonları yedek yöntemle kaydedildi');
+        } catch (fallbackError) {
+          debugLog(`Yedek kaydetme hatası: ${(fallbackError as Error).message}`);
+          throw fallbackError;
+        }
+      }
+      
     } catch (error) {
+      debugLog(`HATA: ${(error as Error).message}`);
       console.error("Tur şablonu kaydedilirken hata:", error);
       toast({
         title: "Hata",
-        description: "Tur şablonu kaydedilirken bir hata oluştu.",
+        description: "Tur şablonu kaydedilirken bir sorun oluştu. Lütfen tekrar deneyin.",
         variant: "destructive",
       });
     }
@@ -1581,7 +1707,7 @@ export function SettingsView({
                 <Label htmlFor="destinationSelect" className="whitespace-nowrap">Destinasyon Seçin:</Label>
                 <Select 
                   value={selectedDestinationId} 
-                  onValueChange={(value) => setSelectedDestinationId(value)}
+                  onValueChange={handleDestinationSelect}
                 >
                   <SelectTrigger className="flex-1">
                     <SelectValue placeholder="Bir destinasyon seçin" />
@@ -1609,12 +1735,17 @@ export function SettingsView({
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {tourTemplates
-                        .filter(tour => tour.destinationId === selectedDestinationId)
-                        .length > 0 ? (
-                        tourTemplates
-                          .filter(tour => tour.destinationId === selectedDestinationId)
-                          .map((tour, index) => (
+                      {(() => {
+                        // Debug için filtreleme bilgilerini yazdır
+                        console.log("Seçili destinasyon ID:", selectedDestinationId);
+                        console.log("Tüm turlar:", tourTemplates);
+                        console.log("Filtrelenmiş turlar:", tourTemplates.filter(tour => tour.destinationId === selectedDestinationId));
+                        
+                        // Filtrelenmiş tur sayısını kontrol et
+                        const filteredTours = tourTemplates.filter(tour => tour.destinationId === selectedDestinationId);
+                        
+                        if (filteredTours.length > 0) {
+                          return filteredTours.map((tour, index) => (
                             <TableRow key={`tour-row-${tour.id}-${index}`}>
                               <TableCell className="font-medium">{tour.name}</TableCell>
                               <TableCell>{tour.description}</TableCell>
@@ -1627,11 +1758,7 @@ export function SettingsView({
                                   <Button 
                                     variant="ghost" 
                                     size="icon" 
-                                    onClick={() => {
-                                      setNewTourTemplate(tour);
-                                      setIsEditingTour(true);
-                                      setIsTourDialogOpen(true);
-                                    }}
+                                    onClick={() => openTourDialog(tour)}
                                   >
                                     <Edit className="h-4 w-4" />
                                   </Button>
@@ -1648,35 +1775,38 @@ export function SettingsView({
                                 </div>
                               </TableCell>
                             </TableRow>
-                          ))
-                      ) : (
-                        <TableRow>
-                          <TableCell colSpan={5} className="text-center py-4">
-                            <div className="flex flex-col items-center justify-center space-y-3 py-8">
-                              <div className="text-sm text-muted-foreground">Bu destinasyon için henüz tur eklenmemiş</div>
-                              <Button 
-                                variant="outline" 
-                                size="sm" 
-                                onClick={() => {
-                                  setNewTourTemplate({
-                                    id: generateUUID(),
-                                    name: "",
-                                    description: "",
-                                    destinationId: selectedDestinationId,
-                                    price: 0,
-                                    duration: "",
-                                    currency: "EUR",
-                                  });
-                                  setIsEditingTour(false);
-                                  setIsTourDialogOpen(true);
-                                }}
-                              >
-                                <Plus className="mr-2 h-4 w-4" /> Tur Ekle
-                              </Button>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      )}
+                          ));
+                        } else {
+                          return (
+                            <TableRow>
+                              <TableCell colSpan={5} className="text-center py-4">
+                                <div className="flex flex-col items-center justify-center space-y-3 py-8">
+                                  <div className="text-sm text-muted-foreground">Bu destinasyon için henüz tur eklenmemiş</div>
+                                  <Button 
+                                    variant="outline" 
+                                    size="sm" 
+                                    onClick={() => {
+                                      setNewTourTemplate({
+                                        id: generateUUID(),
+                                        name: "",
+                                        description: "",
+                                        destinationId: selectedDestinationId,
+                                        price: 0,
+                                        duration: "",
+                                        currency: "EUR",
+                                      });
+                                      setIsEditingTour(false);
+                                      setIsTourDialogOpen(true);
+                                    }}
+                                  >
+                                    <Plus className="mr-2 h-4 w-4" /> Tur Ekle
+                                  </Button>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        }
+                      })()}
                     </TableBody>
                   </Table>
                 </div>
@@ -1845,7 +1975,7 @@ export function SettingsView({
                   name="email"
                   value={newProvider.email}
                   onChange={handleProviderChange}
-                  placeholder="E-posta adresi"
+                  placeholder="E-pposta adresi"
                 />
               </div>
             </div>

@@ -572,9 +572,10 @@ export function TourSalesForm({
         setIsLoadingTours(true);
         try {
           // İlgili destinasyona ait turları yükle
-          const { getToursByDestination } = await import('@/lib/db');
-          const tours = await getToursByDestination(formData.destinationId);
-          console.log(`${formData.destinationId} destinasyonuna ait ${tours.length} tur yüklendi.`);
+          const { getTourTemplatesByDestination } = await import('@/lib/db-firebase');
+          const tours = await getTourTemplatesByDestination(formData.destinationId);
+          console.log(`${formData.destinationId} destinasyonuna ait ${tours.length} tur şablonu yüklendi.`);
+          console.log("Yüklenen tur şablonları:", tours);
           setDestinationTours(tours);
         } catch (error) {
           console.error(`Destinasyon turları yüklenirken hata:`, error);
@@ -1155,16 +1156,52 @@ export function TourSalesForm({
                         setSelectedTourId(value);
                         // Seçilen tur bilgilerini formda kullan
                         const selectedTour = destinationTours.find(tour => tour.id === value);
+                        console.log("Seçilen tur:", selectedTour);
+                        
                         if (selectedTour) {
-                          setFormData(prev => ({
-                            ...prev,
-                            tourName: selectedTour.name || prev.tourName,
-                            pricePerPerson: selectedTour.defaultPrice || prev.pricePerPerson,
-                            currency: selectedTour.currency || prev.currency
-                          }));
+                          // İlgili değerleri güncelle
+                          setFormData(prev => {
+                            const updatedForm = {
+                              ...prev,
+                              tourName: selectedTour.name || selectedTour.tourName || prev.tourName,
+                              currency: selectedTour.currency || prev.currency
+                            };
+                            
+                            // Fiyat bilgisini farklı olası alanlarda ara
+                            let price = null;
+                            
+                            // Olası tüm fiyat alanlarını kontrol et
+                            if (selectedTour.defaultPrice !== undefined) {
+                              price = selectedTour.defaultPrice;
+                              console.log("Bulunan fiyat (defaultPrice):", price);
+                            } else if (selectedTour.price !== undefined) {
+                              price = selectedTour.price;
+                              console.log("Bulunan fiyat (price):", price);
+                            } else if (selectedTour.pricePerPerson !== undefined) {
+                              price = selectedTour.pricePerPerson;
+                              console.log("Bulunan fiyat (pricePerPerson):", price);
+                            }
+                            
+                            // Fiyat bulunduysa forma ekle
+                            if (price !== null) {
+                              // String veya number olabilir, string'e çevir
+                              updatedForm.pricePerPerson = String(price);
+                              
+                              // Toplam fiyatı da hesapla
+                              const totalPrice = Number(price) * Number(prev.numberOfPeople || 1);
+                              updatedForm.totalPrice = totalPrice.toString();
+                              
+                              console.log(`Fiyat forma eklendi: ${price}, Toplam: ${totalPrice}`);
+                            } else {
+                              console.warn("Turda fiyat bilgisi bulunamadı!");
+                            }
+                            
+                            return updatedForm;
+                          });
+                          
                           toast({
                             title: "Tur Seçildi",
-                            description: `${selectedTour.name} turu seçildi ve bilgiler forma yüklendi.`,
+                            description: `${selectedTour.name || selectedTour.tourName} turu seçildi ve bilgiler forma yüklendi.`,
                             variant: "default"
                           });
                         }
@@ -1177,7 +1214,7 @@ export function TourSalesForm({
                         <SelectItem value="none">Tur seçmeyin</SelectItem>
                         {destinationTours.map((tour) => (
                           <SelectItem key={tour.id} value={tour.id}>
-                            {tour.name} ({tour.defaultPrice} {tour.currency})
+                            {tour.name || tour.tourName} ({tour.defaultPrice || tour.price || tour.pricePerPerson || "Fiyat yok"} {tour.currency})
                           </SelectItem>
                         ))}
                       </SelectContent>
