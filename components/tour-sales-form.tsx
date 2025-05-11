@@ -725,14 +725,30 @@ export function TourSalesForm({
       if (formData.destinationId) {
         setIsLoadingTours(true);
         try {
-          // İlgili destinasyona ait turları yükle
-          const { getToursByDestination } = await import('@/lib/db');
-          const tours = await getToursByDestination(formData.destinationId);
-          console.log(`${formData.destinationId} destinasyonuna ait ${tours.length} tur yüklendi.`);
-          setDestinationTours(tours);
+          // İlgili destinasyona ait TUR ŞABLONLARINI yükle (tours değil, tourTemplates)
+          const { getTourTemplatesByDestination } = await import('@/lib/db');
+          console.log(`${formData.destinationId} destinasyonuna ait şablonlar yükleniyor...`);
+          const templates = await getTourTemplatesByDestination(formData.destinationId);
+          console.log(`${formData.destinationId} destinasyonuna ait ${templates.length} tur şablonu yüklendi.`);
+          setDestinationTours(templates);
         } catch (error) {
-          console.error(`Destinasyon turları yüklenirken hata:`, error);
-          setDestinationTours([]);
+          console.error(`Destinasyon tur şablonları yüklenirken hata:`, error);
+          
+          // Hata durumunda localStorage'dan yüklemeyi dene
+          try {
+            const cachedTemplates = localStorage.getItem('tourTemplates');
+            if (cachedTemplates) {
+              const allTemplates = JSON.parse(cachedTemplates);
+              const filteredTemplates = allTemplates.filter((t: any) => t.destinationId === formData.destinationId);
+              console.log(`Önbellekten ${filteredTemplates.length} tur şablonu yüklendi.`);
+              setDestinationTours(filteredTemplates);
+            } else {
+              setDestinationTours([]);
+            }
+          } catch (e) {
+            console.error('Önbellekten tur şablonları yüklenemedi:', e);
+            setDestinationTours([]);
+          }
         } finally {
           setIsLoadingTours(false);
         }
