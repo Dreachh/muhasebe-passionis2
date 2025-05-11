@@ -4,13 +4,15 @@ import { getFirestore } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
 import { getStorage } from "firebase/storage";
 
+// Firebase yapılandırma bilgilerini doğrudan tanımlıyoruz
+// NOT: Bu sadece geçici bir çözümdür, ideal olarak çevre değişkenleri kullanılmalıdır
 const firebaseConfig = {
-  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
-  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
-  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
+  apiKey: "AIzaSyAdAvS2I5ErlCcchaSzOP3225Qd0w1vayI",
+  authDomain: "passionis-travel.firebaseapp.com",
+  projectId: "passionis-travel",
+  storageBucket: "passionis-travel.firebasestorage.app",
+  messagingSenderId: "1094253004348",
+  appId: "1:1094253004348:web:b1a0ec2ed6d8137a2e6539"
 };
 
 // Firebase'i başlat (eğer zaten başlatılmamışsa)
