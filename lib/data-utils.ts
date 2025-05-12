@@ -104,7 +104,7 @@ export const formatCurrencyGroups = (currencyGroups) => {
   if (!currencyGroups || Object.keys(currencyGroups).length === 0) {
     return "-";
   }
-  
+  // Her para birimini alt alta göstermek için <br /> ile birleştir
   return Object.entries(currencyGroups)
     .filter(([_, amount]) => {
       // Sayısal değere dönüştür
@@ -113,7 +113,7 @@ export const formatCurrencyGroups = (currencyGroups) => {
       return !isNaN(numAmount) && numAmount > 0;
     })
     .map(([currency, amount]) => formatCurrency(amount, currency))
-    .join(" + ");
+    .join("<br />");
 }
 
 // Tarih formatı

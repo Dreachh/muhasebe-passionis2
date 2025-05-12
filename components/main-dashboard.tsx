@@ -386,9 +386,7 @@ export function MainDashboard({ onNavigate, financialData = [], toursData = [], 
   <h3 className="text-base font-bold text-muted-foreground text-left">Finansal Gelir <span className="block text-xs font-normal text-muted-foreground">(Son 30 gün)</span></h3>
 </div>
                 <div>
-                  <p className="text-xl font-bold text-green-600">
-                    {formatCurrencyGroups(incomeByCurrency)}
-                  </p>
+                  <p className="text-xl font-bold text-green-600" dangerouslySetInnerHTML={{ __html: formatCurrencyGroups(incomeByCurrency) }} />
                 </div>
               </div>
               
@@ -405,9 +403,7 @@ export function MainDashboard({ onNavigate, financialData = [], toursData = [], 
   <h3 className="text-base font-bold text-muted-foreground text-left">Finansal Gider <span className="block text-xs font-normal text-muted-foreground">(Son 30 gün)</span></h3>
 </div>
                 <div>
-                  <p className="text-xl font-bold text-red-600">
-                    {formatCurrencyGroups(expenseByCurrency)}
-                  </p>
+                  <p className="text-xl font-bold text-red-600" dangerouslySetInnerHTML={{ __html: formatCurrencyGroups(expenseByCurrency) }} />
                 </div>
               </div>
               
@@ -423,9 +419,7 @@ export function MainDashboard({ onNavigate, financialData = [], toursData = [], 
   <span className="bg-indigo-100 p-2 rounded-full mb-0.5"><Globe className="h-4 w-4 text-indigo-500" /></span>
   <h3 className="text-base font-bold text-muted-foreground text-left">Tur Geliri <span className="block text-xs font-normal text-muted-foreground">(Ödenen)</span></h3>
 </div>
-                <p className="text-2xl font-bold text-indigo-600">
-                  {formatCurrencyGroups(tourIncomeByCurrency)}
-                </p>
+                <p className="text-2xl font-bold text-indigo-700" dangerouslySetInnerHTML={{ __html: formatCurrencyGroups(tourIncomeByCurrency) }} />
               </div>
               
             </div>
@@ -440,9 +434,7 @@ export function MainDashboard({ onNavigate, financialData = [], toursData = [], 
   <span className="bg-fuchsia-100 p-2 rounded-full mb-0.5"><BarChart2 className="h-4 w-4 text-fuchsia-500" /></span>
   <h3 className="text-base font-bold text-muted-foreground text-left">Tur Gideri <span className="block text-xs font-normal text-muted-foreground">(Toplam)</span></h3>
 </div>
-                <p className="text-2xl font-bold text-fuchsia-600">
-                  {formatCurrencyGroups(tourExpenseByCurrency)}
-                </p>
+                <p className="text-2xl font-bold text-fuchsia-700" dangerouslySetInnerHTML={{ __html: formatCurrencyGroups(tourExpenseByCurrency) }} />
               </div>
               
             </div>

@@ -91,7 +91,7 @@ export function TourPrintView({ tour, companyInfo = {
             <p className="font-medium">{tour.serialNumber}</p>
           </div>
           <div>
-            <p className="text-gray-600 text-sm">Tur İsmi: <span className="text-xs text-gray-500">(Tour Name)</span></p>
+            <p className="text-gray-600 text-sm">Tur Kaydını Oluşturan Kişi: <span className="text-xs text-gray-500">(Created By)</span></p>
             <p className="font-medium">{tour.tourName || tour.selectedTourName || "-"}</p>
           </div>
           <div>
@@ -115,9 +115,57 @@ export function TourPrintView({ tour, companyInfo = {
           <div>
             <p className="text-gray-600 text-sm">Tur Bilgileri: <span className="text-xs text-gray-500">(Tour Details)</span></p>
             <p className="font-medium">
-              {tour.tourDetails || tour.selectedTourDescription || tour.description || tour.notes || "-"}
+              {tour.selectedTourName || (tour.selectedTour && tour.selectedTour.name) || tour.tourDetails || tour.selectedTourDescription || tour.description || tour.notes || "-"}
             </p>
           </div>
+        </div>
+      </div>
+
+      {/* Tur Geliri Özeti */}
+      <div className="mb-3">
+        <h2 className="text-lg font-semibold border-b pb-1 mb-2 text-yellow-700">Tur Geliri <span className="text-xs font-medium text-gray-500">(Tour Revenue)</span></h2>
+        <div className="rounded-md bg-yellow-100 p-3 mb-2">
+          {(() => {
+            // Her para birimi için toplam tur gelirini hesapla
+            const currencyTotals: Record<string, number> = {};
+            let totalPeople = 0;
+            let totalTours = 1; // Bu belge tek bir tur için olduğundan 1
+            let totalCustomers = 0;
+            // Turun ana fiyatı
+            if (tour.currency && tour.totalPrice) {
+              currencyTotals[tour.currency] = Number(tour.totalPrice) || 0;
+            } else if (tour.currency && tour.pricePerPerson && tour.numberOfPeople) {
+              currencyTotals[tour.currency] = Number(tour.pricePerPerson) * Number(tour.numberOfPeople);
+            }
+            // Aktivitelerden gelir ekle (her biri kendi para biriminde olabilir)
+            if (Array.isArray(tour.activities)) {
+              tour.activities.forEach((activity: any) => {
+                const cur = activity.currency || tour.currency || "TRY";
+                const price = Number(activity.price) || 0;
+                const participantInfo = getActivityParticipantInfo(activity, tour);
+                const total = participantInfo.total > 0 ? price * participantInfo.total : price;
+                if (!currencyTotals[cur]) currencyTotals[cur] = 0;
+                currencyTotals[cur] += total;
+              });
+            }
+            // Toplam müşteri sayısı (ana müşteri + ek katılımcılar)
+            totalCustomers = (Number(tour.numberOfPeople) || 0) + (Array.isArray(tour.additionalCustomers) ? tour.additionalCustomers.length : 0);
+            return (
+              <div className="flex flex-wrap gap-4 items-center">
+                {Object.entries(currencyTotals).map(([cur, val]) => (
+                  <div key={cur} className="flex items-center gap-2 bg-yellow-200 rounded px-3 py-1 text-yellow-900 font-semibold text-base">
+                    {cur}: {formatCurrency(val, cur)}
+                  </div>
+                ))}
+                <div className="flex items-center gap-2 bg-purple-200 rounded px-3 py-1 text-purple-900 font-semibold text-base">
+                  <span>Toplam Tur Sayısı:</span> <span>{totalTours}</span>
+                </div>
+                <div className="flex items-center gap-2 bg-green-200 rounded px-3 py-1 text-green-900 font-semibold text-base">
+                  <span>Toplam Müşteri Sayısı:</span> <span>{totalCustomers}</span>
+                </div>
+              </div>
+            );
+          })()}
         </div>
       </div>
 

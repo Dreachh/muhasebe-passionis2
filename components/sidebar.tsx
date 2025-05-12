@@ -16,6 +16,7 @@ import {
   ChevronLeft,
   Brain,
   Users,
+  LogOut,
 } from "lucide-react"
 
 interface SidebarProps {
@@ -25,6 +26,14 @@ interface SidebarProps {
 
 export function Sidebar({ currentView, onNavigate }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false)
+
+  // Logout fonksiyonu
+  const handleLogout = () => {
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('adminLoggedIn');
+      window.location.href = '/admin/login';
+    }
+  };
 
   const menuItems = [
     { type: "title", label: "Kayıtlar" },
@@ -125,6 +134,12 @@ export function Sidebar({ currentView, onNavigate }: SidebarProps) {
               <Button variant="ghost" className={`w-full justify-start ${currentView === "settings" ? "bg-[#00a1c6] text-white" : "text-gray-700 hover:bg-gray-100"}`} onClick={() => onNavigate("settings")}>
                 <div className="pl-4 flex items-center w-full">
                   <Settings className="h-5 w-5 mr-3" />Ayarlar
+                </div>
+              </Button>
+              {/* Uygulamadan Çık (Logout) butonu */}
+              <Button variant="ghost" className="w-full justify-start text-red-600 hover:bg-red-100 hover:text-red-700 font-bold underline text-base md:text-lg" onClick={handleLogout}>
+                <div className="pl-4 flex items-center w-full">
+                  <LogOut className="h-5 w-5 mr-3" />Uygulamadan Çık
                 </div>
               </Button>
             </div>

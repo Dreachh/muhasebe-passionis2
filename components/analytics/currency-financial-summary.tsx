@@ -176,25 +176,65 @@ export function CurrencyFinancialSummary({
         </div>
         <div className="bg-gray-50 p-4 rounded-lg border mt-8">
           <h3 className="font-medium mb-2">Detaylı Bilgi</h3>
-          {allCurrencies.map((cur) => {
-            const summary = getFinancialSummaryByCurrency(cur);
+          {(() => {
+            // Tüm para birimleri için özetleri hazırla
+            const summaries = allCurrencies.map(cur => ({
+              cur,
+              summary: getFinancialSummaryByCurrency(cur)
+            }));
+            const rows = [
+              { key: 'income', label: 'Finansal Gelirler', className: 'bg-green-50' },
+              { key: 'tourIncome', label: 'Tur Gelirleri', className: 'bg-green-50' },
+              { key: 'totalIncome', label: 'Toplam Gelir', className: 'bg-green-50 font-medium' },
+              { key: 'tourExpenses', label: 'Tur Giderleri', className: 'bg-red-50' },
+              { key: 'otherExpenses', label: 'Diğer Giderler', className: 'bg-red-50' },
+              { key: 'expense', label: 'Toplam Gider', className: 'bg-red-50' },
+              { key: 'totalProfit', label: 'Net Kar/Zarar', className: '' },
+            ];
             return (
-              <div key={cur} className="mb-6">
-                <div className="font-bold mb-1">{cur} Detayı</div>
-                <table className="w-full">
+              <div className="overflow-x-auto">
+                <table className="min-w-max w-full border border-gray-300 rounded-lg bg-white border-collapse">
+                  <thead>
+                    <tr>
+                      <th className="py-2 px-3 text-left border border-gray-300 font-semibold w-1/5">| Kalem</th>
+                      {summaries.map(({ cur }) => (
+                        <th key={cur} className="py-2 px-3 text-right border border-gray-300 font-semibold w-1/5">{cur}</th>
+                      ))}
+                    </tr>
+                  </thead>
                   <tbody>
-                    <tr className="border-b bg-green-50"><td className="py-2">Finansal Gelirler</td><td className="py-2 text-right">{formatCurrency(summary.income, cur)}</td></tr>
-                    <tr className="border-b bg-green-50"><td className="py-2">Tur Gelirleri</td><td className="py-2 text-right">{formatCurrency(summary.tourIncome, cur)}</td></tr>
-                    <tr className="border-b bg-green-50"><td className="py-2">Toplam Gelir</td><td className="py-2 text-right font-medium">{formatCurrency(summary.totalIncome, cur)}</td></tr>
-                    <tr className="border-b bg-red-50"><td className="py-2">Tur Giderleri</td><td className="py-2 text-right text-red-600">{formatCurrency(summary.tourExpenses, cur)}</td></tr>
-                    <tr className="border-b bg-red-50"><td className="py-2">Diğer Giderler</td><td className="py-2 text-right text-red-600">{formatCurrency(summary.expense - summary.tourExpenses, cur)}</td></tr>
-                    <tr className="border-b bg-red-50"><td className="py-2">Toplam Gider</td><td className="py-2 text-right text-red-600">{formatCurrency(summary.expense, cur)}</td></tr>
-                    <tr className={`${summary.totalProfit >= 0 ? "bg-green-50" : "bg-red-50"}`}><td className="py-2 font-medium">Net Kar/Zarar</td><td className={`py-2 text-right font-medium ${summary.totalProfit >= 0 ? "text-green-600" : "text-red-600"}`}>{formatCurrency(summary.totalProfit, cur)}</td></tr>
+                    {rows.map(row => (
+                      <tr key={row.key} className={row.className}>
+                        <td className="py-2 px-3 font-medium border border-gray-300 w-1/5">{row.label}</td>
+                        {summaries.map(({ cur, summary }) => {
+                          let value;
+                          let cellClass = "py-2 px-3 text-right border border-gray-300 w-1/5";
+                          if (row.key === 'otherExpenses') {
+                            value = formatCurrency(summary.expense - summary.tourExpenses, cur);
+                            cellClass += " text-red-600";
+                          } else if (row.key === 'expense' || row.key === 'tourExpenses') {
+                            value = formatCurrency(summary[row.key as keyof FinancialSummary], cur);
+                            cellClass += " text-red-600";
+                          } else if (row.key === 'totalProfit') {
+                            value = formatCurrency(summary.totalProfit, cur);
+                            cellClass += summary.totalProfit >= 0 ? " text-green-600" : " text-red-600";
+                            cellClass += " font-medium";
+                            cellClass += summary.totalProfit >= 0 ? " bg-green-50" : " bg-red-50";
+                          } else if (row.key === 'totalIncome') {
+                            value = formatCurrency(summary.totalIncome, cur);
+                            cellClass += " font-medium";
+                          } else {
+                            value = formatCurrency(summary[row.key as keyof FinancialSummary], cur);
+                          }
+                          return <td key={cur} className={cellClass}>{value}</td>;
+                        })}
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
               </div>
             );
-          })}
+          })()}
         </div>
       </div>
     );
@@ -263,35 +303,35 @@ export function CurrencyFinancialSummary({
 
       <div className="bg-gray-50 p-4 rounded-lg border">
         <h3 className="font-medium mb-2">Detaylı Bilgi</h3>
-        <table className="w-full">
+        <table className="w-full border border-gray-300 border-collapse rounded-lg">
           <tbody>
-            <tr className="border-b bg-green-50">
-              <td className="py-2">Finansal Gelirler</td>
-              <td className="py-2 text-right">{formatCurrency(summary.income, currency)}</td>
+            <tr className="border-b border-gray-300 bg-green-50">
+              <td className="py-2 border border-gray-300">Finansal Gelirler</td>
+              <td className="py-2 text-right border border-gray-300">{formatCurrency(summary.income, currency)}</td>
             </tr>
-            <tr className="border-b bg-green-50">
-              <td className="py-2">Tur Gelirleri</td>
-              <td className="py-2 text-right">{formatCurrency(summary.tourIncome, currency)}</td>
+            <tr className="border-b border-gray-300 bg-green-50">
+              <td className="py-2 border border-gray-300">Tur Gelirleri</td>
+              <td className="py-2 text-right border border-gray-300">{formatCurrency(summary.tourIncome, currency)}</td>
             </tr>
-            <tr className="border-b bg-green-50">
-              <td className="py-2">Toplam Gelir</td>
-              <td className="py-2 text-right font-medium">{formatCurrency(summary.totalIncome, currency)}</td>
+            <tr className="border-b border-gray-300 bg-green-50">
+              <td className="py-2 border border-gray-300">Toplam Gelir</td>
+              <td className="py-2 text-right font-medium border border-gray-300">{formatCurrency(summary.totalIncome, currency)}</td>
             </tr>
-            <tr className="border-b bg-red-50">
-              <td className="py-2">Tur Giderleri</td>
-              <td className="py-2 text-right text-red-600">{formatCurrency(summary.tourExpenses, currency)}</td>
+            <tr className="border-b border-gray-300 bg-red-50">
+              <td className="py-2 border border-gray-300">Tur Giderleri</td>
+              <td className="py-2 text-right text-red-600 border border-gray-300">{formatCurrency(summary.tourExpenses, currency)}</td>
             </tr>
-            <tr className="border-b bg-red-50">
-              <td className="py-2">Diğer Giderler</td>
-              <td className="py-2 text-right text-red-600">{formatCurrency(summary.expense - summary.tourExpenses, currency)}</td>
+            <tr className="border-b border-gray-300 bg-red-50">
+              <td className="py-2 border border-gray-300">Diğer Giderler</td>
+              <td className="py-2 text-right text-red-600 border border-gray-300">{formatCurrency(summary.expense - summary.tourExpenses, currency)}</td>
             </tr>
-            <tr className="border-b bg-red-50">
-              <td className="py-2">Toplam Gider</td>
-              <td className="py-2 text-right text-red-600">{formatCurrency(summary.expense, currency)}</td>
+            <tr className="border-b border-gray-300 bg-red-50">
+              <td className="py-2 border border-gray-300">Toplam Gider</td>
+              <td className="py-2 text-right text-red-600 border border-gray-300">{formatCurrency(summary.expense, currency)}</td>
             </tr>
             <tr className={`${summary.totalProfit >= 0 ? "bg-green-50" : "bg-red-50"}`}>
-              <td className="py-2 font-medium">Net Kar/Zarar</td>
-              <td className={`py-2 text-right font-medium ${summary.totalProfit >= 0 ? "text-green-600" : "text-red-600"}`}>
+              <td className="py-2 font-medium border border-gray-300">Net Kar/Zarar</td>
+              <td className={`py-2 text-right font-medium border border-gray-300 ${summary.totalProfit >= 0 ? "text-green-600" : "text-red-600"}`}>
                 {formatCurrency(summary.totalProfit, currency)}
               </td>
             </tr>

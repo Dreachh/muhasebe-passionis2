@@ -426,244 +426,343 @@ export function DataView({
 
   // Tour Preview Component
   const TourPreview = ({ tour }: { tour: TourData | null }) => {
-    if (!tour) return null
+    if (!tour) return null;
+
+    // TourSummary ile aynı alanları ve kart yapısını kullan
+    // Alanları normalize et
+    const additionalCustomers = tour.additionalCustomers || [];
+    const expenses = tour.expenses || [];
+    const activities = tour.activities || [];
+    const numberOfPeople = tour.numberOfPeople || 0;
+    const numberOfChildren = tour.numberOfChildren || 0;
+    const pricePerPerson = tour.pricePerPerson || 0;
+    const currency = tour.currency || "";
+    const totalPrice = tour.totalPrice || (Number(pricePerPerson) * Number(numberOfPeople));
+    const paymentStatus = tour.paymentStatus || "";
+    const paymentMethod = tour.paymentMethod || "";
+    const partialPaymentAmount = tour.partialPaymentAmount || "";
+    const partialPaymentCurrency = tour.partialPaymentCurrency || "";
+    const notes = tour.notes || "";
+    const destinationName = tour.destinationName || tour.destination || "-";
+    // Fallback: selectedTourName -> tourName -> description -> notes -> "-"
+    const selectedTourName = (tour as any).selectedTourName || tour.tourName || (tour as any).description || (tour as any).notes || "-";
+    // Fallback: customerAddress -> "adres" -> "-"
+    const customerAddress = (tour as any).customerAddress || (tour as any).adres || "-";
+    // Fallback: referralSource -> "nereden" -> "-"
+    const referralSource = (tour as any).referralSource || (tour as any).nereden || "-";
+
+    // Ödeme durumları ve yöntemleri
+    const paymentStatusMap: Record<string, string> = {
+      pending: "Beklemede",
+      partial: "Kısmi Ödeme",
+      completed: "Tamamlandı",
+      refunded: "İade Edildi",
+    };
+    const paymentMethodMap: Record<string, string> = {
+      cash: "Nakit",
+      creditCard: "Kredi Kartı",
+      bankTransfer: "Banka Transferi",
+      online_payment: "Online Ödeme",
+      other: "Diğer",
+    };
+
+    // Gider kategori türleri için dönüşüm haritası
+    const expenseTypeMap: Record<string, string> = {
+      accommodation: "Konaklama",
+      transportation: "Ulaşım",
+      transfer: "Transfer",
+      guide: "Rehberlik",
+      agency: "Acente",
+      porter: "Hanutçu",
+      food: "Yemek",
+      meal: "Yemek",
+      activity: "Aktivite",
+      general: "Genel",
+      other: "Diğer"
+    };
+
+    // Aktivite adı eksikse, activityId ile bul
+    const getActivityName = (activity: any) => {
+      if (activity.name && activity.name !== "") return activity.name;
+      if (activity.activityId && Array.isArray(activities)) {
+        const found = activities.find((a: any) => a.id === activity.activityId);
+        if (found && found.name) return found.name;
+      }
+      return "-";
+    };
+
+    // Tur fiyatı (kişi başı fiyat * kişi sayısı) kendi para biriminde
+    const tourTotals: Record<string, number> = {};
+    if (currency && Number(pricePerPerson) && Number(numberOfPeople)) {
+      tourTotals[currency] = (Number(pricePerPerson) || 0) * (Number(numberOfPeople) || 0);
+    }
+    // Aktivite toplamları (her biri kendi para biriminde)
+    const activityTotals: Record<string, number> = {};
+    activities.forEach((activity) => {
+      const cur = activity.currency || currency || "TRY";
+      let participantCount = 0;
+      if (activity.participantsType === 'all') {
+        participantCount = Number(numberOfPeople) + Number(numberOfChildren);
+      } else if (activity.participants && Number(activity.participants) > 0) {
+        participantCount = Number(activity.participants);
+      }
+      const toplam = (Number(activity.price) || 0) * participantCount;
+      if (!activityTotals[cur]) activityTotals[cur] = 0;
+      activityTotals[cur] += toplam;
+    });
+    // Tüm toplamları birleştir
+    const allTotals: Record<string, number> = { ...tourTotals };
+    for (const cur in activityTotals) {
+      allTotals[cur] = (allTotals[cur] || 0) + activityTotals[cur];
+    }
+    // Toplamları string olarak hazırla
+    const totalString = Object.entries(allTotals)
+      .filter(([_, val]) => val > 0)
+      .map(([cur, val]) => `${val} ${cur}`)
+      .join(" + ") || "-";
+
+    // Referans kaynakları için harita (step 6 ile uyumlu)
+    const referralSourceMap: Record<string, string> = {
+      website: "İnternet Sitesi",
+      hotel: "Otel Yönlendirmesi",
+      local_guide: "Hanutçu / Yerel Rehber",
+      walk_in: "Kapı Önü Müşterisi",
+      repeat: "Tekrar Gelen Müşteri",
+      recommendation: "Tavsiye",
+      social_media: "Sosyal Medya",
+      other: "Diğer",
+    };
 
     return (
-      <div className="space-y-6 max-h-[70vh] overflow-y-auto p-2">
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <h3 className="text-lg font-semibold mb-2">Tur Bilgileri</h3>
-            <div className="space-y-2">
-              <div>
-                <span className="text-sm text-muted-foreground">Seri No:</span>
-                <p>{tour.serialNumber || '-'}</p>
+      <div className="space-y-4 max-h-[80vh] overflow-y-auto p-2 min-w-[700px]">
+        {/* 1. Müşteri Bilgileri */}
+        <Card>
+          <CardHeader className="pb-2 pt-2 mb-0 mt-0"><CardTitle>Müşteri Bilgileri</CardTitle></CardHeader>
+          <CardContent className="pt-2 pb-2 mb-0 mt-0">
+            <Table>
+              <TableBody>
+                <TableRow><TableHead>Ad Soyad</TableHead><TableCell>{tour.customerName || '-'}</TableCell></TableRow>
+                <TableRow><TableHead>Telefon</TableHead><TableCell>{tour.customerPhone || '-'}</TableCell></TableRow>
+                <TableRow><TableHead>E-posta</TableHead><TableCell>{tour.customerEmail || '-'}</TableCell></TableRow>
+                <TableRow><TableHead>T.C./Pasaport No</TableHead><TableCell>{tour.customerIdNumber || '-'}</TableCell></TableRow>
+                <TableRow><TableHead>Adres</TableHead><TableCell>{customerAddress}</TableCell></TableRow>
+                <TableRow><TableHead>Uyruk</TableHead><TableCell>{tour.nationality || '-'}</TableCell></TableRow>
+                <TableRow><TableHead>Referans Kaynağı</TableHead><TableCell>{referralSourceMap[referralSource] || referralSource || '-'}</TableCell></TableRow>
+              </TableBody>
+            </Table>
+            {additionalCustomers.length > 0 && (
+              <div className="mt-2 mb-0">
+                <span className="font-semibold">Ek Katılımcılar:</span>
+                <Table className="mt-1 mb-0">
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Ad Soyad</TableHead>
+                      <TableHead>Telefon</TableHead>
+                      <TableHead>E-posta</TableHead>
+                      <TableHead>T.C./Pasaport No</TableHead>
+                      <TableHead>Adres</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {additionalCustomers.map((c: any, idx: number) => (
+                      <TableRow key={idx} className="h-8">
+                        <TableCell className="py-1 px-2">{c.name || '-'}</TableCell>
+                        <TableCell className="py-1 px-2">{c.phone || '-'}</TableCell>
+                        <TableCell className="py-1 px-2">{c.email || '-'}</TableCell>
+                        <TableCell className="py-1 px-2">{c.idNumber || '-'}</TableCell>
+                        <TableCell className="py-1 px-2">{c.address || '-'}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
               </div>
-              <div>
-                <span className="text-sm text-muted-foreground">Tur Adı:</span>
-                <p>{tour.tourName || '-'}</p>
-              </div>
-              <div>
-                <span className="text-sm text-muted-foreground">Tur Tarihi:</span>
-                <p>{formatDate(tour.tourDate)}</p>
-              </div>
-              {tour.tourEndDate && (
-                <div>
-                  <span className="text-sm text-muted-foreground">Bitiş Tarihi:</span>
-                  <p>{formatDate(tour.tourEndDate)}</p>
-                </div>
-              )}
-              <div>
-                <span className="text-sm text-muted-foreground">Kişi Sayısı:</span>
-                <p>{tour.numberOfPeople || 0}</p>
-              </div>
-              {tour.numberOfChildren && tour.numberOfChildren > 0 && (
-                <div>
-                  <span className="text-sm text-muted-foreground">Çocuk Sayısı:</span>
-                  <p>{tour.numberOfChildren}</p>
-                </div>
-              )}
-            </div>
-          </div>
-          
-          <div>
-            <h3 className="text-lg font-semibold mb-2">Müşteri Bilgileri</h3>
-            <div className="space-y-2">
-              <div>
-                <span className="text-sm text-muted-foreground">Ad Soyad:</span>
-                <p>{tour.customerName || '-'}</p>
-              </div>
-              <div>
-                <span className="text-sm text-muted-foreground">Telefon:</span>
-                <p>{tour.customerPhone || '-'}</p>
-              </div>
-              <div>
-                <span className="text-sm text-muted-foreground">E-posta:</span>
-                <p>{tour.customerEmail || '-'}</p>
-              </div>
-              {tour.customerIdNumber && (
-                <div>
-                  <span className="text-sm text-muted-foreground">Kimlik No:</span>
-                  <p>{tour.customerIdNumber}</p>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-        
-        <div>
-          <h3 className="text-lg font-semibold mb-2">Ödeme Bilgileri</h3>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <span className="text-sm text-muted-foreground">Kişi Başı Ücret:</span>
-              <p>{tour.pricePerPerson ? formatCurrency(tour.pricePerPerson, tour.currency) : '-'}</p>
-            </div>
-            <div>
-              <span className="text-sm text-muted-foreground">Toplam Ücret:</span>
-              <p>{tour.totalPrice ? formatCurrency(tour.totalPrice, tour.currency) : '-'}</p>
-            </div>
-            <div>
-              <span className="text-sm text-muted-foreground">Ödeme Durumu:</span>
-              <p>
-                {tour.paymentStatus === "completed" ? "Tamamlandı" : 
-                 tour.paymentStatus === "partial" ? "Kısmi Ödeme" : 
-                 tour.paymentStatus === "pending" ? "Beklemede" :
-                 tour.paymentStatus === "refunded" ? "İade" :
-                 tour.paymentStatus || "-"}
-              </p>
-            </div>
-            <div>
-              <span className="text-sm text-muted-foreground">Ödeme Yöntemi:</span>
-              <p>
-                {tour.paymentMethod === "cash" ? "Nakit" : 
-                 tour.paymentMethod === "credit_card" ? "Kredi Kartı" : 
-                 tour.paymentMethod === "bank_transfer" ? "Banka Havalesi" : 
-                 tour.paymentMethod === "online_payment" ? "Online Ödeme" : 
-                 tour.paymentMethod || "-"}
-              </p>
-            </div>
-            {tour.paymentStatus === "partial" && (
+            )}
+          </CardContent>
+        </Card>
+
+        {/* 2. Tur Detayları */}
+        <Card>
+          <CardHeader className="pb-2 pt-2 mb-0 mt-0"><CardTitle>Tur Detayları</CardTitle></CardHeader>
+          <CardContent className="pt-2 pb-2 mb-0 mt-0">
+            <Table>
+              <TableBody>
+                <TableRow><TableHead>Seri No</TableHead><TableCell>{tour.serialNumber || '-'}</TableCell></TableRow>
+                <TableRow><TableHead>Tur Kaydını Oluşturan Kişi</TableHead><TableCell className="font-medium">{tour.tourName || '-'}</TableCell></TableRow>
+                <TableRow><TableHead>Başlangıç Tarihi</TableHead><TableCell>{formatDate(tour.tourDate)}</TableCell></TableRow>
+                <TableRow><TableHead>Bitiş Tarihi</TableHead><TableCell>{formatDate(tour.tourEndDate)}</TableCell></TableRow>
+                <TableRow><TableHead>Kişi Sayısı</TableHead><TableCell>{numberOfPeople}</TableCell></TableRow>
+                <TableRow><TableHead>Çocuk Sayısı</TableHead><TableCell>{numberOfChildren}</TableCell></TableRow>
+                <TableRow><TableHead>Destinasyon</TableHead><TableCell className="font-medium">{destinationName}</TableCell></TableRow>
+                <TableRow><TableHead>Tur Bilgisi</TableHead><TableCell className="font-medium">{selectedTourName}</TableCell></TableRow>
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+
+        {/* 3. Giderler */}
+        <Card>
+          <CardHeader className="pb-2 pt-2 mb-0 mt-0"><CardTitle>Giderler</CardTitle></CardHeader>
+          <CardContent className="pt-2 pb-2 mb-0 mt-0">
+            {expenses.length === 0 ? (
+              <div className="text-muted-foreground">Gider eklenmemiş.</div>
+            ) : (
               <>
-                <div>
-                  <span className="text-sm text-muted-foreground">Ödenen Miktar:</span>
-                  <p>{formatCurrency(tour.partialPaymentAmount || 0, tour.partialPaymentCurrency)}</p>
-                </div>
-                <div>
-                  <span className="text-sm text-muted-foreground">Kalan Miktar:</span>
-                  <p>{formatCurrency(Number(tour.totalPrice || 0) - Number(tour.partialPaymentAmount || 0), tour.currency)}</p>
-                </div>
+                <Table>
+                  <TableHeader>
+                    <TableRow className="h-8">
+                      <TableHead className="py-1 px-2">Gider Tipi</TableHead>
+                      <TableHead className="py-1 px-2">Açıklama</TableHead>
+                      <TableHead className="py-1 px-2">Tutar</TableHead>
+                      <TableHead className="py-1 px-2">Para Birimi</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {expenses.map((expense, idx) => (
+                      <TableRow key={idx} className="h-8">
+                        <TableCell className="py-1 px-2">{expenseTypeMap[expense.type] || expense.type}</TableCell>
+                        <TableCell className="py-1 px-2">{expense.name}</TableCell>
+                        <TableCell className="py-1 px-2">{expense.amount}</TableCell>
+                        <TableCell className="py-1 px-2">{expense.currency}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
               </>
             )}
-          </div>
-        </div>
-        
-        {tour.activities && tour.activities.length > 0 && (
-          <div>
-            <h3 className="text-lg font-semibold mb-2">Aktiviteler</h3>
-            <div className="rounded-md border">
+          </CardContent>
+        </Card>
+
+        {/* 4. Aktiviteler */}
+        <Card>
+          <CardHeader className="pb-2 pt-2 mb-0 mt-0"><CardTitle>Aktiviteler</CardTitle></CardHeader>
+          <CardContent className="pt-2 pb-2 mb-0 mt-0">
+            {activities.length === 0 ? (
+              <div className="text-muted-foreground">Aktivite eklenmemiş.</div>
+            ) : (
               <Table>
                 <TableHeader>
-                  <TableRow>
-                    <TableHead className="text-center">
-                      <div>Aktivite</div>
-                      <div className="text-xs text-gray-500">(Activity)</div>
-                    </TableHead>
-                    <TableHead className="text-center">
-                      <div>Tarih</div>
-                      <div className="text-xs text-gray-500">(Date)</div>
-                    </TableHead>
-                    <TableHead className="text-center">
-                      <div>Süre</div>
-                      <div className="text-xs text-gray-500">(Duration)</div>
-                    </TableHead>
-                    <TableHead className="text-center">
-                      <div>Katılımcı Sayısı</div>
-                      <div className="text-xs text-gray-500">(Participants)</div>
-                    </TableHead>
-                    <TableHead className="text-center">
-                      <div>Kişi Başı Ücret</div>
-                      <div className="text-xs text-gray-500">(Price per Person)</div>
-                    </TableHead>
-                    <TableHead className="text-center">
-                      <div>Toplam Ücret</div>
-                      <div className="text-xs text-gray-500">(Total Price)</div>
-                    </TableHead>
+                  <TableRow className="h-8">
+                    <TableHead className="py-1 px-2">Aktivite Adı</TableHead>
+                    <TableHead className="py-1 px-2">Tarih</TableHead>
+                    <TableHead className="py-1 px-2">Süre</TableHead>
+                    <TableHead className="py-1 px-2">Katılımcı Sayısı</TableHead>
+                    <TableHead className="py-1 px-2">Birim Ücret</TableHead>
+                    <TableHead className="py-1 px-2">Toplam Ücret</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {tour.activities.map((activity, index) => {
-                    const participants = Number(activity.participants) || 0;
-                    const price = Number(activity.price) || 0;
-                    const totalPrice = participants > 0 ? price * participants : price;
-                    
+                  {activities.map((activity, idx) => {
+                    const price = activity.price ? Number(activity.price) : 0;
+                    const currency = activity.currency || tour.currency || '';
+                    let participants = '-';
+                    let totalPrice = '-';
+                    let participantCount = 0;
+                    if (activity.participantsType === 'all') {
+                      participantCount = Number(numberOfPeople) + Number(numberOfChildren);
+                    } else if (activity.participants && Number(activity.participants) > 0) {
+                      participantCount = Number(activity.participants);
+                    }
+                    if (participantCount > 0) {
+                      participants = String(participantCount);
+                      totalPrice = (price * participantCount).toLocaleString() + ' ' + currency;
+                    } else {
+                      totalPrice = price ? price.toLocaleString() + ' ' + currency : '-';
+                    }
                     return (
-                      <TableRow key={index}>
-                        <TableCell>{activity.name}</TableCell>
-                        <TableCell>{activity.date ? formatDate(activity.date) : '-'}</TableCell>
-                        <TableCell>{activity.duration || '-'}</TableCell>
-                        <TableCell className="text-center">{participants > 0 ? participants : '-'}</TableCell>
-                        <TableCell className="text-right">{formatCurrency(price, activity.currency || tour.currency)}</TableCell>
-                        <TableCell className="text-right">{formatCurrency(totalPrice, activity.currency || tour.currency)}</TableCell>
+                      <TableRow key={idx} className="h-8">
+                        <TableCell className="py-1 px-2">{getActivityName(activity)}</TableCell>
+                        <TableCell className="py-1 px-2">{formatDate(activity.date)}</TableCell>
+                        <TableCell className="py-1 px-2">{activity.duration || '-'}</TableCell>
+                        <TableCell className="py-1 px-2">{participants}</TableCell>
+                        <TableCell className="py-1 px-2">{activity.price ? `${activity.price} ${currency}` : '-'}</TableCell>
+                        <TableCell className="py-1 px-2">{totalPrice}</TableCell>
                       </TableRow>
                     );
                   })}
                 </TableBody>
               </Table>
-            </div>
-          </div>
-        )}
-        
-        {tour.additionalCustomers && tour.additionalCustomers.length > 0 && (
-          <div>
-            <h3 className="text-lg font-semibold mb-2">Ek Müşteriler</h3>
-            <div className="rounded-md border">
-              <Table>
-                <TableHeader>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* 5. Ödeme Bilgileri */}
+        <Card>
+          <CardHeader className="pb-2 pt-2 mb-0 mt-0"><CardTitle>Ödeme Bilgileri</CardTitle></CardHeader>
+          <CardContent className="pt-2 pb-2 mb-0 mt-0">
+            <Table>
+              <TableBody>
+                <TableRow><TableHead>Tur Fiyatı</TableHead><TableCell>{numberOfPeople && pricePerPerson ? Number(pricePerPerson) * Number(numberOfPeople) : '-'} {currency || ''}</TableCell></TableRow>
+                {activities.length > 0 && (
                   <TableRow>
-                    <TableHead>Ad Soyad</TableHead>
-                    <TableHead>Telefon</TableHead>
-                    <TableHead>E-posta</TableHead>
-                    <TableHead>Kimlik No</TableHead>
+                    <TableHead>Aktiviteler</TableHead>
+                    <TableCell>
+                      {(() => {
+                        // Aktivite toplamlarını doğru hesapla
+                        const activityTotals: Record<string, number> = {};
+                        activities.forEach((activity) => {
+                          const cur = activity.currency || currency || 'TRY';
+                          let participantCount = 0;
+                          if (activity.participantsType === 'all') {
+                            participantCount = Number(numberOfPeople) + Number(numberOfChildren);
+                          } else if (activity.participants && Number(activity.participants) > 0) {
+                            participantCount = Number(activity.participants);
+                          }
+                          const toplam = (Number(activity.price) || 0) * participantCount;
+                          if (!activityTotals[cur]) activityTotals[cur] = 0;
+                          activityTotals[cur] += toplam;
+                        });
+                        return Object.entries(activityTotals)
+                          .filter(([_, val]) => val > 0)
+                          .map(([cur, val]) => `${val} ${cur}`)
+                          .join(' + ') || '-';
+                      })()}
+                    </TableCell>
                   </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {tour.additionalCustomers.map((customer, index) => (
-                    <TableRow key={index}>
-                      <TableCell>{customer.name || '-'}</TableCell>
-                      <TableCell>{customer.phone || '-'}</TableCell>
-                      <TableCell>{customer.email || '-'}</TableCell>
-                      <TableCell>{customer.idNumber || '-'}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          </div>
-        )}
-        
-        {tour.expenses && tour.expenses.length > 0 && (
-          <div>
-            <h3 className="text-lg font-semibold mb-2">Harcamalar</h3>
-            <div className="rounded-md border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Harcama</TableHead>
-                    <TableHead>Sağlayıcı</TableHead>
-                    <TableHead>Tarih</TableHead>
-                    <TableHead className="text-right">Tutar</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {tour.expenses.map((expense, index) => (
-                    <TableRow key={index}>
-                      <TableCell>{expense.name || '-'}</TableCell>
-                      <TableCell>{expense.provider || '-'}</TableCell>
-                      <TableCell>{expense.date ? formatDate(expense.date) : '-'}</TableCell>
-                      <TableCell className="text-right">{formatCurrency(expense.amount || 0, expense.currency || tour.currency)}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          </div>
-        )}
-        
-        {tour.notes && (
-          <div>
-            <h3 className="text-lg font-semibold mb-2">Notlar</h3>
-            <p className="whitespace-pre-wrap">{tour.notes}</p>
-          </div>
-        )}
-        
-        <DialogFooter>
-          <Button onClick={() => handlePrint(tour)} className="w-full sm:w-auto">
-            <Printer className="mr-2 h-4 w-4" />
-            Yazdır
-          </Button>
-        </DialogFooter>
+                )}
+                <TableRow><TableHead>Toplam Fiyat</TableHead><TableCell>{(() => {
+                  // Tur ve aktivitelerin toplamı
+                  const tourTotals: Record<string, number> = {};
+                  if (currency && Number(pricePerPerson) && Number(numberOfPeople)) {
+                    tourTotals[currency] = (Number(pricePerPerson) || 0) * (Number(numberOfPeople) || 0);
+                  }
+                  const activityTotals: Record<string, number> = {};
+                  activities.forEach((activity) => {
+                    const cur = activity.currency || currency || 'TRY';
+                    let participantCount = 0;
+                    if (activity.participantsType === 'all') {
+                      participantCount = Number(numberOfPeople) + Number(numberOfChildren);
+                    } else if (activity.participants && Number(activity.participants) > 0) {
+                      participantCount = Number(activity.participants);
+                    }
+                    const toplam = (Number(activity.price) || 0) * participantCount;
+                    if (!activityTotals[cur]) activityTotals[cur] = 0;
+                    activityTotals[cur] += toplam;
+                  });
+                  const allTotals: Record<string, number> = { ...tourTotals };
+                  for (const cur in activityTotals) {
+                    allTotals[cur] = (allTotals[cur] || 0) + activityTotals[cur];
+                  }
+                  return Object.entries(allTotals)
+                    .filter(([_, val]) => val > 0)
+                    .map(([cur, val]) => `${val} ${cur}`)
+                    .join(' + ') || '-';
+                })()}</TableCell></TableRow>
+                <TableRow><TableHead>Ödeme Durumu</TableHead><TableCell>{paymentStatusMap[paymentStatus] || paymentStatus || '-'}</TableCell></TableRow>
+                <TableRow><TableHead>Ödeme Yöntemi</TableHead><TableCell>{paymentMethodMap[paymentMethod] || paymentMethod || '-'}</TableCell></TableRow>
+                <TableRow><TableHead>Kısmi Ödeme</TableHead><TableCell>{partialPaymentAmount || '-'} {partialPaymentCurrency || ''}</TableCell></TableRow>
+              </TableBody>
+            </Table>
+            {notes && (
+              <div className="mt-1">
+                <span className="font-semibold">Notlar:</span>
+                <div className="whitespace-pre-line">{notes}</div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </div>
-    )
-  }
+    );
+  };
 
   // Financial Record Preview Component
   const FinancialPreview = ({ financial }: { financial: FinancialData | null }) => {
@@ -863,7 +962,7 @@ export function DataView({
                 <TableHeader>
                   <TableRow>
                     <TableHead>Seri No</TableHead>
-                    <TableHead>Düzenlenen Tur</TableHead>
+                    <TableHead>Tur Kaydını Oluşturan Kişi</TableHead>
                     <TableHead>Müşteri</TableHead>
                     <TableHead>Destinasyon</TableHead>
                     <TableHead>Tarih</TableHead>

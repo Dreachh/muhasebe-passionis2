@@ -177,6 +177,17 @@ export default function Home() {
   const [tempTourFormData, setTempTourFormData] = useState<any>(null)
   const [previousView, setPreviousView] = useState<string | null>(null)
 
+  useEffect(() => {
+    // Eğer admin paneline erişiliyorsa ve giriş yapılmamışsa, login ekranına yönlendir
+    if (typeof window !== 'undefined') {
+      const isLoggedIn = localStorage.getItem('adminLoggedIn');
+      const isAdminPath = window.location.pathname.startsWith('/admin');
+      if (isAdminPath && !isLoggedIn) {
+        window.location.href = '/admin/login';
+      }
+    }
+  }, []);
+
   // Yedekleme ve geri yükleme işlemleri için fonksiyonlar
   const handleExportData = async () => {
     try {

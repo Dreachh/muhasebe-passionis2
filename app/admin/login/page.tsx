@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -45,6 +45,16 @@ export default function AdminLogin() {
     setVerificationCode(code);
     return code;
   };
+
+  useEffect(() => {
+    // localStorage'dan adminUsername varsa onu başlat
+    const savedUsername = typeof window !== 'undefined' ? localStorage.getItem('adminUsername') : null;
+    if (savedUsername) {
+      setUsername(savedUsername);
+    } else {
+      setUsername(DEFAULT_USERNAME);
+    }
+  }, []);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

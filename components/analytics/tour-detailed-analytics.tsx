@@ -48,8 +48,7 @@ type DestinationType = {
 type TourPopularityData = {
   count: number;
   customers: number;
-  revenue: number;
-  currency: string;
+  revenueByCurrency: Record<string, number>;
 }
 
 // Aylık veri
@@ -95,38 +94,48 @@ export function TourDetailedAnalytics({ toursData, selectedCurrency, destination
 
   // En çok satılan turlar
   const getMostPopularTours = () => {
-    const tourPopularity: Record<string, TourPopularityData> = {};
-    
+    // Her tur adı için: { count, customers, revenueByCurrency: { [cur]: number } }
+    const tourPopularity: Record<string, {
+      count: number;
+      customers: number;
+      revenueByCurrency: Record<string, number>;
+    }> = {};
+
     filteredToursData.forEach(tour => {
       if (!tour) return;
       const tourName = tour.tourName || "Bilinmeyen Tur";
-      
+      const cur = tour.currency || "TRY";
       if (!tourPopularity[tourName]) {
         tourPopularity[tourName] = {
           count: 0,
           customers: 0,
-          revenue: 0,
-          currency: tour.currency || "TRY",
+          revenueByCurrency: {},
         };
       }
-      
       tourPopularity[tourName].count += 1;
       tourPopularity[tourName].customers += Number.parseInt(tour.numberOfPeople?.toString() || '0') || 0;
-      
-      // Eğer seçilen para birimi tüm para birimleri ise veya tur para birimi seçilen para birimine eşitse
-      if (selectedCurrency === "all" || tour.currency === selectedCurrency) {
-        tourPopularity[tourName].revenue += Number.parseFloat(tour.totalPrice?.toString() || '0') || 0;
-      }
+      // Her zaman ilgili para biriminde topla
+      const amount = Number.parseFloat(tour.totalPrice?.toString() || '0') || 0;
+      tourPopularity[tourName].revenueByCurrency[cur] = (tourPopularity[tourName].revenueByCurrency[cur] || 0) + amount;
     });
-    
+
     return Object.entries(tourPopularity)
-      .map(([name, data]) => ({
-        name,
-        count: data.count,
-        customers: data.customers,
-        revenue: data.revenue,
-        currency: data.currency,
-      }))
+      .map(([name, data]) => {
+        // revenue alanı: seçili para birimi 'all' ise tüm gelirlerin toplamı, değilse sadece o para birimindeki gelir
+        let revenue = 0;
+        if (selectedCurrency === "all") {
+          revenue = Object.values(data.revenueByCurrency).reduce((sum, val) => sum + val, 0);
+        } else {
+          revenue = data.revenueByCurrency[selectedCurrency] || 0;
+        }
+        return {
+          name,
+          count: data.count,
+          customers: data.customers,
+          revenueByCurrency: data.revenueByCurrency,
+          revenue, // BarChart için
+        };
+      })
       .sort((a, b) => b.count - a.count)
       .slice(0, 10); // En popüler 10 tur
   };
@@ -277,6 +286,15 @@ export function TourDetailedAnalytics({ toursData, selectedCurrency, destination
   const averageTourPrice =
     totalTours > 0 ? totalRevenue / totalTours : 0;
 
+  // Her para birimi için toplam tur gelirini hesapla
+  const currencyTotals: Record<string, number> = {};
+  filteredToursData.forEach(tour => {
+    const cur = tour.currency || "TRY";
+    const amount = Number(tour.totalPrice) || 0;
+    if (!currencyTotals[cur]) currencyTotals[cur] = 0;
+    currencyTotals[cur] += amount;
+  });
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -294,7 +312,7 @@ export function TourDetailedAnalytics({ toursData, selectedCurrency, destination
             <CardTitle className="text-sm font-medium">Toplam Tur Sayısı</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{totalTours}</div>
+            <div className="text-2xl font-bold text-purple-800 bg-purple-100 rounded px-2 py-1 inline-block">{totalTours}</div>
             {selectedCurrency !== "all" && (
               <p className="text-xs text-muted-foreground">{selectedCurrency} para biriminde</p>
             )}
@@ -306,7 +324,7 @@ export function TourDetailedAnalytics({ toursData, selectedCurrency, destination
             <CardTitle className="text-sm font-medium">Toplam Müşteri Sayısı</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{totalCustomers}</div>
+            <div className="text-2xl font-bold text-green-800 bg-green-100 rounded px-2 py-1 inline-block">{totalCustomers}</div>
             {selectedCurrency !== "all" && (
               <p className="text-xs text-muted-foreground">{selectedCurrency} para biriminde</p>
             )}
@@ -315,13 +333,19 @@ export function TourDetailedAnalytics({ toursData, selectedCurrency, destination
 
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Ortalama Tur Fiyatı</CardTitle>
+            <CardTitle className="text-sm font-medium">Tur Geliri</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
-              {selectedCurrency !== "all"
-                ? `${averageTourPrice.toFixed(2)} ${selectedCurrency}`
-                : formatCurrency(averageTourPrice)}
+            <div className="flex flex-wrap gap-2">
+              {Object.entries(currencyTotals).length > 0 ? (
+                Object.entries(currencyTotals).map(([cur, val]) => (
+                  <span key={cur} className="bg-yellow-200 text-yellow-900 font-semibold rounded px-3 py-1 text-base">
+                    {cur}: {formatCurrency(val, cur)}
+                  </span>
+                ))
+              ) : (
+                <span className="text-gray-400">Gelir yok</span>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -485,7 +509,7 @@ export function TourDetailedAnalytics({ toursData, selectedCurrency, destination
           <table className="w-full">
             <thead>
               <tr className="border-b">
-                <th className="text-left py-2">Tur Adı</th>
+                <th className="text-left py-2">Tur Kaydını Oluşturan Kişi</th>
                 <th className="text-right py-2">Satış Sayısı</th>
                 <th className="text-right py-2">Müşteri Sayısı</th>
                 <th className="text-right py-2">Toplam Gelir</th>
@@ -498,9 +522,10 @@ export function TourDetailedAnalytics({ toursData, selectedCurrency, destination
                   <td className="py-2 text-right">{tour.count}</td>
                   <td className="py-2 text-right">{tour.customers}</td>
                   <td className="py-2 text-right">
-                    {selectedCurrency !== "all"
-                      ? `${Number(tour.revenue).toFixed(2)} ${selectedCurrency}`
-                      : formatCurrency(Number(tour.revenue))}
+                    {Object.entries(tour.revenueByCurrency)
+                      .filter(([_, val]) => val > 0)
+                      .map(([cur, val]) => `${formatCurrency(val, cur)}`)
+                      .join(' + ') || '-'}
                   </td>
                 </tr>
               ))}
