@@ -69,6 +69,8 @@ interface TourSummaryProps {
     activities?: Activity[];
     destinationId?: string;
     destinationName?: string; // Destinasyon adı eklendi
+    selectedTourId?: string; // Seçilen tur ID'si
+    selectedTourName?: string; // Seçilen tur adı
   };
   calculateTotalExpensesByCurrency?: (expenses: Expense[]) => Record<string, number>;
 }
@@ -108,6 +110,8 @@ export function TourSummary({ formData, calculateTotalExpensesByCurrency }: Tour
     activities = [],
     destinationId,
     destinationName, // Destinasyon adı değişkeni eklendi
+    selectedTourId,
+    selectedTourName, // Seçilen tur adı
   } = formData;
 
   const totalExpensesByCurrency = calculateTotalExpensesByCurrency
@@ -136,6 +140,21 @@ export function TourSummary({ formData, calculateTotalExpensesByCurrency }: Tour
     recommendation: "Tavsiye",
     social_media: "Sosyal Medya",
     other: "Diğer",
+  };
+  
+  // Gider kategori türleri için dönüşüm haritası
+  const expenseTypeMap: Record<string, string> = {
+    accommodation: "Konaklama",
+    transportation: "Ulaşım",
+    transfer: "Transfer",
+    guide: "Rehberlik",
+    agency: "Acente",
+    porter: "Hanutçu",
+    food: "Yemek",
+    meal: "Yemek",
+    activity: "Aktivite",
+    general: "Genel",
+    other: "Diğer"
   };
 
   // Aktivite adı eksikse, activityId ile bul
@@ -226,12 +245,13 @@ export function TourSummary({ formData, calculateTotalExpensesByCurrency }: Tour
           <Table>
             <TableBody>
               <TableRow><TableHead>Seri No</TableHead><TableCell>{serialNumber || '-'}</TableCell></TableRow>
-              <TableRow><TableHead>Düzenleyici</TableHead><TableCell>{tourName || '-'}</TableCell></TableRow>
+              <TableRow><TableHead>Tur Kaydını Oluşturan Kişi</TableHead><TableCell className="font-medium">{tourName || '-'}</TableCell></TableRow>
               <TableRow><TableHead>Başlangıç Tarihi</TableHead><TableCell>{formatDate(tourDate)}</TableCell></TableRow>
               <TableRow><TableHead>Bitiş Tarihi</TableHead><TableCell>{formatDate(tourEndDate)}</TableCell></TableRow>
               <TableRow><TableHead>Kişi Sayısı</TableHead><TableCell>{numberOfPeople || 0}</TableCell></TableRow>
               <TableRow><TableHead>Çocuk Sayısı</TableHead><TableCell>{numberOfChildren || 0}</TableCell></TableRow>
-              <TableRow><TableHead>Destinasyon</TableHead><TableCell>{destinationName || '-'}</TableCell></TableRow>
+              <TableRow><TableHead>Destinasyon</TableHead><TableCell className="font-medium">{destinationName || '-'}</TableCell></TableRow>
+              <TableRow><TableHead>Tur Bilgisi</TableHead><TableCell className="font-medium">{selectedTourName || '-'}</TableCell></TableRow>
             </TableBody>
           </Table>
         </CardContent>
@@ -257,7 +277,7 @@ export function TourSummary({ formData, calculateTotalExpensesByCurrency }: Tour
                 <TableBody>
                   {expenses.map((expense, idx) => (
                     <TableRow key={idx} className="h-8">
-                      <TableCell className="py-1 px-2">{expense.type}</TableCell>
+                      <TableCell className="py-1 px-2">{expenseTypeMap[expense.type] || expense.type}</TableCell>
                       <TableCell className="py-1 px-2">{expense.name}</TableCell>
                       <TableCell className="py-1 px-2">{expense.amount}</TableCell>
                       <TableCell className="py-1 px-2">{expense.currency}</TableCell>
@@ -324,7 +344,18 @@ export function TourSummary({ formData, calculateTotalExpensesByCurrency }: Tour
         <CardContent className="pt-2 pb-2 mb-0 mt-0">
           <Table>
             <TableBody>
-              <TableRow><TableHead>Kişi Başı Fiyat</TableHead><TableCell>{pricePerPerson || '-'} {currency || ''}</TableCell></TableRow>
+              <TableRow><TableHead>Tur Fiyatı</TableHead><TableCell>{numberOfPeople && pricePerPerson ? Number(pricePerPerson) * Number(numberOfPeople) : '-'} {currency || ''}</TableCell></TableRow>
+              {activities.length > 0 && (
+                <TableRow>
+                  <TableHead>Aktiviteler</TableHead>
+                  <TableCell>
+                    {Object.entries(activityTotals)
+                      .filter(([_, val]) => val > 0)
+                      .map(([cur, val]) => `${val} ${cur}`)
+                      .join(" + ") || "-"}
+                  </TableCell>
+                </TableRow>
+              )}
               <TableRow><TableHead>Toplam Fiyat</TableHead><TableCell>{totalString}</TableCell></TableRow>
               <TableRow><TableHead>Ödeme Durumu</TableHead><TableCell>{paymentStatusMap[paymentStatus || ''] || '-'}</TableCell></TableRow>
               <TableRow><TableHead>Ödeme Yöntemi</TableHead><TableCell>{paymentMethodMap[paymentMethod || ''] || '-'}</TableCell></TableRow>

@@ -99,6 +99,8 @@ interface FormData {
   activities: Activity[];
   destinationId: string;
   destinationName: string; // Destinasyon adını da kaydetmek için eklendi
+  selectedTourId?: string; // Seçilen tur şablonunun ID'sini kaydetmek için
+  selectedTourName?: string; // Seçilen tur şablonunun adını kaydetmek için
   createdAt?: string; // Eksik olan createdAt alanı eklendi
   updatedAt?: string; // Eksik olan updatedAt alanı eklendi
 }
@@ -145,7 +147,13 @@ export function TourSalesForm({
 
   // Tur verilerini destinasyona göre filtrelemek için yeni durumlar ekleyelim
   const [destinationTours, setDestinationTours] = useState<any[]>([]);
-  const [selectedTourId, setSelectedTourId] = useState<string>("");
+  const [selectedTourId, setSelectedTourId] = useState<string>(() => {
+    // İlk yüklemede kaydedilmiş tur şablonu ID'sini kullan
+    if (initialData && initialData.selectedTourId) {
+      return initialData.selectedTourId;
+    }
+    return "";
+  });
   const [isLoadingTours, setIsLoadingTours] = useState<boolean>(false);
 
   // Adım göstergesi için referans
@@ -154,7 +162,17 @@ export function TourSalesForm({
   // Initialize form data from initialData, tempData, or default values
   const [formData, setFormData] = useState<FormData>(() => {
     if (tempTourFormData) return tempTourFormData as FormData
-    if (initialData) return initialData as FormData
+    if (initialData) {
+      // initialData varsa (tur düzenleme modundaysa), selectedTourName'in 
+      // kaybolmamasını sağlamak için kontrol ediyoruz
+      const data = initialData as FormData;
+      if (!data.selectedTourName && data.selectedTourId) {
+        // selectedTourId var ama selectedTourName yoksa, destinasyon turlarını 
+        // yüklendikten sonra dolduracağız. Bu durumda alanı şimdilik boş bırak.
+        console.log("Düzenleme modunda. SelectedTourId var ama selectedTourName yok:", data.selectedTourId);
+      }
+      return data;
+    }
 
     return {
       id: generateUUID(),
@@ -186,6 +204,8 @@ export function TourSalesForm({
       activities: [],
       destinationId: "",
       destinationName: "", // Varsayılan boş destinasyon adı
+      selectedTourId: "", // Seçilen tur ID'si için boş değer
+      selectedTourName: "", // Seçilen tur adı için boş değer
     }
   })
 
@@ -257,6 +277,12 @@ export function TourSalesForm({
       // Güncel verileri kullanarak form kaydet
       onSave(formData);
       setIsConfirmDialogOpen(false);
+      
+      // Forma bir daha erişilememesi için ana sayfaya yönlendir
+      if (typeof onCancel === "function") {
+        onCancel(); // Bu işlem editingRecord'u null yapacak ve ana sayfaya yönlendirecek
+        return; // Aşağıdaki kodlar çalıştırılmaz
+      }
       
       // Eğer düzenleme modunda değilsek (initialData boşsa) formu sıfırla ve adım 1'e dön
       if (!initialData) {
@@ -369,6 +395,10 @@ export function TourSalesForm({
         }
       }
 
+      // Eğer ilk yüklemede selectedTour değerleri yoksa, desteklemek için boş değerler atayalım
+      formData.selectedTourId = initialData.selectedTourId || "";
+      formData.selectedTourName = initialData.selectedTourName || "";
+      
       // Form verilerini güncelle
       setFormData(formData);
     }
@@ -577,6 +607,25 @@ export function TourSalesForm({
           console.log(`${formData.destinationId} destinasyonuna ait ${tours.length} tur şablonu yüklendi.`);
           console.log("Yüklenen tur şablonları:", tours);
           setDestinationTours(tours);
+          
+          // Turlar yüklendiğinde, eğer formData'da selectedTourId varsa
+          // ve bu ID'ye sahip bir tur varsa, o turu tekrar seç
+          if (formData.selectedTourId && tours.some(tour => tour.id === formData.selectedTourId)) {
+            setSelectedTourId(formData.selectedTourId);
+            
+            // Seçili tur adını her zaman güncelle - formData'daki selectedTourName boşsa veya
+            // veriden gelen selectedTourName'i tercih et
+            const selectedTour = tours.find(tour => tour.id === formData.selectedTourId);
+            if (selectedTour) {
+              const tourName = selectedTour.name || selectedTour.tourName || "Adı tanımlanmamış tur";
+              console.log(`Seçili tur adı güncellendi: ${tourName}`);
+              
+              setFormData(prev => ({
+                ...prev,
+                selectedTourName: tourName
+              }));
+            }
+          }
         } catch (error) {
           console.error(`Destinasyon turları yüklenirken hata:`, error);
           setDestinationTours([]);
@@ -590,7 +639,7 @@ export function TourSalesForm({
     };
 
     loadToursForDestination();
-  }, [formData.destinationId]);
+  }, [formData.destinationId, formData.selectedTourId]);
 
   // Store form data when component unmounts or when navigating away
   useEffect(() => {
@@ -1105,6 +1154,9 @@ export function TourSalesForm({
                     placeholder="Kaydı oluşturan kişinin adını girin"
                     required
                   />
+                  <p className="text-xs text-muted-foreground">
+                    Bu alan, tur kaydını oluşturan kişinin adını içerir ve destinasyondaki mevcut turlardan etkilenmez.
+                  </p>
                 </div>
               </div>
 
@@ -1143,7 +1195,12 @@ export function TourSalesForm({
               {/* Destinasyona Ait Turlar - Yeni Eklenen Bölüm */}
               {formData.destinationId && (
                 <div className="space-y-2 border-t border-dashed pt-4 mt-4">
-                  <Label htmlFor="selectedTourId">Destinasyondaki Mevcut Turlar</Label>
+                  <Label htmlFor="selectedTourId">Destinasyondaki Mevcut Tur Şablonları</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Bir tur şablonu seçildiğinde sadece para birimi ve fiyat bilgileri alınacaktır. 
+                    "Tur Kaydını Oluşturan Kişi" alanı değiştirilmeyecektir.
+                  </p>
+                  
                   {isLoadingTours ? (
                     <div className="flex items-center space-x-2 p-2 border rounded-md bg-slate-50">
                       <div className="animate-spin h-4 w-4 border-2 border-teal-500 rounded-full border-t-transparent"></div>
@@ -1159,12 +1216,15 @@ export function TourSalesForm({
                         console.log("Seçilen tur:", selectedTour);
                         
                         if (selectedTour) {
-                          // İlgili değerleri güncelle
+                          // İlgili değerleri güncelle (tourName dışında)
                           setFormData(prev => {
                             const updatedForm = {
                               ...prev,
-                              tourName: selectedTour.name || selectedTour.tourName || prev.tourName,
-                              currency: selectedTour.currency || prev.currency
+                              // tourName değerini güncelleme - bu sorunu çözer
+                              currency: selectedTour.currency || prev.currency,
+                              // Seçilen tur ID'sini ve adını form verisine ekle
+                              selectedTourId: value,
+                              selectedTourName: selectedTour.name || selectedTour.tourName || "Adı tanımlanmamış tur"
                             };
                             
                             // Fiyat bilgisini farklı olası alanlarda ara
@@ -1200,8 +1260,8 @@ export function TourSalesForm({
                           });
                           
                           toast({
-                            title: "Tur Seçildi",
-                            description: `${selectedTour.name || selectedTour.tourName} turu seçildi ve bilgiler forma yüklendi.`,
+                            title: "Tur Şablonu Seçildi",
+                            description: `"${selectedTour.name || selectedTour.tourName}" şablonu seçildi. Fiyat ve para birimi bilgileri forma yüklendi. (Tur Kaydını Oluşturan Kişi alanı değiştirilmedi.)`,
                             variant: "default"
                           });
                         }
@@ -1967,6 +2027,8 @@ export function TourSalesForm({
             <div>
               <TourSummary formData={{
                 ...formData,
+                // selectedTourName özellikle eklendiğinden emin olalım (null veya undefined ise '-' gösterilecek)
+                selectedTourName: formData.selectedTourName || '-',
                 expenses: formData.expenses.map((expense) => ({
                   ...expense,
                   amount: typeof expense.amount === "string" ? parseFloat(expense.amount) : expense.amount,
@@ -1986,7 +2048,7 @@ export function TourSalesForm({
                 </Button>
                 <Button type="button" className="bg-teal-600 hover:bg-teal-700" onClick={() => setIsConfirmDialogOpen(true)}>
                   <Save className="mr-2 h-4 w-4" />
-                  Kaydet
+                  {initialData ? 'Güncelle' : 'Kaydet'}
                 </Button>
               </div>
             </div>
@@ -1999,15 +2061,15 @@ export function TourSalesForm({
       <AlertDialog open={isConfirmDialogOpen} onOpenChange={setIsConfirmDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Kaydı Onayla</AlertDialogTitle>
+            <AlertDialogTitle>{initialData ? 'Güncellemeyi Onayla' : 'Kaydı Onayla'}</AlertDialogTitle>
             <AlertDialogDescription>
-              Tur kaydını kaydetmek istediğinize emin misiniz?
+              {initialData ? 'Tur kaydındaki değişiklikleri kaydetmek istediğinize emin misiniz?' : 'Tur kaydını kaydetmek istediğinize emin misiniz?'}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>İptal</AlertDialogCancel>
             <AlertDialogAction className="bg-teal-600 hover:bg-teal-700" onClick={handleSubmit}>
-              Kaydet
+              {initialData ? 'Güncelle' : 'Kaydet'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

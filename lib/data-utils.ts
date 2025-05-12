@@ -84,11 +84,36 @@ export const formatCurrency = (amount, currency = "TRY") => {
   }
 
   const symbol = currencySymbols[currency] || currency
+  
+  // Sayısal değeri güvenli bir şekilde çevir
+  let numAmount = 0;
+  if (typeof amount === "number") {
+    numAmount = amount;
+  } else if (typeof amount === "string") {
+    numAmount = parseFloat(amount.replace(/[^\d.,]/g, '').replace(',', '.')) || 0;
+  }
 
-  return `${symbol} ${Number.parseFloat(amount).toLocaleString("tr-TR", {
+  return `${symbol} ${numAmount.toLocaleString("tr-TR", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })}`
+}
+
+// Para birimi gruplandırma ve formatlama
+export const formatCurrencyGroups = (currencyGroups) => {
+  if (!currencyGroups || Object.keys(currencyGroups).length === 0) {
+    return "-";
+  }
+  
+  return Object.entries(currencyGroups)
+    .filter(([_, amount]) => {
+      // Sayısal değere dönüştür
+      const numAmount = typeof amount === "number" ? amount : 
+                      (typeof amount === "string" ? parseFloat(amount.replace(/[^\d.,]/g, '').replace(',', '.')) : 0);
+      return !isNaN(numAmount) && numAmount > 0;
+    })
+    .map(([currency, amount]) => formatCurrency(amount, currency))
+    .join(" + ");
 }
 
 // Tarih formatı

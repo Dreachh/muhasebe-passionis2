@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { DollarSign, Users, Calendar, Globe, FileText, BarChart2, Settings, Save } from "lucide-react"
-import { formatCurrency } from "@/lib/data-utils"
+import { formatCurrency, formatCurrencyGroups } from "@/lib/data-utils"
 import { Button } from "@/components/ui/button"
 import { DatePickerWithRange } from "@/components/ui/date-range-picker"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -67,20 +67,27 @@ export function MainDashboard({ onNavigate, financialData = [], toursData = [], 
     return acc;
   }, {} as Record<string, number>);
 
-  // Tur Gideri: Her döviz için ayrı ayrı topla
+  // Tur Gideri: Her döviz için ayrı ayrı topla - tamamen yeniden yazıldı
   const tourExpenseByCurrency = toursData.reduce((acc, tour) => {
+    // Her turun giderleri üzerinde döngü kur
     if (Array.isArray(tour.expenses)) {
-      // Her gideri kendi para birimi için ayrı ayrı topla
       tour.expenses.forEach((expense) => {
-        // Giderin para birimi ve tutarını doğru şekilde al
+        if (!expense) return; // Geçersiz giderler için atla
+        
+        // Giderin para birimini belirle
         const currency = expense.currency || tour.currency || "TRY";
         
-        // Tutarı doğru şekilde sayısal değere çevir
-        const amount = typeof expense.amount === "string" ? 
-          parseFloat(expense.amount) : 
-          (expense.amount || 0);
+        // Gider tutarını doğru şekilde ayrıştır
+        let amount = 0;
+        if (typeof expense.amount === "number") {
+          amount = expense.amount;
+        } else if (typeof expense.amount === "string") {
+          // String temizleme işlemi
+          const cleanedAmount = expense.amount.replace(/[^\d.,]/g, '').replace(',', '.');
+          amount = parseFloat(cleanedAmount);
+        }
         
-        // Eğer geçerli bir tutarsa toplama ekle
+        // Geçerli bir rakam ise ekle
         if (!isNaN(amount) && amount > 0) {
           acc[currency] = (acc[currency] || 0) + amount;
         }
@@ -123,6 +130,8 @@ export function MainDashboard({ onNavigate, financialData = [], toursData = [], 
       serialNumber: tour.serialNumber || tour.id?.slice(-4) || "INV",
       name: tour.tourName,
       customerName: tour.customerName,
+      selectedTourName: tour.selectedTourName || "", // Seçilen tur şablonu adını doğrudan ekleyelim
+      destination: tour.destinationName || "", // Destinasyon adını da ekleyelim
       amount: tour.totalPrice,
       currency: tour.currency,
       status: tour.paymentStatus,
@@ -174,26 +183,45 @@ export function MainDashboard({ onNavigate, financialData = [], toursData = [], 
         
         // Eğer bu tur için bir gider grubu varsa
         if (tourExpenseGroups[tourId]) {
+          // Giderleri para birimlerine göre topla
+          const expensesByCurrency = {};
+          
           // Tüm giderleri topla
-          let totalExpense = 0;
           tour.expenses.forEach(expense => {
             if (expense) {
-              const amount = Number.parseFloat(expense.amount?.toString() || "0") || 0;
-              if (amount > 0) {
-                totalExpense += amount;
+              // Para birimi belirleme
+              const currency = expense.currency || tour.currency || "TRY";
+              
+              // Tutarı doğru şekilde ayrıştır
+              let amount = 0;
+              if (typeof expense.amount === "number") {
+                amount = expense.amount;
+              } else if (typeof expense.amount === "string") {
+                // String temizleme işlemi
+                const cleanedAmount = expense.amount.replace(/[^\d.,]/g, '').replace(',', '.');
+                amount = parseFloat(cleanedAmount);
+              }
+              
+              // Geçerli bir rakam ise ekle
+              if (!isNaN(amount) && amount > 0) {
+                expensesByCurrency[currency] = (expensesByCurrency[currency] || 0) + amount;
+                
                 // Gider detayını da ekle
                 tourExpenseGroups[tourId].originalData.expenses.push({
                   ...expense,
                   relatedTourId: tourId,
                   type: 'expense',
-                  category: expense.type || 'Tur Gideri'
+                  category: expense.type || 'Tur Gideri',
+                  // Temizlenmiş tutarı ekle
+                  cleanedAmount: amount
                 });
               }
             }
           });
           
           // Toplam gider tutarını güncelle
-          tourExpenseGroups[tourId].amount += totalExpense;
+          tourExpenseGroups[tourId].amount = Object.values(expensesByCurrency).reduce((sum: number, val: number) => sum + val, 0);
+          tourExpenseGroups[tourId].expensesByCurrency = expensesByCurrency;
         }
       }
     });
@@ -213,14 +241,25 @@ export function MainDashboard({ onNavigate, financialData = [], toursData = [], 
           
           // İlgili tura ait gider grubunu güncelle
           if (tourExpenseGroups[tourId]) {
-            // Tur giderini topla
-            const amount = Number.parseFloat(finance.amount?.toString() || "0") || 0;
-            tourExpenseGroups[tourId].amount += amount;
-            tourExpenseGroups[tourId].originalData.expenses.push(finance);
+            // Tutarı doğru şekilde al - düzeltildi
+            const amount = typeof finance.amount === "string" ? 
+              parseFloat(finance.amount.replace(/[^\d.-]/g, '')) : 
+              (typeof finance.amount === "number" ? finance.amount : 0);
+            
+            if (!isNaN(amount) && amount > 0) {
+              tourExpenseGroups[tourId].amount += amount;
+              tourExpenseGroups[tourId].originalData.expenses.push(finance);
+            }
           }
         } else {
           // Eğer tur bulunamadıysa normal gider olarak ekle
           serialNumber = `F${expenseCounter++}`;
+          
+          // Tutarı doğru şekilde al
+          const amount = typeof finance.amount === "string" ? 
+            parseFloat(finance.amount.replace(/[^\d.-]/g, '')) : 
+            (typeof finance.amount === "number" ? finance.amount : 0);
+          
           regularFinancialTransactions.push({
             id: finance.id,
             type: 'finance',
@@ -228,7 +267,7 @@ export function MainDashboard({ onNavigate, financialData = [], toursData = [], 
             serialNumber: serialNumber,
             name: finance.type === 'income' ? 'Gelir Kaydı' : 'Gider Kaydı',
             customerName: finance.description || '-',
-            amount: finance.amount,
+            amount: amount,
             currency: finance.currency,
             status: finance.type,
             category: finance.category || 'Genel',
@@ -243,6 +282,11 @@ export function MainDashboard({ onNavigate, financialData = [], toursData = [], 
           serialNumber = `F${expenseCounter++}`;
         }
         
+        // Tutarı doğru şekilde al
+        const amount = typeof finance.amount === "string" ? 
+          parseFloat(finance.amount.replace(/[^\d.-]/g, '')) : 
+          (typeof finance.amount === "number" ? finance.amount : 0);
+        
         regularFinancialTransactions.push({
           id: finance.id,
           type: 'finance',
@@ -250,7 +294,7 @@ export function MainDashboard({ onNavigate, financialData = [], toursData = [], 
           serialNumber: serialNumber,
           name: finance.type === 'income' ? 'Gelir Kaydı' : 'Gider Kaydı',
           customerName: finance.description || '-',
-          amount: finance.amount,
+          amount: amount,
           currency: finance.currency,
           status: finance.type,
           category: finance.category || 'Genel',
@@ -274,28 +318,56 @@ export function MainDashboard({ onNavigate, financialData = [], toursData = [], 
   // Her para birimi için toplamı göster, completed'da sadece totalPrice, partial'da ödenen kısımlar ve ödenen aktiviteler
   const getTourTotalString = (tour) => {
     const totals = {};
-    if (tour.paymentStatus === 'partial') {
+    
+    // Tur ödeme durumuna göre toplamları hesapla
+    if (tour.paymentStatus === 'completed') {
+      // Tamamlanmış tur için toplam tutarı göster
+      const cur = tour.currency || 'TRY';
+      const totalAmount = Number(tour.totalPrice) || 0;
+      
+      if (totalAmount > 0) {
+        totals[cur] = (totals[cur] || 0) + totalAmount;
+      }
+    } 
+    else if (tour.paymentStatus === 'partial') {
+      // Kısmi ödemeli turda, ödenen kısmı göster
       const paidCur = tour.partialPaymentCurrency || tour.currency || 'TRY';
       const paidAmount = Number(tour.partialPaymentAmount) || 0;
-      totals[paidCur] = (totals[paidCur] || 0) + paidAmount;
+      
+      if (paidAmount > 0) {
+        totals[paidCur] = (totals[paidCur] || 0) + paidAmount;
+      }
+      
+      // Varsa aktivitelerden ödenen kısımları da ekle
       if (Array.isArray(tour.activities)) {
         tour.activities.forEach(act => {
           if (act.partialPaymentAmount) {
             const cur = act.partialPaymentCurrency || act.currency || tour.currency || 'TRY';
-            totals[cur] = (totals[cur] || 0) + Number(act.partialPaymentAmount);
+            const amount = Number(act.partialPaymentAmount) || 0;
+            
+            if (amount > 0) {
+              totals[cur] = (totals[cur] || 0) + amount;
+            }
           }
         });
       }
-    } else if (tour.paymentStatus === 'completed') {
-      const cur = tour.currency || 'TRY';
-      totals[cur] = (totals[cur] || 0) + (Number(tour.totalPrice) || 0);
-      // completed'da aktiviteler ayrıca eklenmez!
     }
-    // Diğer durumlarda gelir eklenmez
-    return Object.entries(totals)
-      .filter(([_, val]) => val > 0)
-      .map(([cur, val]) => `${val.toLocaleString('tr-TR')} ${cur}`)
-      .join(' + ') || '-';
+    else if (tour.paymentStatus === 'pending') {
+      // Beklemedeki turlar için sıfır yerine toplam tutar gösterilir (ödenmemiş)
+      const cur = tour.currency || 'TRY';
+      const totalAmount = Number(tour.totalPrice) || 0;
+      
+      if (totalAmount > 0) {
+        totals[cur] = (totals[cur] || 0) + totalAmount;
+      }
+    }
+    
+    // formatCurrencyGroups fonksiyonunu kullanarak formatlı string döndür
+    if (Object.keys(totals).length === 0) {
+      return '-'; // Tutar yoksa - göster
+    }
+    
+    return formatCurrencyGroups(totals);
   };
 
   // Ana ekranda sadece göstergeler olacak, menü butonları kaldırıldı
@@ -314,11 +386,9 @@ export function MainDashboard({ onNavigate, financialData = [], toursData = [], 
   <h3 className="text-base font-bold text-muted-foreground text-left">Finansal Gelir <span className="block text-xs font-normal text-muted-foreground">(Son 30 gün)</span></h3>
 </div>
                 <div>
-                  {Object.entries(incomeByCurrency).map(([currency, amount]) => (
-                    <p key={currency} className="text-xl font-bold text-green-600">
-                      {formatCurrency(amount, currency)}
-                    </p>
-                  ))}
+                  <p className="text-xl font-bold text-green-600">
+                    {formatCurrencyGroups(incomeByCurrency)}
+                  </p>
                 </div>
               </div>
               
@@ -335,11 +405,9 @@ export function MainDashboard({ onNavigate, financialData = [], toursData = [], 
   <h3 className="text-base font-bold text-muted-foreground text-left">Finansal Gider <span className="block text-xs font-normal text-muted-foreground">(Son 30 gün)</span></h3>
 </div>
                 <div>
-                  {Object.entries(expenseByCurrency).map(([currency, amount]) => (
-                    <p key={currency} className="text-xl font-bold text-red-600">
-                      {formatCurrency(amount, currency)}
-                    </p>
-                  ))}
+                  <p className="text-xl font-bold text-red-600">
+                    {formatCurrencyGroups(expenseByCurrency)}
+                  </p>
                 </div>
               </div>
               
@@ -355,11 +423,9 @@ export function MainDashboard({ onNavigate, financialData = [], toursData = [], 
   <span className="bg-indigo-100 p-2 rounded-full mb-0.5"><Globe className="h-4 w-4 text-indigo-500" /></span>
   <h3 className="text-base font-bold text-muted-foreground text-left">Tur Geliri <span className="block text-xs font-normal text-muted-foreground">(Ödenen)</span></h3>
 </div>
-                {Object.entries(tourIncomeByCurrency).map(([currency, amount]) => (
-                  <p key={currency} className="text-2xl font-bold text-indigo-600">
-                    {formatCurrency(amount, currency)}
-                  </p>
-                ))}
+                <p className="text-2xl font-bold text-indigo-600">
+                  {formatCurrencyGroups(tourIncomeByCurrency)}
+                </p>
               </div>
               
             </div>
@@ -374,11 +440,9 @@ export function MainDashboard({ onNavigate, financialData = [], toursData = [], 
   <span className="bg-fuchsia-100 p-2 rounded-full mb-0.5"><BarChart2 className="h-4 w-4 text-fuchsia-500" /></span>
   <h3 className="text-base font-bold text-muted-foreground text-left">Tur Gideri <span className="block text-xs font-normal text-muted-foreground">(Toplam)</span></h3>
 </div>
-                {Object.entries(tourExpenseByCurrency).map(([currency, amount]) => (
-                  <p key={currency} className="text-2xl font-bold text-fuchsia-600">
-                    {formatCurrency(amount, currency)}
-                  </p>
-                ))}
+                <p className="text-2xl font-bold text-fuchsia-600">
+                  {formatCurrencyGroups(tourExpenseByCurrency)}
+                </p>
               </div>
               
             </div>
@@ -510,8 +574,11 @@ export function MainDashboard({ onNavigate, financialData = [], toursData = [], 
                           (transaction.status === "completed" ? Number(transaction.amount) || 0 : 0);
                         const totalLeft = (Number(transaction.amount) || 0) - totalPaid;
                         
+                        // Her bir satır için benzersiz key oluştur
+                        const rowKey = `tour-${transaction.id}-${transaction.serialNumber}`;
+                        
                         return (
-                          <tr key={transaction.id} className="border-b last:border-0 hover:bg-gray-100 transition bg-indigo-50">
+                          <tr key={rowKey} className="border-b last:border-0 hover:bg-gray-100 transition bg-indigo-50">
                             <td className="py-2 px-3 font-mono text-lg font-bold">
                               <span className="text-indigo-600">
                                 {transaction.serialNumber}
@@ -524,7 +591,9 @@ export function MainDashboard({ onNavigate, financialData = [], toursData = [], 
                             <td className="py-2 px-3">
                               <div className="flex flex-col">
                                 <span className="font-semibold">{transaction.customerName || "İsimsiz Müşteri"}</span>
-                                <span className="text-xs text-gray-500">{transaction.originalData.destination || transaction.originalData.tourName || "Belirtilmemiş"}</span>
+                                <span className="text-xs text-gray-500">
+                                  {transaction.selectedTourName || transaction.destination || transaction.originalData.selectedTourName || "Belirtilmemiş"}
+                                </span>
                               </div>
                             </td>
                             <td className="py-2 px-3">
@@ -565,8 +634,11 @@ export function MainDashboard({ onNavigate, financialData = [], toursData = [], 
                         // Tur ile ilişkili gider kaydı
                         const relatedTour = toursData.find(t => t.id === transaction.originalData.relatedTourId);
                         
+                        // Her bir gider satırı için benzersiz key oluştur
+                        const rowKey = `expense-${transaction.id}-${transaction.serialNumber}`;
+                        
                         return (
-                          <tr key={transaction.id} className="border-b last:border-0 hover:bg-gray-100 transition bg-red-50">
+                          <tr key={rowKey} className="border-b last:border-0 hover:bg-gray-100 transition bg-red-50">
                             <td className="py-2 px-3 font-mono text-lg font-bold">
                               <span className="text-red-600">
                                 {transaction.serialNumber}
@@ -579,14 +651,19 @@ export function MainDashboard({ onNavigate, financialData = [], toursData = [], 
                             <td className="py-2 px-3">
                               <div className="flex flex-col">
                                 <span className="font-semibold">{relatedTour?.customerName || "Müşteri"} - Tur Gideri</span>
-                                <span className="text-xs text-gray-500">{transaction.originalData.category || "Tur Gideri"}</span>
+                                <span className="text-xs text-gray-500">
+                                  {relatedTour?.selectedTourName ? `${relatedTour.selectedTourName} - ` : ''}
+                                  Detay için finansal kayıtları ziyaret edin
+                                </span>
                               </div>
                             </td>
                             <td className="py-2 px-3">
                               <span className="bg-white border border-indigo-500 text-indigo-700 px-3 py-1 rounded-full text-xs font-semibold">Tur Gideri</span>
                             </td>
                             <td className="py-2 px-3">
-                              {formatCurrency(transaction.amount || 0, transaction.currency)}
+                              {transaction.expensesByCurrency ? 
+                                formatCurrencyGroups(transaction.expensesByCurrency) : 
+                                formatCurrency(transaction.amount || 0, transaction.currency)}
                             </td>
                             <td className="py-2 px-3">-</td>
                             <td className="py-2 px-3">

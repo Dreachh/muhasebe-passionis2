@@ -863,7 +863,7 @@ export function DataView({
                 <TableHeader>
                   <TableRow>
                     <TableHead>Seri No</TableHead>
-                    <TableHead>Düzenleyici</TableHead>
+                    <TableHead>Düzenlenen Tur</TableHead>
                     <TableHead>Müşteri</TableHead>
                     <TableHead>Destinasyon</TableHead>
                     <TableHead>Tarih</TableHead>

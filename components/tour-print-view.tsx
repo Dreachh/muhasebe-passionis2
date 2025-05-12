@@ -2,6 +2,44 @@
 
 import { formatCurrency, formatDate } from "@/lib/data-utils"
 
+interface ActivityParticipants {
+  adults: number;
+  children: number;
+  total: number;
+}
+
+// Aktivite katılımcı bilgilerini güvenli bir şekilde hesaplayan yardımcı fonksiyon
+function getActivityParticipantInfo(activity: any, tour: any): ActivityParticipants {
+  // "Tüm tur katılımcıları" seçeneği işaretlenmişse
+  if (activity.participantsType === "all" || activity.useAllTourParticipants || activity.allTourParticipants) {
+    const adults = Number(tour.numberOfPeople) || 0;
+    const children = Number(tour.numberOfChildren) || 0;
+    return {
+      adults,
+      children,
+      total: adults + children
+    };
+  } 
+  // Aktivitede özel katılımcı sayısı belirtilmişse
+  else if (activity.participants && Number(activity.participants) > 0) {
+    return {
+      adults: Number(activity.participants),
+      children: 0,
+      total: Number(activity.participants)
+    };
+  } 
+  // Aktivitede yetişkin ve çocuk ayrı ayrı belirtilmişse
+  else {
+    const adults = Number(activity.adultParticipants) || 0;
+    const children = Number(activity.childParticipants) || 0;
+    return {
+      adults,
+      children,
+      total: adults + children
+    };
+  }
+}
+
 export function TourPrintView({ tour, companyInfo = {
   name: "PassionisTravel",
   address: "",
@@ -53,8 +91,8 @@ export function TourPrintView({ tour, companyInfo = {
             <p className="font-medium">{tour.serialNumber}</p>
           </div>
           <div>
-            <p className="text-gray-600 text-sm">Tur Kaydını Oluşturan Kişi: <span className="text-xs text-gray-500">(Created By)</span></p>
-            <p className="font-medium">{tour.tourName}</p>
+            <p className="text-gray-600 text-sm">Tur İsmi: <span className="text-xs text-gray-500">(Tour Name)</span></p>
+            <p className="font-medium">{tour.tourName || tour.selectedTourName || "-"}</p>
           </div>
           <div>
             <p className="text-gray-600 text-sm">Başlangıç Tarihi: <span className="text-xs text-gray-500">(Start Date)</span></p>
@@ -68,6 +106,16 @@ export function TourPrintView({ tour, companyInfo = {
             <p className="text-gray-600 text-sm">Kişi Sayısı: <span className="text-xs text-gray-500">(Number of Participants)</span></p>
             <p className="font-medium">
               {tour.numberOfPeople} Yetişkin <span className="text-xs text-gray-500">(Adult)</span>, {tour.numberOfChildren} Çocuk <span className="text-xs text-gray-500">(Child)</span>
+            </p>
+          </div>
+          <div>
+            <p className="text-gray-600 text-sm">Varış Yeri: <span className="text-xs text-gray-500">(Destination)</span></p>
+            <p className="font-medium">{tour.destination || tour.selectedTourDestination || tour.destinationName || tour.varişYeri || "-"}</p>
+          </div>
+          <div>
+            <p className="text-gray-600 text-sm">Tur Bilgileri: <span className="text-xs text-gray-500">(Tour Details)</span></p>
+            <p className="font-medium">
+              {tour.tourDetails || tour.selectedTourDescription || tour.description || tour.notes || "-"}
             </p>
           </div>
         </div>
@@ -149,8 +197,8 @@ export function TourPrintView({ tour, companyInfo = {
                   <div className="text-xs text-gray-500">(Participants)</div>
                 </th>
                 <th className="border p-1 text-center">
-                  <div>Kişi Başı Fiyat</div>
-                  <div className="text-xs text-gray-500">(Price per Person)</div>
+                  <div>Birim Fiyat</div>
+                  <div className="text-xs text-gray-500">(Unit Price)</div>
                 </th>
                 <th className="border p-1 text-center">
                   <div>Toplam Fiyat</div>
@@ -160,16 +208,24 @@ export function TourPrintView({ tour, companyInfo = {
             </thead>
             <tbody>
               {tour.activities.map((activity) => {
-                const participants = Number(activity.participants) || 0;
+                const participantInfo = getActivityParticipantInfo(activity, tour);
                 const price = Number(activity.price) || 0;
-                const totalPrice = participants > 0 ? price * participants : price;
-                
+                const totalPrice = participantInfo.total > 0 ? price * participantInfo.total : price;
+
                 return (
                   <tr key={activity.id}>
                     <td className="border p-1">{activity.name}</td>
                     <td className="border p-1">{activity.date ? formatDate(activity.date) : "-"}</td>
                     <td className="border p-1">{activity.duration}</td>
-                    <td className="border p-1 text-center">{participants > 0 ? participants : "-"}</td>
+                    <td className="border p-1 text-center">
+                      {participantInfo.total > 0 ? (
+                        <>
+                          {participantInfo.adults > 0 && `${participantInfo.adults} Yetişkin`}
+                          {participantInfo.adults > 0 && participantInfo.children > 0 && ', '}
+                          {participantInfo.children > 0 && `${participantInfo.children} Çocuk`}
+                        </>
+                      ) : "-"}
+                    </td>
                     <td className="border p-1 text-right">{formatCurrency(price, activity.currency)}</td>
                     <td className="border p-1 text-right">{formatCurrency(totalPrice, activity.currency)}</td>
                   </tr>
@@ -184,14 +240,41 @@ export function TourPrintView({ tour, companyInfo = {
         <h2 className="text-lg font-semibold border-b pb-1 mb-2">
           Ödeme Bilgileri <span className="text-xs font-medium text-gray-500">(Payment Information)</span>
         </h2>
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-3 gap-2">
           <div>
-            <p className="text-gray-600 text-sm">Kişi Başı Fiyat: <span className="text-xs text-gray-500">(Price Per Person)</span></p>
-            <p className="font-medium">{formatCurrency(tour.pricePerPerson, tour.currency)}</p>
+            <p className="text-gray-600 text-sm">Tur Fiyatı: <span className="text-xs text-gray-500">(Tour Price)</span></p>
+            <p className="font-medium">{formatCurrency(Number(tour.numberOfPeople) * Number(tour.pricePerPerson), tour.currency)}</p>
           </div>
+          {tour.activities?.length > 0 ? (
+            <div>
+              <p className="text-gray-600 text-sm">Aktivite Toplamı: <span className="text-xs text-gray-500">(Activities Total)</span></p>
+              <p className="font-medium">
+                {formatCurrency(
+                  tour.activities.reduce((total, activity) => {
+                    const participantInfo = getActivityParticipantInfo(activity, tour);
+                    const price = Number(activity.price) || 0;
+                    return total + (participantInfo.total > 0 ? price * participantInfo.total : price);
+                  }, 0),
+                  tour.currency
+                )}
+              </p>
+            </div>
+          ) : <div></div>}
           <div>
-            <p className="text-gray-600 text-sm">Toplam Fiyat: <span className="text-xs text-gray-500">(Total Price)</span></p>
-            <p className="font-bold">{formatCurrency(tour.totalPrice, tour.currency)}</p>
+            <p className="text-gray-600 text-sm">Genel Toplam: <span className="text-xs text-gray-500">(Grand Total)</span></p>
+            <p className="font-bold">
+              {formatCurrency(
+                (Number(tour.numberOfPeople) * Number(tour.pricePerPerson)) + 
+                (tour.activities?.length > 0 ? 
+                  tour.activities.reduce((total, activity) => {
+                    const participantInfo = getActivityParticipantInfo(activity, tour);
+                    const price = Number(activity.price) || 0;
+                    return total + (participantInfo.total > 0 ? price * participantInfo.total : price);
+                  }, 0) : 0
+                ),
+                tour.currency
+              )}
+            </p>
           </div>
           <div>
             <p className="text-gray-600 text-sm">Ödeme Durumu: <span className="text-xs text-gray-500">(Payment Status)</span></p>
@@ -243,6 +326,7 @@ export function TourPrintView({ tour, companyInfo = {
               </span>
             </p>
           </div>
+          <div></div> {/* Boş div - grid düzenini korumak için */}
 
           {tour.paymentStatus === "partial" && (
             <>
@@ -256,6 +340,7 @@ export function TourPrintView({ tour, companyInfo = {
                   {formatCurrency(tour.totalPrice - tour.partialPaymentAmount, tour.currency)}
                 </p>
               </div>
+              <div></div> {/* Boş div - grid düzenini korumak için */}
             </>
           )}
         </div>
@@ -269,7 +354,7 @@ export function TourPrintView({ tour, companyInfo = {
       )}
 
       <div className="mt-8 text-center text-xs text-gray-500 pt-2 border-t">
-        {companyInfo.footerText || "Bu belge PassionisTravel tarafından düzenlenmiştir. / This document has been issued by PassionisTravel."}
+        Bu belge {companyInfo.name || "PassionisTravel"} tarafından düzenlenmiştir. ({companyInfo.address ? `Adres: ${companyInfo.address}` : ""}{companyInfo.phone ? `, Tel: ${companyInfo.phone}` : ""}{companyInfo.email ? `, E-posta: ${companyInfo.email}` : ""}{companyInfo.website ? `, Web: ${companyInfo.website}` : ""})
       </div>
     </div>
   )

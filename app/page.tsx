@@ -529,13 +529,87 @@ export default function Home() {
           )}
           {currentView === "tour-sales" && (
             <TourSalesForm
-              initialData={editingRecord}
-              onSave={(tourData: any) => {
+              initialData={editingRecord}              onSave={(tourData: any) => {
                 // Yeni tur kaydı ekle veya düzenle
                 const updatedData = editingRecord
                   ? toursData.map(item => item.id === tourData.id ? tourData : item)
                   : [...toursData, tourData];
                 handleDataUpdate("tours", updatedData);
+                
+                // 1. Müşteri kaydı oluştur veya güncelle
+                if (tourData.customerName) {
+                  // Müşteri kaydı için benzersiz ID oluştur (veya tur ID'den türet)
+                  const customerId = editingRecord ? 
+                    // Mevcut müşteri ID'sini bul
+                    customersData.find(c => 
+                      c.name === tourData.customerName && 
+                      c.phone === tourData.customerPhone)?.id || 
+                    `c_${tourData.id}` : 
+                    `c_${tourData.id}`;
+                  
+                  // Yeni müşteri verisi
+                  const customerData = {
+                    id: customerId,
+                    name: tourData.customerName,
+                    phone: tourData.customerPhone,
+                    email: tourData.customerEmail,
+                    idNumber: tourData.customerIdNumber,
+                    citizenship: tourData.nationality,
+                    address: tourData.customerAddress,
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString(),
+                  };
+                  
+                  // Müşteri zaten varsa güncelle, yoksa ekle
+                  const existingCustomerIndex = customersData.findIndex(c => c.id === customerId);
+                  
+                  let newCustomersData;
+                  if (existingCustomerIndex >= 0) {
+                    // Müşteri zaten varsa güncelle
+                    newCustomersData = [...customersData];
+                    newCustomersData[existingCustomerIndex] = customerData;
+                  } else {
+                    // Müşteri yoksa yeni ekle
+                    newCustomersData = [...customersData, customerData];
+                  }
+                  
+                  // Müşteri verilerini güncelle
+                  handleDataUpdate("customers", newCustomersData);
+                }
+                
+                // 2. Giderleri finansal kayıtlara ekle
+                if (tourData.expenses && tourData.expenses.length > 0) {
+                  const newFinancialEntries = tourData.expenses.map((expense: any) => {
+                    return {
+                      id: `fin_${expense.id}`,
+                      date: expense.date || tourData.tourDate || new Date().toISOString(),
+                      type: "expense",
+                      category: "Tur Gideri",
+                      description: `${tourData.customerName} - ${expense.name}`,
+                      amount: Number(expense.amount),
+                      currency: expense.currency || tourData.currency || "TRY",
+                      paymentMethod: tourData.paymentMethod || "cash",
+                      relatedTourId: tourData.id,
+                      createdAt: new Date().toISOString(),
+                      updatedAt: new Date().toISOString()
+                    };
+                  });
+                  
+                  // Mevcut finansal kayıtları al ve giderleri ekle
+                  const existingFinancials = [...financialData];
+                  
+                  // Önce bu tura ait önceki gider kayıtlarını kaldır
+                  const filteredFinancials = existingFinancials.filter(
+                    (item) => !(item.relatedTourId === tourData.id && item.category === "Tur Gideri")
+                  );
+                  
+                  // Yeni giderleri ekle
+                  const updatedFinancials = [...filteredFinancials, ...newFinancialEntries];
+                  
+                  // Finansal verileri güncelle
+                  handleDataUpdate("financial", updatedFinancials);
+                }
+                
                 setEditingRecord(null);
               }}
               onCancel={() => { setEditingRecord(null); navigateTo("main-dashboard"); }}
