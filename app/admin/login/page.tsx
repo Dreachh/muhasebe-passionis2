@@ -9,7 +9,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Eye, EyeOff } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { getAdminCredentials } from "@/lib/db-firebase";
-import { clientInitializeFirebase } from "@/lib/firebase";
+import { initializeFirebaseClient } from '@/lib/firebase-direct';
 
 // Admin login bileşeni
 export default function AdminLogin() {
@@ -28,22 +28,29 @@ export default function AdminLogin() {
       setError('Oturumunuz başka bir yerden sonlandırıldı. Lütfen yeniden giriş yapın.');
     } else if (message === 'browser_closed') {
       setError('Tarayıcı kapatıldığı için oturumunuz sonlandırıldı. Lütfen yeniden giriş yapın.');
-    }
-    
-    // Firebase'i başlat
+    }    // Firebase'i başlat
     try {
       console.log("Admin login sayfasında Firebase başlatılıyor...");
-      const success = clientInitializeFirebase();
-      console.log("Firebase başlatma sonucu:", success ? "Başarılı" : "Başarısız");
-      setFirebaseInitialized(success);
+      // Yeni Firebase-direct modülünü kullanarak başlat
+      if (typeof window !== 'undefined') {
+        const { success } = initializeFirebaseClient();
+        console.log("Firebase başlatma sonucu:", success ? "Başarılı" : "Başarısız");
+        setFirebaseInitialized(success);
+      } else {
+        console.error("Tarayıcı ortamında değiliz, Firebase başlatılamaz!");
+      }
     } catch (error) {
       console.error("Firebase başlatma hatası:", error);
     }
     
     // Yerel depolama temizliği
-    localStorage.removeItem('adminLoggedIn');
-    sessionStorage.removeItem('adminLoggedIn');
-    document.cookie = "adminLoggedInClient=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+    try {
+      localStorage.removeItem('adminLoggedIn');
+      sessionStorage.removeItem('adminLoggedIn');
+      document.cookie = "adminLoggedInClient=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+    } catch (storageError) {
+      console.error("Depolama temizleme hatası:", storageError);
+    }
   }, []);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');

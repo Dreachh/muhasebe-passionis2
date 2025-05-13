@@ -26,17 +26,34 @@ let rtdb: Database;
 // Firebase'i başlatmak için güvenli bir fonksiyon
 function initFirebase(): boolean {
   try {
+    // Browser tarafında olduğumuzu kontrol et
+    if (typeof window === 'undefined') {
+      console.log('Server tarafında çalışıyor, Firebase başlatma atlanıyor');
+      return false;
+    }
+
     if (!firebaseConfig.apiKey) {
-      throw new Error('Firebase API anahtarı eksik! Lütfen yapılandırmayı kontrol edin.');
+      console.error('Firebase API anahtarı eksik! Lütfen yapılandırmayı kontrol edin.');
+      return false;
     }
     
     // Eğer zaten başlatılmışsa, mevcut olanı kullan
     if (getApps().length === 0) {
       console.log("Firebase uygulaması başlatılıyor...");
-      app = initializeApp(firebaseConfig);
+      try {
+        app = initializeApp(firebaseConfig);
+      } catch (initError) {
+        console.error("Firebase başlatma hatası:", initError);
+        return false;
+      }
     } else {
       console.log("Firebase zaten başlatılmış, mevcut instance kullanılıyor");
-      app = getApps()[0];
+      try {
+        app = getApps()[0];
+      } catch (getAppError) {
+        console.error("Firebase instance erişim hatası:", getAppError);
+        return false;
+      }
     }
     
     // Firebase servislerini başlat
@@ -61,11 +78,17 @@ export { app, db, rtdb, auth, storage, firebaseInitialized };
 
 // İstemci tarafında Firebase'i yeniden başlatmak için kullanılacak fonksiyon
 export function clientInitializeFirebase(): boolean {
-  if (typeof window !== "undefined") {
-    console.log("Client tarafında Firebase başlatılıyor...");
-    const success = initFirebase();
-    console.log("Firebase client başlatma sonucu:", success ? "Başarılı" : "Başarısız");
-    return success;
+  try {
+    if (typeof window !== "undefined") {
+      console.log("Client tarafında Firebase başlatılıyor...");
+      const success = initFirebase();
+      console.log("Firebase client başlatma sonucu:", success ? "Başarılı" : "Başarısız");
+      return success;
+    }
+    console.log("Client tarafında değil, Firebase başlatılmıyor");
+    return false;
+  } catch (error) {
+    console.error("Firebase başlatma hatası (clientInitializeFirebase):", error);
+    return false;
   }
-  return false;
 }

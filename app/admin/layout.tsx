@@ -1,9 +1,10 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { AdminHeader } from '@/components/admin-header';
 import { Toaster } from '@/components/ui/toaster';
+import { ensureFirestore } from '@/lib/firebase-direct';
 
 export default function AdminLayout({
   children,
@@ -66,11 +67,24 @@ export default function AdminLayout({
     } catch (error) {
       console.error('Oturum kontrolü hatası:', error);
     }
+  };  // Firebase başlatma fonksiyonu - daha güvenli sürüm
+  const initializeFirebaseClient = () => {
+    try {
+      console.log('Admin layout - Firebase başlatma işlemi');
+      return ensureFirestore();
+    } catch (error) {
+      console.error('Firebase başlatma hatası:', error);
+      return false;
+    }
   };
-
+  
   useEffect(() => {
+    // Firebase'i başlat
+    initializeFirebaseClient();
+    
     // Login sayfası veya setup sayfası hariç tüm admin sayfalarında giriş kontrolü yap
-    if (pathname !== '/admin/login' && pathname !== '/admin/setup') {      // SessionStorage (tarayıcı kapatınca silinir) ve localStorage (tarayıcı kapatınca silinmez) kontrolü birlikte yap
+    if (pathname !== '/admin/login' && pathname !== '/admin/setup') {
+      // SessionStorage (tarayıcı kapatınca silinir) ve localStorage (tarayıcı kapatınca silinmez) kontrolü birlikte yap
       const isLoggedInSession = sessionStorage.getItem('adminLoggedIn') === 'true';
       const isLoggedInLocal = localStorage.getItem('adminLoggedIn') === 'true';
       

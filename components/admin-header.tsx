@@ -1,18 +1,29 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { useToast } from '@/components/ui/use-toast';
 import { useRouter } from 'next/navigation';
 import { LogOut, LogOutIcon, RefreshCw } from 'lucide-react';
+import { initializeFirebaseClient } from '@/lib/firebase-direct';
 
 export function AdminHeader() {
   const { toast } = useToast();
   const router = useRouter();
   const [showLogoutAllDialog, setShowLogoutAllDialog] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
-    // Düzenli oturum kontrolü - her 30 saniyede bir Firebase'den kontrol eder
+      // Firebase'i başlat
+  useEffect(() => {
+    try {
+      console.log("AdminHeader içinde Firebase başlatılıyor...");
+      initializeFirebaseClient();
+    } catch (error) {
+      console.error("Firebase başlatma hatası:", error);
+    }
+  }, []);
+  
+  // Düzenli oturum kontrolü - her 30 saniyede bir Firebase'den kontrol eder
   useEffect(() => {
     // Oturum kontrolü fonksiyonu
     const checkSessionVersion = async () => {
