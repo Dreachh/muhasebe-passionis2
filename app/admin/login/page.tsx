@@ -15,13 +15,14 @@ import { initializeFirebaseClient } from '@/lib/firebase-direct';
 export default function AdminLogin() {
   // Firebase durumu için state
   const [firebaseInitialized, setFirebaseInitialized] = useState(false);
-    // URL parametrelerini kontrol et
+  
+  // URL parametrelerini kontrol et
   useEffect(() => {
-    // URL'den mesaj parametresini al
-    const urlParams = new URLSearchParams(window.location.search);
+    // URL'den mesaj parametresini al    const urlParams = new URLSearchParams(window.location.search);
     const message = urlParams.get('message');
     const expired = urlParams.get('expired');
-      // Mesajları kontrol et
+    
+    // Mesajları kontrol et
     if (message === 'session_expired') {
       setError('Oturum süresi doldu. Lütfen yeniden giriş yapın.');
     } else if (expired === 'true') {
@@ -59,8 +60,7 @@ export default function AdminLogin() {
       } catch (storageError) {
         console.error("Depolama temizleme hatası:", storageError);
       }
-    };
-      // Fonksiyonları çalıştır
+    };    // Fonksiyonları çalıştır
     initFirebase();
     clearStorageData();
   }, []);
