@@ -40,16 +40,45 @@ export async function middleware(request: NextRequest) {
     !request.nextUrl.pathname.includes('/admin/setup') &&
     !request.nextUrl.pathname.includes('/api/admin')
   ) {
-    // Admin cookie'sini kontrol et
+    // Admin cookie'lerini kontrol et
     const adminSessionCookie = request.cookies.get('admin_session');
     const sessionVersionCookie = request.cookies.get('session_version');
+    const adminClientCookie = request.cookies.get('adminLoggedInClient');
     
-    console.log('Admin cookie kontrolü:', adminSessionCookie ? 'cookie var' : 'cookie yok');
+    console.log('Admin cookie kontrolü:', {
+      adminSessionCookie: adminSessionCookie ? 'var' : 'yok',
+      sessionVersionCookie: sessionVersionCookie ? 'var' : 'yok',
+      adminClientCookie: adminClientCookie ? 'var' : 'yok'
+    });
     
-    // Giriş yapılmamışsa login sayfasına yönlendir
-    if (!adminSessionCookie || adminSessionCookie.value !== 'authenticated') {
-      console.log('Admin girişi yapılmamış, login sayfasına yönlendiriliyor');
-      return NextResponse.redirect(new URL('/admin/login', request.url));
+    // Tüm oturum kontrollerini bir arada yap
+    if (!adminSessionCookie || adminSessionCookie.value !== 'authenticated' || !adminClientCookie) {
+      console.log('Admin girişi yapılmamış veya eksik oturum bilgisi var, login sayfasına yönlendiriliyor');
+      
+      // Temizleme işlemleri - yanıtta cookie'leri sıfırlayalım
+      const response = NextResponse.redirect(new URL('/admin/login', request.url));
+      response.cookies.set({
+        name: 'admin_session',
+        value: '',
+        expires: new Date(0),
+        path: '/',
+      });
+      
+      response.cookies.set({
+        name: 'session_version',
+        value: '',
+        expires: new Date(0),
+        path: '/',
+      });
+      
+      response.cookies.set({
+        name: 'adminLoggedInClient',
+        value: '',
+        expires: new Date(0),
+        path: '/',
+      });
+      
+      return response;
     }
     
   // Oturum versiyonu kontrolü yap

@@ -25,6 +25,7 @@ const firebaseConfig = {
 // Firebase App instance
 let app: FirebaseApp | undefined;
 let db: Firestore | undefined;
+let _initialized = false;
 
 // Firebase'i istemci tarafında başlatmak için güvenli fonksiyon
 export function initializeFirebaseClient(): { success: boolean; app?: FirebaseApp; db?: Firestore } {
@@ -35,22 +36,39 @@ export function initializeFirebaseClient(): { success: boolean; app?: FirebaseAp
       return { success: false };
     }
 
+    // Eğer zaten başarıyla başlatılmışsa, önbelleğe alınan değerleri döndür
+    if (_initialized && app && db) {
+      console.log('Firebase zaten başarıyla başlatılmış, önbelleğe alınmış instance kullanılıyor');
+      return { success: true, app, db };
+    }
+
     // Zaten başlatılmış uygulamayı kontrol et
     if (getApps().length > 0) {
-      app = getApps()[0];
-      db = getFirestore(app);
-      console.log('Firebase zaten başlatılmış, mevcut instance kullanılıyor');
-      return { success: true, app, db };
+      try {
+        app = getApps()[0];
+        db = getFirestore(app);
+        _initialized = true;
+        console.log('Firebase zaten başlatılmış, mevcut instance kullanılıyor');
+        return { success: true, app, db };
+      } catch (appError) {
+        console.error('Firebase mevcut instance erişim hatası:', appError);
+        // Hata oluşursa yeni bir instance oluşturmayı dene
+      }
     }
     
     // Yeni bir Firebase uygulaması başlat
-    app = initializeApp(firebaseConfig);
-    db = getFirestore(app);
-    console.log('Firebase başarıyla başlatıldı');
-    
-    return { success: true, app, db };
+    try {
+      app = initializeApp(firebaseConfig);
+      db = getFirestore(app);
+      _initialized = true;
+      console.log('Firebase başarıyla başlatıldı');
+      return { success: true, app, db };
+    } catch (initError) {
+      console.error('Firebase başlatma hatası:', initError);
+      return { success: false };
+    }
   } catch (error) {
-    console.error('Firebase başlatma hatası:', error);
+    console.error('Firebase başlatma işlemi esnasında beklenmeyen hata:', error);
     return { success: false };
   }
 }

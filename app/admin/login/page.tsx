@@ -15,8 +15,7 @@ import { initializeFirebaseClient } from '@/lib/firebase-direct';
 export default function AdminLogin() {
   // Firebase durumu için state
   const [firebaseInitialized, setFirebaseInitialized] = useState(false);
-    // URL parametrelerini kontrol et
-  useEffect(() => {
+    // URL parametrelerini kontrol et  useEffect(() => {
     // URL'den mesaj parametresini al
     const urlParams = new URLSearchParams(window.location.search);
     const message = urlParams.get('message');
@@ -28,29 +27,42 @@ export default function AdminLogin() {
       setError('Oturumunuz başka bir yerden sonlandırıldı. Lütfen yeniden giriş yapın.');
     } else if (message === 'browser_closed') {
       setError('Tarayıcı kapatıldığı için oturumunuz sonlandırıldı. Lütfen yeniden giriş yapın.');
-    }    // Firebase'i başlat
-    try {
-      console.log("Admin login sayfasında Firebase başlatılıyor...");
-      // Yeni Firebase-direct modülünü kullanarak başlat
-      if (typeof window !== 'undefined') {
-        const { success } = initializeFirebaseClient();
-        console.log("Firebase başlatma sonucu:", success ? "Başarılı" : "Başarısız");
-        setFirebaseInitialized(success);
-      } else {
-        console.error("Tarayıcı ortamında değiliz, Firebase başlatılamaz!");
-      }
-    } catch (error) {
-      console.error("Firebase başlatma hatası:", error);
     }
     
+    // Firebase'i başlat - try/catch bloklarını ayıralım
+    const initFirebase = async () => {
+      try {
+        console.log("Admin login sayfasında Firebase başlatılıyor...");
+        // Yeni Firebase-direct modülünü kullanarak başlat
+        if (typeof window !== 'undefined') {
+          const { success } = initializeFirebaseClient();
+          console.log("Firebase başlatma sonucu:", success ? "Başarılı" : "Başarısız");
+          setFirebaseInitialized(success);
+        } else {
+          console.error("Tarayıcı ortamında değiliz, Firebase başlatılamaz!");
+        }
+      } catch (error) {
+        console.error("Firebase başlatma hatası:", error);
+        // Hata durumunda durum güncellemesi
+        setFirebaseInitialized(false);
+        setError('Firebase bağlantısı kurulamadı. Lütfen daha sonra tekrar deneyin.');
+      }
+    };
+
     // Yerel depolama temizliği
-    try {
-      localStorage.removeItem('adminLoggedIn');
-      sessionStorage.removeItem('adminLoggedIn');
-      document.cookie = "adminLoggedInClient=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
-    } catch (storageError) {
-      console.error("Depolama temizleme hatası:", storageError);
-    }
+    const clearStorageData = () => {
+      try {
+        localStorage.removeItem('adminLoggedIn');
+        sessionStorage.removeItem('adminLoggedIn');
+        document.cookie = "adminLoggedInClient=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+      } catch (storageError) {
+        console.error("Depolama temizleme hatası:", storageError);
+      }
+    };
+    
+    // Fonksiyonları çalıştır
+    initFirebase();
+    clearStorageData();
   }, []);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -93,11 +105,25 @@ export default function AdminLogin() {
     setIsLoading(true);
     setError('');
     
-    // Firebase başlatılmadıysa işlemi durduralım
+    // Firebase başlatma durumunu kontrol et
     if (!firebaseInitialized) {
-      setError('Firebase bağlantısı kurulamadı. Lütfen sayfayı yenileyin.');
-      setIsLoading(false);
-      return;
+      try {
+        console.log("Form gönderilmeden önce Firebase başlatılıyor...");
+        const { success } = initializeFirebaseClient();
+        if (success) {
+          console.log("Firebase başarıyla başlatıldı, forma devam edilebilir");
+          setFirebaseInitialized(true);
+        } else {
+          setError('Firebase bağlantısı kurulamadı. Lütfen sayfayı yenileyin ve tekrar deneyin.');
+          setIsLoading(false);
+          return;
+        }
+      } catch (initError) {
+        console.error("Form gönderimi öncesi Firebase başlatma hatası:", initError);
+        setError('Sistem bağlantısı kurulamadı. Lütfen sayfayı yenileyin ve tekrar deneyin.');
+        setIsLoading(false);
+        return;
+      }
     }
     
     try {

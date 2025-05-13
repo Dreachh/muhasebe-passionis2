@@ -13,14 +13,35 @@ export function AdminHeader() {
   const router = useRouter();
   const [showLogoutAllDialog, setShowLogoutAllDialog] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
-      // Firebase'i başlat
+    // Firebase'i başlat
   useEffect(() => {
-    try {
-      console.log("AdminHeader içinde Firebase başlatılıyor...");
-      initializeFirebaseClient();
-    } catch (error) {
-      console.error("Firebase başlatma hatası:", error);
-    }
+    const initFirebase = async () => {
+      try {
+        console.log("AdminHeader içinde Firebase başlatılıyor...");
+        if (typeof window !== 'undefined') {
+          const { success } = initializeFirebaseClient();
+          console.log("AdminHeader Firebase başlatma sonucu:", success ? "Başarılı" : "Başarısız");
+          if (!success) {
+            toast({
+              title: "Uyarı",
+              description: "Firebase bağlantısı kurulamadı. Bazı özellikler çalışmayabilir.",
+              variant: "destructive"
+            });
+          }
+        } else {
+          console.warn("AdminHeader server tarafında çalışıyor, Firebase başlatılmadı");
+        }
+      } catch (error) {
+        console.error("Firebase başlatma hatası:", error);
+        toast({
+          title: "Hata",
+          description: "Sistem bağlantısı kurulamadı. Lütfen sayfayı yenileyin.",
+          variant: "destructive"
+        });
+      }
+    };
+    
+    initFirebase();
   }, []);
   
   // Düzenli oturum kontrolü - her 30 saniyede bir Firebase'den kontrol eder

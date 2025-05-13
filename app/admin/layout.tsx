@@ -71,7 +71,12 @@ export default function AdminLayout({
   const initializeFirebaseClient = () => {
     try {
       console.log('Admin layout - Firebase başlatma işlemi');
-      return ensureFirestore();
+      if (typeof window !== 'undefined') {
+        return ensureFirestore();
+      } else {
+        console.warn('Admin layout - Server tarafında Firebase başlatılamaz');
+        return false;
+      }
     } catch (error) {
       console.error('Firebase başlatma hatası:', error);
       return false;
@@ -80,24 +85,26 @@ export default function AdminLayout({
   
   useEffect(() => {
     // Firebase'i başlat
-    initializeFirebaseClient();
+    const fbInitialized = initializeFirebaseClient();
+    console.log('Firebase başlatma sonucu:', fbInitialized ? 'Başarılı' : 'Başarısız');
     
     // Login sayfası veya setup sayfası hariç tüm admin sayfalarında giriş kontrolü yap
     if (pathname !== '/admin/login' && pathname !== '/admin/setup') {
       // SessionStorage (tarayıcı kapatınca silinir) ve localStorage (tarayıcı kapatınca silinmez) kontrolü birlikte yap
-      const isLoggedInSession = sessionStorage.getItem('adminLoggedIn') === 'true';
-      const isLoggedInLocal = localStorage.getItem('adminLoggedIn') === 'true';
-      
-      console.log('Admin layout kontrolü:', { isLoggedInSession, isLoggedInLocal });
-      
-      if (!isLoggedInSession || !isLoggedInLocal) {
-        console.log('Admin yetkisi yok, login sayfasına yönlendiriliyor');
-        // Kullanıcı giriş yapmamış veya tarayıcı kapatılıp açılmış
+      try {
+        const isLoggedInSession = sessionStorage.getItem('adminLoggedIn') === 'true';
+        const isLoggedInLocal = localStorage.getItem('adminLoggedIn') === 'true';
         
-        // Tarayıcı kapatıldığında özel mesaj göster
-        const message = isLoggedInLocal && !isLoggedInSession 
-          ? '?message=browser_closed' 
-          : '';
+        console.log('Admin layout kontrolü:', { isLoggedInSession, isLoggedInLocal });
+        
+        if (!isLoggedInSession || !isLoggedInLocal) {
+          console.log('Admin yetkisi yok, login sayfasına yönlendiriliyor');
+          // Kullanıcı giriş yapmamış veya tarayıcı kapatılıp açılmış
+          
+          // Tarayıcı kapatıldığında özel mesaj göster
+          const message = isLoggedInLocal && !isLoggedInSession 
+            ? '?message=browser_closed' 
+            : '';
         
         router.replace(`/admin/login${message}`);
       } else {
