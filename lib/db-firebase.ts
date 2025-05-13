@@ -19,6 +19,7 @@ import {
   writeBatch,
   Timestamp,
 } from "firebase/firestore";
+// Firebase bağlantısını kullan
 import { db } from "./firebase";
 import { getDatabase, ref, set, get } from "firebase/database";
 
@@ -487,3 +488,66 @@ export const saveTours = async (tours: any[]): Promise<void> => {
 export const getTours = async (): Promise<any[]> => {
   return getAllData(COLLECTIONS.tours);
 };
+
+// Admin kimlik bilgilerini alma
+export async function getAdminCredentials() {
+  try {
+    const docRef = doc(db, "admin", "credentials");
+    const docSnap = await getDoc(docRef);
+    
+    if (docSnap.exists()) {
+      return docSnap.data() as { 
+        username: string; 
+        password: string;
+        email: string;
+      };
+    } else {
+      console.error("Admin kimlik bilgileri bulunamadı");
+      return { username: "", password: "", email: "" };
+    }
+  } catch (error) {
+    console.error("Admin bilgilerini alma hatası:", error);
+    return { username: "", password: "", email: "" };
+  }
+}
+
+// Admin kullanıcı adını güncelleme
+export async function updateAdminUsername(newUsername: string) {
+  try {
+    const docRef = doc(db, "admin", "credentials");
+    await updateDoc(docRef, {
+      username: newUsername,
+      updatedAt: serverTimestamp()
+    });
+    return { success: true };
+  } catch (error) {
+    console.error("Admin kullanıcı adı güncelleme hatası:", error);
+    return { success: false, error };
+  }
+}
+
+// Admin şifresini güncelleme
+export async function updateAdminPassword(newPassword: string) {
+  try {
+    const docRef = doc(db, "admin", "credentials");
+    await updateDoc(docRef, {
+      password: newPassword,
+      updatedAt: serverTimestamp()
+    });
+    return { success: true };
+  } catch (error) {
+    console.error("Admin şifre güncelleme hatası:", error);
+    return { success: false, error };
+  }
+}
+
+// Admin e-posta adresini kontrol etme
+export async function verifyAdminEmail(email: string) {
+  try {
+    const adminData = await getAdminCredentials();
+    return { success: true, isValid: email.toLowerCase() === adminData.email.toLowerCase() };
+  } catch (error) {
+    console.error("Admin e-posta doğrulama hatası:", error);
+    return { success: false, isValid: false, error };
+  }
+}

@@ -1,82 +1,71 @@
-// Firebase konfigürasyonu ve başlatma
+// Firebase yapılandırması
 import { initializeApp, getApps, FirebaseApp } from "firebase/app";
 import { getFirestore, Firestore } from "firebase/firestore";
-import { getAuth } from "firebase/auth";
+import { getAuth, Auth } from "firebase/auth";
 import { getStorage } from "firebase/storage";
-import { getDatabase } from "firebase/database";
+import { getDatabase, Database } from "firebase/database";
 
-// Firebase yapılandırma bilgilerini doğrudan tanımlıyoruz
-// NOT: Bu sadece geçici bir çözümdür, ideal olarak çevre değişkenleri kullanılmalıdır
+// Firebase yapılandırma bilgileri
 const firebaseConfig = {
-  apiKey: "AIzaSyAdAvS2I5ErlCcchaSzOP3225Qd0w1vayI",
-  authDomain: "passionis-travel.firebaseapp.com",
-  projectId: "passionis-travel",
-  storageBucket: "passionis-travel.appspot.com",
-  messagingSenderId: "1094253004348",
-  appId: "1:1094253004348:web:b1a0ec2ed6d8137a2e6539",
-  databaseURL: "https://passionis-travel-default-rtdb.europe-west1.firebasedatabase.app" // Realtime Database URL'i
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || "AIzaSyAdAvS2I5ErlCcchaSzOP3225Qd0w1vayI",
+  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || "passionis-travel.firebaseapp.com",
+  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "passionis-travel",
+  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || "passionis-travel.appspot.com",
+  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || "1094253004348",
+  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID || "1:1094253004348:web:b1a0ec2ed6d8137a2e6539",
+  databaseURL: process.env.NEXT_PUBLIC_FIREBASE_DATABASE_URL || "https://passionis-travel-default-rtdb.europe-west1.firebasedatabase.app"
 };
 
-// Singleton Firebase uygulama örneği ve servisleri
-let firebaseApp: FirebaseApp;
-let firestore: Firestore;
-let database: any; // Realtime Database için
+// Singleton Firebase servislerini içerecek değişkenler
+let app: FirebaseApp;
+let db: Firestore;
+let auth: Auth;
+let storage: any;
+let rtdb: Database;
+
+// Firebase'i başlatmak için güvenli bir fonksiyon
+function initFirebase(): boolean {
+  try {
+    if (!firebaseConfig.apiKey) {
+      throw new Error('Firebase API anahtarı eksik! Lütfen yapılandırmayı kontrol edin.');
+    }
+    
+    // Eğer zaten başlatılmışsa, mevcut olanı kullan
+    if (getApps().length === 0) {
+      console.log("Firebase uygulaması başlatılıyor...");
+      app = initializeApp(firebaseConfig);
+    } else {
+      console.log("Firebase zaten başlatılmış, mevcut instance kullanılıyor");
+      app = getApps()[0];
+    }
+    
+    // Firebase servislerini başlat
+    db = getFirestore(app);
+    rtdb = getDatabase(app);
+    auth = getAuth(app);
+    storage = getStorage(app);
+    
+    console.log("Firebase servisleri başarıyla başlatıldı");
+    return true;
+  } catch (error) {
+    console.error("Firebase başlatma hatası:", error);
+    return false;
+  }
+}
 
 // Firebase'i başlat
-try {
-  // Eğer zaten başlatılmışsa, mevcut olanı kullan
-  if (getApps().length === 0) {
-    console.log("Firebase uygulaması başlatılıyor...");
-    firebaseApp = initializeApp(firebaseConfig);
-  } else {
-    console.log("Firebase zaten başlatılmış, mevcut instance kullanılıyor");
-    firebaseApp = getApps()[0];
-  }
-  
-  // Firebase servislerine erişim
-  firestore = getFirestore(firebaseApp);
-  database = getDatabase(firebaseApp); // Realtime Database'i başlat
-  console.log("Firebase servisleri başarıyla başlatıldı");
-} catch (error) {
-  console.error("Firebase başlatma hatası:", error);
-}
+const firebaseInitialized = initFirebase();
 
 // Firebase servislerini dışa aktar
-export const app = firebaseApp;
-export const db = firestore;
-export const rtdb = database; // Realtime Database'i dışa aktar
-export const auth = getAuth(firebaseApp);
-export const storage = getStorage(firebaseApp);
+export { app, db, rtdb, auth, storage, firebaseInitialized };
 
-// İstemci tarafında Firebase'i başlatmak için kullanılacak fonksiyon
-export function initializeDB(): Firestore {
-  if (!firestore) {
-    throw new Error("Firestore henüz başlatılmadı");
-  }
-  return firestore;
-}
-
-// Realtime Database'i başlatmak için fonksiyon
-export function initializeRTDB(): any {
-  if (!database) {
-    throw new Error("Realtime Database henüz başlatılmadı");
-  }
-  return database;
-}
-
-// Ana sayfa yüklendiğinde Firebase'i başlatmak için global fonksiyon
-export function initializeFirebase() {
+// İstemci tarafında Firebase'i yeniden başlatmak için kullanılacak fonksiyon
+export function clientInitializeFirebase(): boolean {
   if (typeof window !== "undefined") {
-    console.log("initializeFirebase fonksiyonu çağrıldı");
-    // Global olarak erişilebilir yap
-    (window as any).initializeDB = initializeDB;
-    (window as any).initializeRTDB = initializeRTDB;
-    return { 
-      firestore: initializeDB(), 
-      database: initializeRTDB() 
-    };
+    console.log("Client tarafında Firebase başlatılıyor...");
+    const success = initFirebase();
+    console.log("Firebase client başlatma sonucu:", success ? "Başarılı" : "Başarısız");
+    return success;
   }
-  return null;
+  return false;
 }
-
-export default app;
