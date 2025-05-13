@@ -10,25 +10,16 @@ async function createAdminSession() {
   // Geçerli oturum versiyonunu al
   const sessionVersion = await getSessionVersion();
   
-  // Admin oturumu için cookie
-  cookies().set('admin_session', 'authenticated', {
-    expires: expiry,
-    httpOnly: true,
-    path: '/',
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'strict'
-  });
-  
-  // Oturum versiyonu için cookie (oturum sıfırlama sistemi için)
-  cookies().set('session_version', sessionVersion.toString(), {
-    expires: expiry,
-    httpOnly: true,
-    path: '/',
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'strict'
-  });
-  
-  return sessionVersion;
+  return {
+    sessionVersion,
+    cookieOptions: {
+      expires: expiry,
+      httpOnly: true,
+      path: '/',
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict' as const // TypeScript'e 'strict' değerinin bir literal tip olduğunu belirtiyoruz
+    }
+  };
 }
 
 // Admin giriş kontrol işlemi için API endpoint
@@ -51,10 +42,24 @@ export async function POST(request: Request) {
         // Eğer Firebase'de bilgi varsa kullan
       if (adminCredentials.username && adminCredentials.password) {
         // Admin kimlik bilgileri kontrol et ve devam et
-        if (username === adminCredentials.username && password === adminCredentials.password) {
-          // Giriş başarılı
-          const sessionVersion = await createAdminSession();
-          return NextResponse.json({ success: true, sessionVersion });
+        if (username === adminCredentials.username && password === adminCredentials.password) {        // Giriş başarılı
+          const sessionData = await createAdminSession();
+          const response = NextResponse.json({ success: true, sessionVersion: sessionData.sessionVersion });
+          
+          // Cookie'leri response'a ekle
+          response.cookies.set({
+            name: 'admin_session',
+            value: 'authenticated',
+            ...sessionData.cookieOptions
+          });
+          
+          response.cookies.set({
+            name: 'session_version',
+            value: sessionData.sessionVersion.toString(),
+            ...sessionData.cookieOptions
+          });
+          
+          return response;
         }
         
         return NextResponse.json({ 
@@ -72,26 +77,41 @@ export async function POST(request: Request) {
         return NextResponse.json({ 
           success: false, 
           error: 'Admin kimlik bilgileri bulunamadı' 
-        }, { status: 500 });
+        }, { status: 500 });      }
+      
+      // Kullanıcı adı ve şifre kontrolü (mock veriler ile)
+      if (username === mockCredentials.username && password === mockCredentials.password) {        // Giriş başarılı, session oluştur
+        const sessionData = await createAdminSession();
+        const response = NextResponse.json({ success: true, sessionVersion: sessionData.sessionVersion });
+          
+        // Cookie'leri response'a ekle
+        response.cookies.set({
+          name: 'admin_session',
+          value: 'authenticated',
+          ...sessionData.cookieOptions
+        });
+        
+        response.cookies.set({
+          name: 'session_version',
+          value: sessionData.sessionVersion.toString(),
+          ...sessionData.cookieOptions
+        });
+        
+        return response;
       }
-      // Kullanıcı adı ve şifre kontrolü (mock veriler ile)    if (username === mockCredentials.username && password === mockCredentials.password) {
-      // Giriş başarılı, session oluştur
-      const sessionVersion = await createAdminSession();
-      return NextResponse.json({ success: true, sessionVersion });
+      
+      // Giriş başarısız
+      return NextResponse.json({ 
+        success: false, 
+        error: 'Kullanıcı adı veya şifre hatalı' 
+      }, { status: 401 });
+    } catch (error) {
+      console.error("Admin kimlik kontrolü hatası:", error);
+      return NextResponse.json({ 
+        success: false, 
+        error: 'Kimlik doğrulama sırasında bir hata oluştu' 
+      }, { status: 500 });
     }
-    
-    // Giriş başarısız
-    return NextResponse.json({ 
-      success: false, 
-      error: 'Kullanıcı adı veya şifre hatalı' 
-    }, { status: 401 });
-  } catch (error) {
-    console.error("Admin kimlik kontrolü hatası:", error);
-    return NextResponse.json({ 
-      success: false, 
-      error: 'Kimlik doğrulama sırasında bir hata oluştu' 
-    }, { status: 500 });
-  }
   } catch (error) {
     console.error('Admin girişi sırasında hata:', error);
     return NextResponse.json({ 
