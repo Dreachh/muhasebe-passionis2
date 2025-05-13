@@ -59,8 +59,7 @@ export default function AdminLogin() {
         console.error("Depolama temizleme hatası:", storageError);
       }
     };
-    
-    // Fonksiyonları çalıştır
+      // Fonksiyonları çalıştır
     initFirebase();
     clearStorageData();
   }, []);

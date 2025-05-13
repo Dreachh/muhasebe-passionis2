@@ -128,8 +128,7 @@ export default function AdminLayout({
         checkSessionVersion();
         
         setIsAuthorized(true);
-      }
-    } else {
+      }    } else {
       // Login sayfası veya setup sayfası için yetki kontrolü yok
       setIsAuthorized(true);
     }
