@@ -1,13 +1,16 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import { getAdminCredentials } from '@/lib/db-firebase';
+import { getAdminCredentials, getSessionVersion } from '@/lib/db-firebase';
 import { getMockAdminCredentials } from '@/lib/mock-admin';
 
 // Admin oturumu oluşturma fonksiyonu
-function createAdminSession() {
+async function createAdminSession() {
   const expiry = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 saat
   
-  // Cookie'ye kimlik bilgilerini değil, sadece giriş yaptığı bilgisini kaydet
+  // Geçerli oturum versiyonunu al
+  const sessionVersion = await getSessionVersion();
+  
+  // Admin oturumu için cookie
   cookies().set('admin_session', 'authenticated', {
     expires: expiry,
     httpOnly: true,
@@ -15,6 +18,17 @@ function createAdminSession() {
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'strict'
   });
+  
+  // Oturum versiyonu için cookie (oturum sıfırlama sistemi için)
+  cookies().set('session_version', sessionVersion.toString(), {
+    expires: expiry,
+    httpOnly: true,
+    path: '/',
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'strict'
+  });
+  
+  return sessionVersion;
 }
 
 // Admin giriş kontrol işlemi için API endpoint
@@ -34,14 +48,13 @@ export async function POST(request: Request) {
     try {
       // Önce Firebase'den almayı dene
       const adminCredentials = await getAdminCredentials();
-      
-      // Eğer Firebase'de bilgi varsa kullan
+        // Eğer Firebase'de bilgi varsa kullan
       if (adminCredentials.username && adminCredentials.password) {
         // Admin kimlik bilgileri kontrol et ve devam et
         if (username === adminCredentials.username && password === adminCredentials.password) {
           // Giriş başarılı
-          createAdminSession();
-          return NextResponse.json({ success: true });
+          const sessionVersion = await createAdminSession();
+          return NextResponse.json({ success: true, sessionVersion });
         }
         
         return NextResponse.json({ 
@@ -61,11 +74,10 @@ export async function POST(request: Request) {
           error: 'Admin kimlik bilgileri bulunamadı' 
         }, { status: 500 });
       }
-      // Kullanıcı adı ve şifre kontrolü (mock veriler ile)
-    if (username === mockCredentials.username && password === mockCredentials.password) {
+      // Kullanıcı adı ve şifre kontrolü (mock veriler ile)    if (username === mockCredentials.username && password === mockCredentials.password) {
       // Giriş başarılı, session oluştur
-      createAdminSession();
-      return NextResponse.json({ success: true });
+      const sessionVersion = await createAdminSession();
+      return NextResponse.json({ success: true, sessionVersion });
     }
     
     // Giriş başarısız

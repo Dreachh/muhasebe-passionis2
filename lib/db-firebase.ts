@@ -551,3 +551,55 @@ export async function verifyAdminEmail(email: string) {
     return { success: false, isValid: false, error };
   }
 }
+
+// Oturum versiyon sistemi için fonksiyonlar
+// Geçerli oturum versiyonunu alma
+export async function getSessionVersion() {
+  try {
+    const docRef = doc(db, "admin", "session_config");
+    const docSnap = await getDoc(docRef);
+    
+    if (docSnap.exists()) {
+      return docSnap.data().version || 1;
+    } else {
+      // İlk çalıştırmada versiyon kaydı yoksa oluştur
+      await setDoc(docRef, {
+        version: 1,
+        lastReset: serverTimestamp(),
+        createdAt: serverTimestamp(),
+      });
+      return 1;
+    }
+  } catch (error) {
+    console.error("Oturum versiyonu alma hatası:", error);
+    return 1; // Hata durumunda varsayılan versiyon
+  }
+}
+
+// Oturum versiyonunu arttır - tüm aktif oturumları geçersiz kılar
+export async function incrementSessionVersion() {
+  try {
+    const docRef = doc(db, "admin", "session_config");
+    const docSnap = await getDoc(docRef);
+    
+    if (docSnap.exists()) {
+      const currentVersion = docSnap.data().version || 1;
+      await updateDoc(docRef, {
+        version: currentVersion + 1,
+        lastReset: serverTimestamp(),
+      });
+      return { success: true, newVersion: currentVersion + 1 };
+    } else {
+      // Kayıt yoksa oluştur
+      await setDoc(docRef, {
+        version: 2, // İlk sıfırlamada 2'ye ayarla
+        lastReset: serverTimestamp(),
+        createdAt: serverTimestamp(),
+      });
+      return { success: true, newVersion: 2 };
+    }
+  } catch (error) {
+    console.error("Oturum sıfırlama hatası:", error);
+    return { success: false, error };
+  }
+}

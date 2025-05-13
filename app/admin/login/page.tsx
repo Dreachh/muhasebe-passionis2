@@ -15,9 +15,21 @@ import { clientInitializeFirebase } from "@/lib/firebase";
 export default function AdminLogin() {
   // Firebase durumu için state
   const [firebaseInitialized, setFirebaseInitialized] = useState(false);
-  
-  // Firebase'i başlatmak için useEffect kullan
+    // URL parametrelerini kontrol et
   useEffect(() => {
+    // URL'den mesaj parametresini al
+    const urlParams = new URLSearchParams(window.location.search);
+    const message = urlParams.get('message');
+    const expired = urlParams.get('expired');
+    
+    // Mesajları kontrol et
+    if (message === 'session_expired') {
+      setError('Oturum süresi doldu. Lütfen yeniden giriş yapın.');
+    } else if (expired === 'true') {
+      setError('Oturumunuz başka bir yerden sonlandırıldı. Lütfen yeniden giriş yapın.');
+    }
+    
+    // Firebase'i başlat
     try {
       console.log("Admin login sayfasında Firebase başlatılıyor...");
       const success = clientInitializeFirebase();
@@ -26,6 +38,11 @@ export default function AdminLogin() {
     } catch (error) {
       console.error("Firebase başlatma hatası:", error);
     }
+    
+    // Yerel depolama temizliği
+    localStorage.removeItem('adminLoggedIn');
+    sessionStorage.removeItem('adminLoggedIn');
+    document.cookie = "adminLoggedInClient=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
   }, []);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -96,12 +113,22 @@ export default function AdminLogin() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ username, password })
         });
-        
-        const result = await response.json();
-          if (response.ok && result.success) {
+          const result = await response.json();
+        if (response.ok && result.success) {
           // Giriş başarılı
           console.log("Admin girişi başarılı");
-          localStorage.setItem('adminLoggedIn', 'true');
+          
+          // Hem localStorage hem de sessionStorage'a kaydet
+          try {
+            localStorage.setItem('adminLoggedIn', 'true');
+            sessionStorage.setItem('adminLoggedIn', 'true');
+            document.cookie = "adminLoggedInClient=true; path=/; max-age=86400"; // 24 saat
+          } catch (storageError) {
+            console.warn("Storage erişim hatası:", storageError);
+            // Hata olursa alternatif bir yol dene
+          }
+          
+          // Sayfayı dashboard'a yönlendir
           window.location.href = '/admin/dashboard';
           return;
         }
@@ -121,12 +148,22 @@ export default function AdminLogin() {
             setIsLoading(false);
             return;
           }
-          
-          // Kullanıcı adı ve şifre kontrolü
+            // Kullanıcı adı ve şifre kontrolü
           if (adminCreds.username === username && adminCreds.password === password) {
             // Giriş başarılı
             console.log("Admin girişi başarılı");
-            localStorage.setItem('adminLoggedIn', 'true');
+            
+            // Hem localStorage hem de sessionStorage'a kaydet
+            try {
+              localStorage.setItem('adminLoggedIn', 'true');
+              sessionStorage.setItem('adminLoggedIn', 'true');
+              document.cookie = "adminLoggedInClient=true; path=/; max-age=86400"; // 24 saat
+            } catch (storageError) {
+              console.warn("Storage erişim hatası:", storageError);
+              // Hata olursa alternatif bir yol dene
+            }
+            
+            // Sayfayı dashboard'a yönlendir
             window.location.href = '/admin/dashboard';
           } else {
             // Giriş başarısız
