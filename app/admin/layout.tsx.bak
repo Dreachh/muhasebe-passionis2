@@ -48,8 +48,7 @@ export default function AdminLayout({
       const clientVersion = sessionVersionCookie ? parseInt(sessionVersionCookie, 10) : 0;
       
       console.log('Oturum versiyon kontrolü:', { clientVersion, serverVersion });
-      
-      // Eğer istemci versiyonu sunucudan düşükse (yani oturum güncel değilse)
+        // Eğer istemci versiyonu sunucudan düşükse (yani oturum güncel değilse)
       if (clientVersion < serverVersion) {
         console.log('Oturum versiyonu değişmiş, çıkış yapılıyor');
         // Temizlik işlemleri - tüm oturum verilerini temizle
@@ -68,9 +67,7 @@ export default function AdminLayout({
     } catch (error) {
       console.error('Oturum kontrolü hatası:', error);
     }
-  };
-
-  // Firebase başlatma fonksiyonu - daha güvenli sürüm
+  };  // Firebase başlatma fonksiyonu - daha güvenli sürüm
   const initializeFirebaseClient = () => {
     try {
       console.log('Admin layout - Firebase başlatma işlemi');
@@ -108,33 +105,28 @@ export default function AdminLayout({
           const message = isLoggedInLocal && !isLoggedInSession 
             ? '?message=browser_closed' 
             : '';
-          
-          router.replace(`/admin/login${message}`);
-        } else {
-          // Oturum süresini kontrol et
-          const expiredParam = new URLSearchParams(window.location.search).get('expired');
-          if (expiredParam === 'true') {
-            sessionStorage.removeItem('adminLoggedIn');
-            localStorage.removeItem('adminLoggedIn');
-            document.cookie = "adminLoggedInClient=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
-            document.cookie = "admin_session=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
-            document.cookie = "session_version=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
-            router.replace('/admin/login?message=session_expired');
-            return;
-          }
-          
-          // Düzenli oturum kontrolü başlat (her 30 saniyede bir)
-          const interval = setInterval(checkSessionVersion, 30000);
-          setSessionInterval(interval);
-          
-          // İlk kontrolü hemen yap
-          checkSessionVersion();
-          
-          setIsAuthorized(true);
+        
+        router.replace(`/admin/login${message}`);
+      } else {
+        // Oturum süresini kontrol et
+        const expiredParam = new URLSearchParams(window.location.search).get('expired');
+        if (expiredParam === 'true') {
+          sessionStorage.removeItem('adminLoggedIn');
+          localStorage.removeItem('adminLoggedIn');
+          document.cookie = "adminLoggedInClient=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+          document.cookie = "admin_session=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+          document.cookie = "session_version=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+          router.replace('/admin/login?message=session_expired');
+          return;
         }
-      } catch (storageError) {
-        console.error('Storage erişimi hatası:', storageError);
-        router.replace('/admin/login?error=storage');
+        
+        // Düzenli oturum kontrolü başlat (her 30 saniyede bir)
+        const interval = setInterval(checkSessionVersion, 30000);
+        setSessionInterval(interval);
+          // İlk kontrolü hemen yap
+        checkSessionVersion();
+        
+        setIsAuthorized(true);
       }
     } else {
       // Login sayfası veya setup sayfası için yetki kontrolü yok
@@ -142,7 +134,6 @@ export default function AdminLayout({
     }
     setIsLoading(false);
   }, [pathname, router]);
-
   // Temizlik işlemi
   useEffect(() => {
     // Component kaldırıldığında interval'i temizle
