@@ -12,14 +12,76 @@ export function AdminHeader() {
   const router = useRouter();
   const [showLogoutAllDialog, setShowLogoutAllDialog] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
-  
+    // Düzenli oturum kontrolü - her 30 saniyede bir Firebase'den kontrol eder
+  useEffect(() => {
+    // Oturum kontrolü fonksiyonu
+    const checkSessionVersion = async () => {
+      try {
+        // Local storage'daki versiyon
+        const localVersion = localStorage.getItem('admin_session_version');
+        
+        if (!localVersion) {
+          console.log('Oturum versiyon bilgisi bulunamadı, çıkış yapılıyor');
+          handleLogout();
+          return;
+        }
+        
+        // Firebase'den güncel versiyonu al
+        const response = await fetch('/api/admin/session-version', {
+          cache: 'no-store',
+          headers: {
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache'
+          }
+        });
+        
+        if (!response.ok) {
+          console.error('Oturum versiyon kontrolü hatası');
+          return;
+        }
+        
+        const data = await response.json();
+        const serverVersion = data.version;
+        const localVersionInt = parseInt(localVersion, 10);
+        
+        console.log('Oturum kontrolü:', { localVersion: localVersionInt, serverVersion });
+        
+        // Eğer local versiyon, server versiyonundan düşükse oturum sonlandırılmış demektir
+        if (localVersionInt < serverVersion) {
+          console.log('Oturum versiyonu değişmiş, çıkış yapılıyor');
+          toast({
+            title: "Oturum Sonlandırıldı",
+            description: "Oturumunuz başka bir yerden sonlandırılmış. Yeniden giriş yapmanız gerekmektedir.",
+            variant: "destructive"
+          });
+          handleLogout();
+        }
+      } catch (error) {
+        console.error('Oturum kontrolü hatası:', error);
+      }
+    };
+    
+    // İlk kontrolü hemen yap
+    checkSessionVersion();
+    
+    // Her 30 saniyede bir kontrol et
+    const interval = setInterval(checkSessionVersion, 30000);
+    
+    return () => clearInterval(interval);
+  }, []);
+
   // Tüm oturumları sonlandırma
   const handleLogoutAll = async () => {
     setIsLoggingOut(true);
     try {
+      // Firebase'deki merkezi oturum versiyonunu artır
       const response = await fetch('/api/admin/logout-all', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
+        headers: { 
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache'
+        }
       });
       
       const data = await response.json();
@@ -27,13 +89,17 @@ export function AdminHeader() {
       if (data.success) {
         toast({
           title: "Başarılı",
-          description: "Tüm admin oturumları sonlandırıldı",
+          description: "Tüm admin oturumları sonlandırıldı. Diğer cihazlarda oturum sonlandırıldı.",
         });
         
         // Temizlik işlemlerini yap
         localStorage.removeItem('adminLoggedIn');
+        localStorage.removeItem('admin_session_version');
+        localStorage.removeItem('admin_last_login');
         sessionStorage.removeItem('adminLoggedIn');
         document.cookie = "adminLoggedInClient=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+        document.cookie = "admin_session=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+        document.cookie = "session_version=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
         
         // Login sayfasına yönlendir
         router.push('/admin/login');
@@ -56,13 +122,16 @@ export function AdminHeader() {
       setShowLogoutAllDialog(false);
     }
   };
-  
-  // Normal çıkış işlemi
+    // Normal çıkış işlemi
   const handleLogout = () => {
-    // Temizlik işlemleri
+    // Temizlik işlemleri - tüm oturum bilgilerini temizle
     localStorage.removeItem('adminLoggedIn');
+    localStorage.removeItem('admin_session_version');
+    localStorage.removeItem('admin_last_login');
     sessionStorage.removeItem('adminLoggedIn');
     document.cookie = "adminLoggedInClient=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+    document.cookie = "admin_session=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;"; 
+    document.cookie = "session_version=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
     document.cookie = "admin_session=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
     document.cookie = "session_version=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
     

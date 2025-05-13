@@ -21,12 +21,13 @@ export default function AdminLogin() {
     const urlParams = new URLSearchParams(window.location.search);
     const message = urlParams.get('message');
     const expired = urlParams.get('expired');
-    
-    // Mesajları kontrol et
+      // Mesajları kontrol et
     if (message === 'session_expired') {
       setError('Oturum süresi doldu. Lütfen yeniden giriş yapın.');
     } else if (expired === 'true') {
       setError('Oturumunuz başka bir yerden sonlandırıldı. Lütfen yeniden giriş yapın.');
+    } else if (message === 'browser_closed') {
+      setError('Tarayıcı kapatıldığı için oturumunuz sonlandırıldı. Lütfen yeniden giriş yapın.');
     }
     
     // Firebase'i başlat
@@ -80,9 +81,9 @@ export default function AdminLogin() {
     const code = Math.floor(100000 + Math.random() * 900000).toString();
     setVerificationCode(code);
     return code;
-  };
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();    setIsLoading(true);
+  };  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
     setError('');
     
     // Firebase başlatılmadıysa işlemi durduralım
@@ -107,8 +108,7 @@ export default function AdminLogin() {
       
       // API'den admin kimlik bilgileri kontrolü yapalım
       try {
-        console.log("API'ye admin giriş isteği gönderiliyor...");
-        const response = await fetch('/api/admin-login', {
+        console.log("API'ye admin giriş isteği gönderiliyor...");        const response = await fetch('/api/admin-login', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ username, password })
@@ -119,10 +119,22 @@ export default function AdminLogin() {
           console.log("Admin girişi başarılı");
           
           // Hem localStorage hem de sessionStorage'a kaydet
+          // sessionStorage tarayıcı kapatıldığında silinir, localStorage kalıcıdır
           try {
-            localStorage.setItem('adminLoggedIn', 'true');
-            sessionStorage.setItem('adminLoggedIn', 'true');
+            // Client tarafı oturum takibi
+            localStorage.setItem('adminLoggedIn', 'true'); // Kalıcı - tarayıcı kapatılınca silinmez
+            sessionStorage.setItem('adminLoggedIn', 'true'); // Geçici - tarayıcı kapatılınca silinir
             document.cookie = "adminLoggedInClient=true; path=/; max-age=86400"; // 24 saat
+            
+            // Session versiyon numarası - hem localStorage hem de sessionStorage'a kaydet
+            localStorage.setItem('admin_session_version', result.sessionVersion.toString());
+            sessionStorage.setItem('admin_session_version', result.sessionVersion.toString());
+            
+            // En son giriş zamanı - hem localStorage hem de sessionStorage'a kaydet
+            localStorage.setItem('admin_last_login', Date.now().toString());
+            sessionStorage.setItem('admin_last_login', Date.now().toString());
+            
+            console.log("Oturum bilgileri kaydedildi. Versiyon:", result.sessionVersion);
           } catch (storageError) {
             console.warn("Storage erişim hatası:", storageError);
             // Hata olursa alternatif bir yol dene
@@ -152,12 +164,21 @@ export default function AdminLogin() {
           if (adminCreds.username === username && adminCreds.password === password) {
             // Giriş başarılı
             console.log("Admin girişi başarılı");
-            
-            // Hem localStorage hem de sessionStorage'a kaydet
+              // Hem localStorage hem de sessionStorage'a kaydet
             try {
               localStorage.setItem('adminLoggedIn', 'true');
               sessionStorage.setItem('adminLoggedIn', 'true');
               document.cookie = "adminLoggedInClient=true; path=/; max-age=86400"; // 24 saat
+              
+              // Varsayılan oturum versiyonunu da kaydet
+              const defaultVersion = "1";
+              localStorage.setItem('admin_session_version', defaultVersion);
+              sessionStorage.setItem('admin_session_version', defaultVersion);
+              
+              // Giriş zamanını kaydet
+              const loginTime = Date.now().toString();
+              localStorage.setItem('admin_last_login', loginTime);
+              sessionStorage.setItem('admin_last_login', loginTime);
             } catch (storageError) {
               console.warn("Storage erişim hatası:", storageError);
               // Hata olursa alternatif bir yol dene

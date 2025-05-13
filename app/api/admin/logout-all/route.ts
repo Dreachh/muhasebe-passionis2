@@ -1,12 +1,13 @@
 import { NextResponse } from 'next/server';
 import { incrementSessionVersion } from '@/lib/db-firebase';
-import { cookies } from 'next/headers';
 
 // Admin oturumlarını sonlandırma API'si
 export async function POST() {
   try {
     // Tüm oturumları geçersiz kılmak için versiyon numarasını arttır
-    const result = await incrementSessionVersion();    // Mevcut oturumu da temizle
+    const result = await incrementSessionVersion();
+    
+    // Mevcut oturumu da temizle
     const cookieOptions = {
       expires: new Date(0),
       path: '/',
@@ -32,6 +33,8 @@ export async function POST() {
         value: '',
         ...cookieOptions
       });
+      
+      console.log('Tüm oturumlar başarıyla sonlandırıldı. Yeni versiyon:', result.newVersion);
       
       return response;
     } else {
