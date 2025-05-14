@@ -1,46 +1,38 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
-// Admin giriş kontrolü kaldırıldı, artık direkt uygulama açılacak
+// Firebase Authentication ile entegre olan middleware
 export async function middleware(request: NextRequest) {
   // URL ve HTTP başlık bilgilerini konsola yaz (debugging)
   console.log('Middleware çalışıyor - URL:', request.nextUrl.pathname);
   
-  // Admin sayfalarına giriş yapmaya çalışan kullanıcıyı ana sayfaya yönlendir
-  if (request.nextUrl.pathname.startsWith('/admin/login')) {
-    return NextResponse.redirect(new URL('/', request.url));
+  // Login sayfası veya api rotaları ise direkt geç
+  if (
+    request.nextUrl.pathname === '/login' ||
+    request.nextUrl.pathname.startsWith('/api/') ||
+    request.nextUrl.pathname.includes('_next') ||
+    request.nextUrl.pathname.includes('favicon.ico')
+  ) {
+    return NextResponse.next();
   }
   
-  // Admin sayfalarına otomatik olarak giriş yapılmış gibi davran
-  if (request.nextUrl.pathname.startsWith('/admin')) {
-    const response = NextResponse.next();
+  // Firebase oturum kontrolü - session cookie'yi kontrol et
+  const firebaseSession = request.cookies.get('firebase_session');
+  const loggedInStatus = request.cookies.get('admin_logged_in');
+  
+  if (!firebaseSession || !loggedInStatus) {
+    console.log('Firebase oturumu bulunamadı, login sayfasına yönlendiriliyor');
     
-    // Admin oturumunu otomatik olarak ayarla (cookie'ler 30 gün geçerli)
-    const expires = new Date();
-    expires.setDate(expires.getDate() + 30);
+    // Client-side tarayıcıda çalışıyorsa localStorage kontrolü yap
+    // (Bu middleware server tarafında çalıştığı için tam erişemiyoruz, JS ile client tarafında kontrol edeceğiz)
     
-    response.cookies.set({
-      name: 'admin_session',
-      value: 'authenticated',
-      expires: expires,
-      path: '/',
-    });
-    
-    response.cookies.set({
-      name: 'session_version',
-      value: '999', // Yüksek bir versiyon numarası ile her zaman güncel olacak
-      expires: expires,
-      path: '/',
-    });
-    
-    response.cookies.set({
-      name: 'adminLoggedInClient',
-      value: 'true',
-      expires: expires,
-      path: '/',
-    });
-    
-    return response;
+    // Login sayfasına yönlendir
+    return NextResponse.redirect(new URL('/login', request.url));
+  }
+  
+  // Admin sayfalarına giriş yapmaya çalışan kullanıcıyı ana sayfaya yönlendir (eski admin sayfası kaldırıldı)
+  if (request.nextUrl.pathname.startsWith('/admin/login')) {
+    return NextResponse.redirect(new URL('/', request.url));
   }
 
   return NextResponse.next();
@@ -48,5 +40,5 @@ export async function middleware(request: NextRequest) {
 
 // Middleware'in çalışacağı yollar
 export const config = {
-  matcher: ['/', '/admin/:path*'],
+  matcher: ['/', '/admin/:path*', '/((?!login|api|_next/static|_next/image|favicon.ico).*)'],
 };

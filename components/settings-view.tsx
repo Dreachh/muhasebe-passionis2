@@ -137,7 +137,7 @@ type FileChangeEvent = React.ChangeEvent<HTMLInputElement>;
 const saveTourTemplatesDirectly = async (tours: Tour[]) => {  try {
     // Firebase modüllerini doğrudan import et
     const { collection, doc, setDoc, writeBatch } = await import("firebase/firestore");
-    const { getDb } = await import("@/lib/firebase-direct");
+    const { getDb } = await import("@/lib/firebase-client-module");
     
     // Firestore instance'ını güvenli bir şekilde al
     const db = getDb();

@@ -24,7 +24,10 @@ import { Sidebar } from "../components/sidebar"
 import { useRouter } from 'next/navigation'
 import { generateUUID } from "../lib/utils";
 import loadInitialData from "../data/reload-data"
-import { setupAutoLogin } from "../lib/auto-login" // Otomatik giriş fonksiyonu eklendi
+import { useAuth } from "../lib/firebase-auth" // Firebase Authentication hook
+import CompanyManagement from "../components/company-management" // Yeni: Firma yönetimi
+import DebtManagement from "../components/debt-management" // Yeni: Borç yönetimi
+import PaymentManagement from "../components/payment-management" // Yeni: Ödeme yönetimi
 
 // Uygulama verilerini tamamen sıfırlamak için fonksiyon
 const resetAllData = async () => {
@@ -93,6 +96,8 @@ interface TourExpense {
   description?: string;
   date?: string | Date;
   category?: string;
+  companyId?: string;   // Firma ID'si için yeni alan
+  companyName?: string; // Görüntüleme için firma adı
 }
 
 interface TourData {
@@ -177,18 +182,31 @@ export default function Home() {
   // Add state to store temporary form data
   const [tempTourFormData, setTempTourFormData] = useState<any>(null)
   const [previousView, setPreviousView] = useState<string | null>(null)
-
-  // Otomatik admin girişi yapılacak şekilde değiştirildi
+  // Firebase Authentication ile giriş kontrol
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      // Otomatik giriş fonksiyonu çağrılıyor
-      setupAutoLogin();
+      // Firebase Authentication durumunu kontrol et
+      const checkAuth = async () => {
+        try {
+          // Firebase oturum durumunu localStorage'dan kontrol et
+          // (Firebase.js'den kontrol etmek daha iyi olurdu ama şu anda bu şekilde yapalım)
+          const isLoggedIn = localStorage.getItem('adminLoggedIn') === 'true';
+          
+          if (!isLoggedIn) {
+            console.log('Kullanıcı giriş yapmamış, login sayfasına yönlendiriliyor');
+            router.push('/login');
+          } else {
+            console.log('Kullanıcı giriş yapmış, uygulama erişimi sağlanıyor');
+          }
+        } catch (error) {
+          console.error('Oturum kontrolü hatası:', error);
+          router.push('/login');
+        }
+      };
       
-      // Admin girişi yapıldı olarak işaretleniyor
-      localStorage.setItem('adminLoggedIn', 'true');
-      console.log('Otomatik giriş yapıldı, admin oturumu kuruldu.');
+      checkAuth();
     }
-  }, []);
+  }, [router]);
 
   // Yedekleme ve geri yükleme işlemleri için fonksiyonlar
   const handleExportData = async () => {
@@ -226,22 +244,23 @@ export default function Home() {
       });
     }
   };
-
   useEffect(() => {
     try {
-      // Sadece giriş yapılmamışsa admin login'e yönlendir
+      // Firebase Authentication ile giriş kontrolü
       const isLoggedIn = localStorage.getItem('adminLoggedIn');
       if (!isLoggedIn) {
+        // Oturum yoksa verileri temizle
         localStorage.removeItem('financialData');
         localStorage.removeItem('toursData');
         localStorage.removeItem('customerData');
-        window.location.href = '/admin/login';
+        // Login sayfasına yönlendir (artık /admin/login yerine /login)
+        router.push('/login');
       }
       // Eğer giriş yapılmışsa ana sayfada kal
     } catch (err) {
       console.error('Home redirect error:', err);
     }
-  }, []);
+  }, [router]);
 
   useEffect(() => {
     async function fetchData() {
@@ -536,8 +555,10 @@ export default function Home() {
                   : [...financialData, newEntry];
                 handleDataUpdate("financial", updatedData);
                 setEditingRecord(null);
+              }}              onCancel={() => { 
+                setEditingRecord(null);
+                navigateTo("main-dashboard"); 
               }}
-              onCancel={() => { setEditingRecord(null); navigateTo("main-dashboard"); }}
             />
           )}
           {currentView === "tour-sales" && (
@@ -625,7 +646,11 @@ export default function Home() {
                 
                 setEditingRecord(null);
               }}
-              onCancel={() => { setEditingRecord(null); navigateTo("main-dashboard"); }}
+              onCancel={() => { 
+                setEditingRecord(null);
+                setTempTourFormData(null); // Geçici form verisini temizle
+                navigateTo("main-dashboard"); 
+              }}
               toursData={toursData}
               onUpdateData={(data: TourData[]) => handleDataUpdate("tours", data)}
               onNavigate={navigateTo}
@@ -733,6 +758,17 @@ export default function Home() {
           )}
           {currentView === "currency" && (
             <CurrencyPage />
+          )}
+
+          {/* Yeni eklenen bileşenler */}
+          {currentView === "companies" && (
+            <CompanyManagement />
+          )}
+          {currentView === "debts" && (
+            <DebtManagement />
+          )}
+          {currentView === "payments" && (
+            <PaymentManagement />
           )}
         </div>
         <footer className="py-4 px-6 text-center text-muted-foreground border-t bg-white">

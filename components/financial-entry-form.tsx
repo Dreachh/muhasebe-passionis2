@@ -29,6 +29,9 @@ export function FinancialEntryForm({ onCancel = () => { window.location.hash = '
     currency: initialData?.currency || "TRY",
     description: initialData?.description || "",
     paymentMethod: initialData?.paymentMethod || "cash",
+    paymentStatus: initialData?.paymentStatus || "paid", // paid veya debt şeklinde
+    companyId: initialData?.companyId || "",
+    tourId: initialData?.tourId || "",
   });
 
   useEffect(() => {
@@ -42,6 +45,9 @@ export function FinancialEntryForm({ onCancel = () => { window.location.hash = '
         currency: initialData.currency || "TRY",
         description: initialData.description || "",
         paymentMethod: initialData.paymentMethod || "cash",
+        paymentStatus: initialData.paymentStatus || "paid",
+        companyId: initialData.companyId || "",
+        tourId: initialData.tourId || "",
       });
     } else {
       setFormData({
@@ -53,6 +59,9 @@ export function FinancialEntryForm({ onCancel = () => { window.location.hash = '
         currency: "TRY",
         description: "",
         paymentMethod: "cash",
+        paymentStatus: "paid",
+        companyId: "",
+        tourId: "",
       });
     }
   }, [initialData]);
@@ -79,6 +88,9 @@ export function FinancialEntryForm({ onCancel = () => { window.location.hash = '
         date: initialData.date || new Date().toISOString().split("T")[0],
         description: initialData.description || "",
         paymentMethod: initialData.paymentMethod || "cash",
+        paymentStatus: initialData.paymentStatus || "paid",
+        companyId: initialData.companyId || "",
+        tourId: initialData.tourId || "",
       });
       // Düzenleme modunu etkinleştir
       setIsEditing(true);
@@ -234,6 +246,44 @@ export function FinancialEntryForm({ onCancel = () => { window.location.hash = '
               rows={3}
             />
           </div>
+
+          {/* Ödeme durumu seçimi eklenmiştir */}
+          {formData.type === "expense" && (
+            <div className="space-y-2">
+              <Label htmlFor="paymentStatus">Ödeme Durumu</Label>
+              <Select
+                value={formData.paymentStatus}
+                onValueChange={(value) => handleSelectChange("paymentStatus", value)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Ödeme durumunu seçin" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="paid">Ödendi</SelectItem>
+                  <SelectItem value="debt">Borç Olarak Ekle</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          {/* Borç durumunda firma seçimi göster */}
+          {formData.type === "expense" && formData.paymentStatus === "debt" && (
+            <div className="space-y-2">
+              <Label htmlFor="companyId">Firma/Tedarikçi</Label>
+              <Select
+                value={formData.companyId}
+                onValueChange={(value) => handleSelectChange("companyId", value)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Firma seçin" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="new">+ Yeni Firma Ekle</SelectItem>
+                  {/* Burada API'den firmalar yüklenecek */}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
         </CardContent>
 
         <CardFooter className="flex justify-between">

@@ -2,9 +2,9 @@
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Home, Calendar, DollarSign, BarChart2, Settings, Database, RefreshCw, Globe, Save } from "lucide-react"
+import { Home, Calendar, DollarSign, BarChart2, Settings, Database, RefreshCw, Globe, Save, Building, CreditCard, Receipt } from "lucide-react"
 
-export function MainMenu({ onNavigate }) {
+export function MainMenu({ onNavigate }: { onNavigate: (id: string) => void }) {
   const menuItems = [
     { id: "dashboard", label: "Ana Sayfa", icon: <Home className="h-6 w-6" />, color: "bg-blue-100 text-blue-700" },
     { id: "calendar", label: "Takvim", icon: <Calendar className="h-6 w-6" />, color: "bg-green-100 text-green-700" },
@@ -31,6 +31,24 @@ export function MainMenu({ onNavigate }) {
       label: "Analitik",
       icon: <BarChart2 className="h-6 w-6" />,
       color: "bg-indigo-100 text-indigo-700",
+    },
+    {
+      id: "companies",
+      label: "Firmalar",
+      icon: <Building className="h-6 w-6" />,
+      color: "bg-orange-100 text-orange-700",
+    },
+    {
+      id: "debts",
+      label: "Borçlar",
+      icon: <Receipt className="h-6 w-6" />,
+      color: "bg-rose-100 text-rose-700",
+    },
+    {
+      id: "payments",
+      label: "Ödemeler",
+      icon: <CreditCard className="h-6 w-6" />,
+      color: "bg-emerald-100 text-emerald-700",
     },
     {
       id: "currency",

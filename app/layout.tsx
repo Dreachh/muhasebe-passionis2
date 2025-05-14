@@ -5,7 +5,11 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/toaster";
 import { SessionProvider } from "@/components/providers/session-provider";
 // Firebase başlatma
-import { initializeFirebase } from "@/lib/firebase";
+import { clientInitializeFirebase } from "@/lib/firebase";
+// Firebase Auth Provider
+import { FirebaseAuthProvider } from "@/lib/firebase-auth";
+// Firebase Auth Sync - cookie ve localStorage yönetimi
+import FirebaseAuthSync from "@/lib/firebase-auth-sync";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -14,17 +18,27 @@ export const metadata = {
   description: "Passionis Tour için özel olarak geliştirilmiş turizm muhasebe yazılımı",
 };
 
-export default function RootLayout({ children, params: { locale } }) {
+export default function RootLayout({ 
+  children, 
+  params 
+}: { 
+  children: React.ReactNode; 
+  params: { locale?: string } 
+}) {
+  const locale = params?.locale || "tr";
   return (
     <html lang={locale ?? "tr"} suppressHydrationWarning>
       <head />
       <body className={inter.className}>
-        <SessionProvider>
-          <ThemeProvider attribute="class" defaultTheme="light">
-            {children}
-            <Toaster />
-          </ThemeProvider>
-        </SessionProvider>
+        <FirebaseAuthProvider>
+          <FirebaseAuthSync />
+          <SessionProvider>
+            <ThemeProvider attribute="class" defaultTheme="light">
+              {children}
+              <Toaster />
+            </ThemeProvider>
+          </SessionProvider>
+        </FirebaseAuthProvider>
         <script
           dangerouslySetInnerHTML={{
             __html: `

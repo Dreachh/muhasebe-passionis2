@@ -136,7 +136,6 @@ export function TourSalesForm({
   setTempTourFormData: (data: any) => void;
 }) {  
   const { toast } = useToast()
-  const [formData, setFormData] = useState<FormData>({} as FormData);
   const [currentStep, setCurrentStep] = useState(0);
   const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false);
   const [expenseTypes, setExpenseTypes] = useState<any[]>([]);
@@ -151,25 +150,7 @@ export function TourSalesForm({
   const [currencyLastUpdated, setCurrencyLastUpdated] = useState<string | null>(null)
 
   // Diğer fonksiyonlar ve durumlar burada devam edecek...
-  // Form kaydetme işlemi için
-  const handleSubmit = () => {
-    // Gerekli doğrulamalar burada yapılabilir
-    
-    // Form verilerini hazırla
-    const formDataToSave = {
-      ...formData,
-      updatedAt: new Date().toISOString()
-    };
-    
-    // Üst bileşenin kaydetme işlemini çağır
-    if (typeof onSave === "function") {
-      onSave(formDataToSave);
-    }
-    
-    // İletişim kutusunu kapat
-    setIsConfirmDialogOpen(false);
-  };
-  
+
   // Tüm giderleri para birimine göre toplayan fonksiyon
   const calculateTotalExpensesByCurrency = () => {
     const totals: Record<string, number> = {};

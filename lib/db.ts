@@ -23,6 +23,7 @@ import {
   getTourTemplates as getFirestoreTourTemplates,
   saveTourTemplates as saveFirestoreTourTemplates,
   getTourTemplate as getFirestoreTourTemplate,
+  getCompanies as getFirestoreCompanies,
   getTourTemplatesByDestination as getFirestoreTourTemplatesByDestination,
   getTours as getFirestoreTours,
   saveTours as saveFirestoreTours,
@@ -320,6 +321,11 @@ export const saveTours = async (tours: any[]): Promise<void> => {
 // Tüm turları getir
 export const getTours = async (): Promise<any[]> => {
   return getFirestoreTours();
+};
+
+// Firmaları getir
+export const getCompanies = async (): Promise<any[]> => {
+  return getFirestoreCompanies();
 };
 
 // Destinasyona göre turları getir
