@@ -15,10 +15,11 @@ import { initializeFirebaseClient } from '@/lib/firebase-client-module';
 // import { initializeFirebaseClient as initializeFirebaseClientFallback } from '@/lib/firebase-direct';
 
 // Admin login bileşeni
-export default function AdminLogin() {
-  // Firebase durumu için state
+export default function AdminLogin() {  // Firebase durumu için state
   const [firebaseInitialized, setFirebaseInitialized] = useState(false);
-    // URL parametrelerini kontrol et  useEffect(() => {
+  
+  // URL parametrelerini kontrol et  
+  useEffect(() => {
     // URL'den mesaj parametresini al    
     const urlParams = new URLSearchParams(window.location.search);
     const message = urlParams.get('message');
