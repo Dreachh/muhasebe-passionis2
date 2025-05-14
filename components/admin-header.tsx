@@ -6,7 +6,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { useToast } from '@/components/ui/use-toast';
 import { useRouter } from 'next/navigation';
 import { LogOut, LogOutIcon, RefreshCw } from 'lucide-react';
-import { initializeFirebaseClient } from '@/lib/firebase-direct';
+import { initializeFirebaseClient } from '@/lib/firebase-client-module';
 
 export function AdminHeader() {
   const { toast } = useToast();

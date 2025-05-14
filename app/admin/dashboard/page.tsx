@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Eye, EyeOff } from 'lucide-react';
-import { ensureFirestore } from '@/lib/firebase-direct';
+import { isFirebaseInitialized } from '@/lib/firebase-client-module';
 
 export default function AdminDashboard() {
   const router = useRouter();
@@ -36,7 +36,7 @@ export default function AdminDashboard() {
         // Firebase'i başlat - yeni güvenli başlatıcı ile
         console.log("Dashboard'da Firebase başlatılıyor...");
         if (typeof window !== 'undefined') {
-          const success = ensureFirestore();
+          const success = isFirebaseInitialized();
           console.log("Firebase başlatma sonucu:", success ? "Başarılı" : "Başarısız");
           
           // Giriş kontrolü - localStorage ve sessionStorage ikisini birden kontrol et

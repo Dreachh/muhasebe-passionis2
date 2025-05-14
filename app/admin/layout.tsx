@@ -4,7 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { AdminHeader } from '@/components/admin-header';
 import { Toaster } from '@/components/ui/toaster';
-import { ensureFirestore } from '@/lib/firebase-direct';
+import { isFirebaseInitialized } from '@/lib/firebase-client-module';
 
 export default function AdminLayout({
   children,
@@ -75,7 +75,7 @@ export default function AdminLayout({
     try {
       console.log('Admin layout - Firebase başlatma işlemi');
       if (typeof window !== 'undefined') {
-        return ensureFirestore();
+        return isFirebaseInitialized();
       } else {
         console.warn('Admin layout - Server tarafında Firebase başlatılamaz');
         return false;
