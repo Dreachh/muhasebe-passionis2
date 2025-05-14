@@ -89,6 +89,7 @@ interface FormData {
   numberOfChildren: number;
   pricePerPerson: string;
   totalPrice: string;
+  totalPriceWithActivities?: string; // Aktiviteler dahil toplam fiyat
   currency: string;
   paymentStatus: string;
   paymentMethod: string;
@@ -211,7 +212,7 @@ export function TourSalesForm({
 
   // Toplam fiyatı otomatik güncelle (kişi başı fiyat * kişi sayısı + aktiviteler)
   useEffect(() => {
-    // Kişi başı fiyat * kişi sayısı hesaplanır
+    // Kişi başı fiyat * kişi sayısı hesaplanır (Adım 2'de görünecek olan)
     const basePrice = Number(formData.pricePerPerson || 0) * Number(formData.numberOfPeople || 1);
     
     // Aktivitelerin toplam tutarı hesaplanırken, sadece ana tur para birimi ile aynı olanlar eklenir
@@ -235,12 +236,17 @@ export function TourSalesForm({
       }, 0);
     }
     
-    const total = basePrice + activitiesTotal;
-    console.log(`Tur fiyatı hesaplanıyor: Temel fiyat=${basePrice}, Aktiviteler=${activitiesTotal}, Toplam=${total} ${formData.currency}`);
+    // Aktiviteleri dahil edersek toplam fiyat
+    const totalWithActivities = basePrice + activitiesTotal;
+    
+    console.log(`Tur fiyatı hesaplanıyor: Temel fiyat=${basePrice}, Aktiviteler=${activitiesTotal}, Aktiviteler dahil toplam=${totalWithActivities} ${formData.currency}`);
     
     setFormData((prev) => ({ 
       ...prev, 
-      totalPrice: total ? total.toString() : "" 
+      // Adım 2'de görüntülenecek olan sadece tur fiyatı (aktiviteler hariç)
+      totalPrice: basePrice ? basePrice.toString() : "",
+      // Özet kısmında ve diğer yerlerde kullanılacak aktiviteler dahil toplam fiyat
+      totalPriceWithActivities: totalWithActivities ? totalWithActivities.toString() : ""
     }));
   }, [formData.pricePerPerson, formData.numberOfPeople, formData.activities, formData.currency]);
 
@@ -278,54 +284,55 @@ export function TourSalesForm({
       onSave(formData);
       setIsConfirmDialogOpen(false);
       
+      // Başarılı mesajı göster
+      toast({ 
+        title: "Başarılı", 
+        description: initialData ? "Tur kaydı başarıyla güncellendi!" : "Tur kaydı başarıyla oluşturuldu!", 
+        variant: "default" 
+      });
+      
       // Forma bir daha erişilememesi için ana sayfaya yönlendir
       if (typeof onCancel === "function") {
         onCancel(); // Bu işlem editingRecord'u null yapacak ve ana sayfaya yönlendirecek
         return; // Aşağıdaki kodlar çalıştırılmaz
       }
       
-      // Eğer düzenleme modunda değilsek (initialData boşsa) formu sıfırla ve adım 1'e dön
-      if (!initialData) {
-        setFormData({
-          id: generateUUID(),
-          serialNumber: "",
-          customerName: "",
-          customerPhone: "",
-          customerEmail: "",
-          customerAddress: "",
-          customerIdNumber: "",
-          nationality: "",
-          referralSource: "",
-          additionalCustomers: [],
-          tourName: "",
-          tourDate: new Date().toISOString().split("T")[0],
-          tourEndDate: "",
-          numberOfPeople: 1,
-          numberOfChildren: 0,
-          pricePerPerson: "",
-          totalPrice: "",
-          currency: "TRY",
-          paymentStatus: "pending",
-          paymentMethod: "cash",
-          partialPaymentAmount: "",
-          partialPaymentCurrency: "TRY",
-          notes: "",
-          expenses: [],
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-          activities: [],
-          destinationId: "",
-          destinationName: "",
-        });
-        setCurrentStep(0);
-      } else {
-        // Düzenleme modunda işlem tamamlandı mesajı gösterilebilir
-        toast({ 
-          title: "Başarılı", 
-          description: "Tur kaydı başarıyla güncellendi!", 
-          variant: "default" 
-        });
-      }
+      // Her durumda formu sıfırla ve adım 1'e dön (yeni kayıt ve düzenleme dahil)
+      setFormData({
+        id: generateUUID(),
+        serialNumber: "",
+        customerName: "",
+        customerPhone: "",
+        customerEmail: "",
+        customerAddress: "",
+        customerIdNumber: "",
+        nationality: "",
+        referralSource: "",
+        additionalCustomers: [],
+        tourName: "",
+        tourDate: new Date().toISOString().split("T")[0],
+        tourEndDate: "",
+        numberOfPeople: 1,
+        numberOfChildren: 0,
+        pricePerPerson: "",
+        totalPrice: "",
+        totalPriceWithActivities: "", // Yeni field'ı da sıfırlayalım
+        currency: "TRY",
+        paymentStatus: "pending",
+        paymentMethod: "cash",
+        partialPaymentAmount: "",
+        partialPaymentCurrency: "TRY",
+        notes: "",
+        expenses: [],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        activities: [],
+        destinationId: "",
+        destinationName: "",
+        selectedTourId: "",
+        selectedTourName: "",
+      });
+      setCurrentStep(0);
     } else {
       toast({ title: "Hata", description: "Kayıt fonksiyonu tanımlı değil!", variant: "destructive" });
     }
@@ -665,12 +672,14 @@ export function TourSalesForm({
     setFormData((prev: any) => {
       let updated = { ...prev, [name]: value };
       if (name === "pricePerPerson") {
-        const totalPrice = Number.parseFloat(value) * Number.parseInt(prev.numberOfPeople?.toString() || "1");
-        updated.totalPrice = totalPrice.toString();
+        // Adım 2'de sadece kişi başı * kişi sayısı göster
+        const turPrice = Number.parseFloat(value) * Number.parseInt(prev.numberOfPeople?.toString() || "1");
+        updated.totalPrice = turPrice.toString();
       }
       if (name === "numberOfPeople" && prev.pricePerPerson) {
-        const totalPrice = Number.parseFloat(prev.pricePerPerson?.toString() || "0") * Number.parseInt(value);
-        updated.totalPrice = totalPrice.toString();
+        // Adım 2'de sadece kişi başı * kişi sayısı göster
+        const turPrice = Number.parseFloat(prev.pricePerPerson?.toString() || "0") * Number.parseInt(value);
+        updated.totalPrice = turPrice.toString();
       }
       return updated;
     });
@@ -2029,6 +2038,8 @@ export function TourSalesForm({
                 ...formData,
                 // selectedTourName özellikle eklendiğinden emin olalım (null veya undefined ise '-' gösterilecek)
                 selectedTourName: formData.selectedTourName || '-',
+                // Özet bölümünde aktiviteleri de içeren toplam fiyatı gösterelim
+                totalPrice: formData.totalPriceWithActivities || formData.totalPrice,
                 expenses: formData.expenses.map((expense) => ({
                   ...expense,
                   amount: typeof expense.amount === "string" ? parseFloat(expense.amount) : expense.amount,
