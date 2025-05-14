@@ -21,8 +21,8 @@ import {
   writeBatch,
   Timestamp,
 } from "firebase/firestore";
-// Firebase bağlantısını güvenli bir şekilde al
-import { getDb } from "./firebase-direct";
+// Firebase bağlantısını güvenli bir şekilde al (client modülünden)
+import { getDb } from "./firebase-client-module";
 import { getDatabase, ref, set, get } from "firebase/database";
 
 // IndexedDB'deki STORES koleksiyonuna karşılık gelen koleksiyonlar

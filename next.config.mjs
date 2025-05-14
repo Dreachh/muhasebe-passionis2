@@ -34,27 +34,23 @@ const nextConfig = {
       };
     }
     
-    // Tüm Firebase modüllerini istemci taraflı olarak işaretle
-    config.module = config.module || {};
-    config.module.rules = config.module.rules || [];
-    
-    config.module.rules.push({
-      test: /firebase\/.*/,
-      sideEffects: false,
-      use: ['client-only']
-    });
+    // Next.js 15.2.4 için client-only kullanımını kaldırdık
+    // Firebase modülleri serverExternalPackages ile zaten işaretleniyor
     
     return config;
   },
-  // Firebase ve diğer istemci taraflı modüllerin sadece alt modüllerini transpile et
-  // Ana firebase ve @firebase/app modüllerini çıkarıyoruz çünkü serverExternalPackages'ta belirtildi
-  transpilePackages: [
-    // Ana Firebase paketlerini çıkardık (serverExternalPackages ile çakışıyordu)
-    'firebase/firestore', 
-    'firebase/auth', 
-    'firebase/storage', 
-    'firebase/database',
-    // Firebase alt modüllerinden de ana modülü çıkardık
+  // Next.js 15 ile transpilePackages kullanımını tamamen kaldırıyoruz
+  // Bunun yerine serverExternalPackages kullanacağız
+  // Next.js 15.2.4 için güncellenmiş deneysel özellikler
+  experimental: {
+    webpackBuildWorker: true,
+    parallelServerBuildTraces: true,
+    parallelServerCompiles: true,
+  },
+  // Server tarafında harici tutulacak paketler (serverComponentsExternalPackages yerine)
+  serverExternalPackages: [
+    'firebase', 
+    '@firebase/app',
     '@firebase/app-compat',
     '@firebase/auth',
     '@firebase/auth-compat',
@@ -67,14 +63,9 @@ const nextConfig = {
     '@firebase/storage',
     '@firebase/storage-compat'
   ],
-  // Next.js 15.2.4 için güncellenmiş deneysel özellikler
-  experimental: {
-    webpackBuildWorker: true,
-    parallelServerBuildTraces: true,
-    parallelServerCompiles: true,
-  },
-  // Server tarafında harici tutulacak paketler (serverComponentsExternalPackages yerine)
-  serverExternalPackages: ['firebase', '@firebase/app'],
+  
+  // Next.js 15 için optimizasyon seçenekleri
+  optimizeFonts: false,
 }
 
 if (userConfig) {

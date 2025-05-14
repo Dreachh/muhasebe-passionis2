@@ -9,7 +9,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Eye, EyeOff } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { getAdminCredentials } from "@/lib/db-firebase";
-import { initializeFirebaseClient } from '@/lib/firebase-direct';
+import { initializeFirebaseClient } from '@/lib/firebase-client-module';
 
 // Admin login bileşeni
 export default function AdminLogin() {
