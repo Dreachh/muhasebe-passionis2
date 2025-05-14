@@ -22,6 +22,21 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
+  // Firebase istemci taraflı kullanımını desteklemek için Webpack yapılandırması
+  webpack: (config, { isServer }) => {
+    // İstemci tarafı derlemelerinde bu modülleri çalışmasına izin ver
+    if (!isServer) {
+      config.resolve.fallback = {
+        ...config.resolve.fallback,
+        fs: false,
+        net: false,
+        tls: false,
+      };
+    }
+    return config;
+  },
+  // Firebase ve diğer istemci taraflı modüllerin sunucu bileşenlerinde yüklenmeye çalışıldığında transpile edilmesini sağla
+  transpilePackages: ['firebase', 'firebase/app', 'firebase/firestore', 'firebase/auth', 'firebase/storage', 'firebase/database'],
   experimental: {
     webpackBuildWorker: true,
     parallelServerBuildTraces: true,

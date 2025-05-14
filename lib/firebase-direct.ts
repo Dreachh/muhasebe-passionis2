@@ -5,6 +5,8 @@
  * Hata durumlarına karşı daha dayanıklı olması için tasarlandı.
  */
 
+"use client";
+
 import { initializeApp, getApps, FirebaseApp } from "firebase/app";
 import { getFirestore, Firestore } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
