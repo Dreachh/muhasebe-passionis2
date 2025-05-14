@@ -31,16 +31,51 @@ const nextConfig = {
         fs: false,
         net: false,
         tls: false,
+        crypto: require.resolve('crypto-browserify'),
+        stream: require.resolve('stream-browserify'),
+        buffer: require.resolve('buffer'),
       };
     }
+    
+    // Tüm Firebase modüllerini istemci taraflı olarak işaretle
+    config.module = config.module || {};
+    config.module.rules = config.module.rules || [];
+    
+    config.module.rules.push({
+      test: /firebase\/.*/,
+      sideEffects: false,
+      use: ['client-only']
+    });
+    
     return config;
   },
   // Firebase ve diğer istemci taraflı modüllerin sunucu bileşenlerinde yüklenmeye çalışıldığında transpile edilmesini sağla
-  transpilePackages: ['firebase', 'firebase/app', 'firebase/firestore', 'firebase/auth', 'firebase/storage', 'firebase/database'],
+  transpilePackages: [
+    'firebase', 
+    'firebase/app', 
+    'firebase/firestore', 
+    'firebase/auth', 
+    'firebase/storage', 
+    'firebase/database',
+    '@firebase/app',
+    '@firebase/app-compat',
+    '@firebase/auth',
+    '@firebase/auth-compat',
+    '@firebase/database',
+    '@firebase/database-compat',
+    '@firebase/firestore',
+    '@firebase/firestore-compat',
+    '@firebase/functions',
+    '@firebase/functions-compat',
+    '@firebase/storage',
+    '@firebase/storage-compat'
+  ],
+  // Kritik hatanın ele alınması için eklenen ayarlar
   experimental: {
     webpackBuildWorker: true,
     parallelServerBuildTraces: true,
     parallelServerCompiles: true,
+    serverComponentsExternalPackages: ['firebase', '@firebase/app']
   },
 }
 

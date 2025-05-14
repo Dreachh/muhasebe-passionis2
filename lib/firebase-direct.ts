@@ -38,35 +38,70 @@ export function initializeFirebaseClient(): { success: boolean; app?: FirebaseAp
       return { success: false };
     }
 
+    console.log('Firebase başlatma işlemi başlıyor...');
+    
     // Eğer zaten başarıyla başlatılmışsa, önbelleğe alınan değerleri döndür
     if (_initialized && app && db) {
       console.log('Firebase zaten başarıyla başlatılmış, önbelleğe alınmış instance kullanılıyor');
       return { success: true, app, db };
-    }
-
-    // Zaten başlatılmış uygulamayı kontrol et
+    }    // Zaten başlatılmış uygulamayı kontrol et
     if (getApps().length > 0) {
       try {
+        console.log('Firebase: Mevcut uygulama bulundu, getApps().length =', getApps().length);
         app = getApps()[0];
+        
+        // Firebase app'in geçerli olduğunu doğrula
+        if (!app || typeof app.name !== 'string') {
+          console.error('Firebase: Mevcut app geçersiz, yeni oluşturmaya çalışılacak');
+          throw new Error('Geçersiz Firebase app instance');
+        }
+        
+        console.log('Firebase: Mevcut app geçerli, Firestore alınıyor:', app.name);
         db = getFirestore(app);
+        
+        // Firestore'un geçerli olduğunu kontrol et
+        if (!db) {
+          console.error('Firebase: Firestore alınamadı');
+          throw new Error('Firestore instance alınamadı');
+        }
+        
         _initialized = true;
-        console.log('Firebase zaten başlatılmış, mevcut instance kullanılıyor');
+        console.log('Firebase zaten başlatılmış, mevcut instance başarıyla kullanıldı');
         return { success: true, app, db };
       } catch (appError) {
         console.error('Firebase mevcut instance erişim hatası:', appError);
         // Hata oluşursa yeni bir instance oluşturmayı dene
+        _initialized = false; // Başarısız oldu, bu nedenle durumu sıfırla
       }
     }
     
     // Yeni bir Firebase uygulaması başlat
     try {
+      console.log('Firebase: Yeni bir app başlatılıyor...');
+      
+      // Tüm mevcut uygulamaları temizle (varsa)
+      try {
+        getApps().forEach(app => {
+          console.log(`Firebase: Eski app temizleniyor: ${app.name}`);
+        });
+      } catch (cleanupError) {
+        console.warn('Firebase: Eski app temizleme hatası:', cleanupError);
+      }
+      
       app = initializeApp(firebaseConfig);
+      console.log('Firebase: App başlatıldı:', app.name);
+      
       db = getFirestore(app);
+      console.log('Firebase: Firestore alındı');
+      
       _initialized = true;
       console.log('Firebase başarıyla başlatıldı');
       return { success: true, app, db };
     } catch (initError) {
       console.error('Firebase başlatma hatası:', initError);
+      _initialized = false;
+      app = undefined;
+      db = undefined;
       return { success: false };
     }
   } catch (error) {
@@ -75,19 +110,35 @@ export function initializeFirebaseClient(): { success: boolean; app?: FirebaseAp
   }
 }
 
-// Mevcut Firebase Firestore veritabanına erişim
+// Mevcut Firebase Firestore veritabanına erişim - geliştirilmiş güvenlik kontrolü ile
 export function getDb(): Firestore | undefined {
-  if (!db && typeof window !== 'undefined') {
-    try {
-      const { success, db: newDb } = initializeFirebaseClient();
-      if (success && newDb) {
-        db = newDb;
-      }
-    } catch (error) {
-      console.error('Firestore erişim hatası:', error);
-    }
+  // Sunucu tarafında çalıştırılmaya çalışılıyorsa hemen undefined dön
+  if (typeof window === 'undefined') {
+    console.warn('Server tarafında getDb() çağrıldı, undefined dönülüyor');
+    return undefined;
   }
-  return db;
+
+  // Eğer db zaten oluşturulmuşsa doğrudan döndür
+  if (db) {
+    return db;
+  }
+  
+  try {
+    console.log('getDb: Firebase Firestore instance oluşturuluyor...');
+    const { success, db: newDb } = initializeFirebaseClient();
+    
+    if (success && newDb) {
+      console.log('getDb: Firebase Firestore instance başarıyla alındı');
+      db = newDb;
+      return db;
+    } else {
+      console.error('getDb: Firestore instance oluşturulamadı');
+      return undefined;
+    }
+  } catch (error) {
+    console.error('getDb: Firestore erişim hatası:', error);
+    return undefined;
+  }
 }
 
 // Firebase Firestore'u başlatmayı deneyip sonucu döndüren basit fonksiyon

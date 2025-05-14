@@ -15,10 +15,10 @@ import { initializeFirebaseClient } from '@/lib/firebase-direct';
 export default function AdminLogin() {
   // Firebase durumu için state
   const [firebaseInitialized, setFirebaseInitialized] = useState(false);
-  
-  // URL parametrelerini kontrol et
+    // URL parametrelerini kontrol et
   useEffect(() => {
-    // URL'den mesaj parametresini al    const urlParams = new URLSearchParams(window.location.search);
+    // URL'den mesaj parametresini al    
+    const urlParams = new URLSearchParams(window.location.search);
     const message = urlParams.get('message');
     const expired = urlParams.get('expired');
     
@@ -30,21 +30,52 @@ export default function AdminLogin() {
     } else if (message === 'browser_closed') {
       setError('Tarayıcı kapatıldığı için oturumunuz sonlandırıldı. Lütfen yeniden giriş yapın.');
     }
-    
-    // Firebase'i başlat - try/catch bloklarını ayıralım
+      // Firebase'i başlat - geliştirilmiş versiyon
     const initFirebase = async () => {
       try {
         console.log("Admin login sayfasında Firebase başlatılıyor...");
-        // Yeni Firebase-direct modülünü kullanarak başlat
+        // Firebase'i yalnızca tarayıcı ortamında başlatıyor muyuz kontrol edelim
         if (typeof window !== 'undefined') {
-          const { success } = initializeFirebaseClient();
-          console.log("Firebase başlatma sonucu:", success ? "Başarılı" : "Başarısız");
+          // İlk önce Firebase'e erişime hazırız mesajını gösterelim
+          console.log("Tarayıcı ortamı hazır, Firebase başlatılabilir");
+          
+          // 3 deneme yapalım
+          let attempt = 0;
+          let success = false;
+          
+          while (attempt < 3 && !success) {
+            attempt++;
+            try {
+              console.log(`Firebase başlatma denemesi ${attempt}/3...`);
+              const result = initializeFirebaseClient();
+              success = result.success;
+              
+              if (success) {
+                console.log(`Firebase ${attempt}. denemede başarıyla başlatıldı!`);
+              } else {
+                console.warn(`Firebase başlatma denemesi ${attempt} başarısız.`);
+              }
+            } catch (innerError) {
+              console.error(`Firebase başlatma denemesi ${attempt} hatası:`, innerError);
+            }
+            
+            // Başarısız olursa kısa bir süre bekleyelim ve tekrar deneyelim
+            if (!success && attempt < 3) {
+              console.log("Yeniden denemeden önce 500ms bekleniyor...");
+              await new Promise(resolve => setTimeout(resolve, 500));
+            }
+          }
+          
+          // Son durumu ayarlayalım
           setFirebaseInitialized(success);
+          if (!success) {
+            setError('Firebase bağlantısı kurulamadı. Lütfen daha sonra tekrar deneyin.');
+          }
         } else {
           console.error("Tarayıcı ortamında değiliz, Firebase başlatılamaz!");
         }
       } catch (error) {
-        console.error("Firebase başlatma hatası:", error);
+        console.error("Firebase başlatma işleminde beklenmeyen hata:", error);
         // Hata durumunda durum güncellemesi
         setFirebaseInitialized(false);
         setError('Firebase bağlantısı kurulamadı. Lütfen daha sonra tekrar deneyin.');
@@ -56,11 +87,12 @@ export default function AdminLogin() {
       try {
         localStorage.removeItem('adminLoggedIn');
         sessionStorage.removeItem('adminLoggedIn');
-        document.cookie = "adminLoggedInClient=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
-      } catch (storageError) {
+        document.cookie = "adminLoggedInClient=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";      } catch (storageError) {
         console.error("Depolama temizleme hatası:", storageError);
       }
-    };    // Fonksiyonları çalıştır
+    };
+    
+    // Fonksiyonları çalıştır
     initFirebase();
     clearStorageData();
   }, []);
