@@ -9,18 +9,21 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Eye, EyeOff } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { getAdminCredentials } from "@/lib/db-firebase";
+// Firebase başlatma fonksiyonu direkt import edilir
 import { initializeFirebaseClient } from '@/lib/firebase-client-module';
+// Yedek olarak firebase-direct'ten de import edelim
+// import { initializeFirebaseClient as initializeFirebaseClientFallback } from '@/lib/firebase-direct';
 
 // Admin login bileşeni
 export default function AdminLogin() {
   // Firebase durumu için state
   const [firebaseInitialized, setFirebaseInitialized] = useState(false);
-    // URL parametrelerini kontrol et
-  useEffect(() => {
+    // URL parametrelerini kontrol et  useEffect(() => {
     // URL'den mesaj parametresini al    
     const urlParams = new URLSearchParams(window.location.search);
     const message = urlParams.get('message');
     const expired = urlParams.get('expired');
+    const fbError = urlParams.get('fberror');
     
     // Mesajları kontrol et
     if (message === 'session_expired') {
@@ -29,8 +32,10 @@ export default function AdminLogin() {
       setError('Oturumunuz başka bir yerden sonlandırıldı. Lütfen yeniden giriş yapın.');
     } else if (message === 'browser_closed') {
       setError('Tarayıcı kapatıldığı için oturumunuz sonlandırıldı. Lütfen yeniden giriş yapın.');
+    } else if (fbError === 'true') {
+      setError('Firebase bağlantı hatası. Yeniden denenecek...');
     }
-      // Firebase'i başlat - geliştirilmiş versiyon
+      // Firebase'i başlat - geliştirilmiş hata korumalı versiyon
     const initFirebase = async () => {
       try {
         console.log("Admin login sayfasında Firebase başlatılıyor...");
@@ -47,8 +52,14 @@ export default function AdminLogin() {
             attempt++;
             try {
               console.log(`Firebase başlatma denemesi ${attempt}/3...`);
+              
+              // initializeFirebaseClient fonksiyonunun var olduğundan emin ol
+              if (typeof initializeFirebaseClient !== 'function') {
+                throw new Error('Firebase başlatma fonksiyonu bulunamadı!');
+              }
+              
               const result = initializeFirebaseClient();
-              success = result.success;
+              success = result?.success || false;
               
               if (success) {
                 console.log(`Firebase ${attempt}. denemede başarıyla başlatıldı!`);
@@ -67,9 +78,15 @@ export default function AdminLogin() {
           }
           
           // Son durumu ayarlayalım
-          setFirebaseInitialized(success);
-          if (!success) {
+          setFirebaseInitialized(success);          if (!success) {
             setError('Firebase bağlantısı kurulamadı. Lütfen daha sonra tekrar deneyin.');
+            // 3 denemeden sonra hata sayfasına yönlendir
+            if (attempt >= 3) {              console.log("Firebase 3 deneme sonrası başlatılamadı, otomatik yeniden deneme sayfasına yönlendiriliyor...");
+              // 1.5 saniye bekle ve yeniden deneme sayfasına yönlendir
+              setTimeout(() => {
+                window.location.href = '/admin/firebase-retry';
+              }, 1500);
+            }
           }
         } else {
           console.error("Tarayıcı ortamında değiliz, Firebase başlatılamaz!");
@@ -91,10 +108,20 @@ export default function AdminLogin() {
         console.error("Depolama temizleme hatası:", storageError);
       }
     };
-    
-    // Fonksiyonları çalıştır
-    initFirebase();
-    clearStorageData();
+      // Fonksiyonları çalıştır
+    try {
+      console.log("Firebase başlatma ve depolama temizleme işlemi başlatılıyor");
+      initFirebase().then(() => {
+        console.log("Firebase başlatma işlemi tamamlandı");
+      }).catch(err => {
+        console.error("Firebase başlatma promise hatası:", err);
+        setError('Firebase bağlantı hatası. Lütfen sayfayı yenileyin.');
+      });
+      
+      clearStorageData();
+    } catch (err) {
+      console.error("useEffect içindeki işlemlerde hata:", err);
+    }
   }, []);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -137,11 +164,26 @@ export default function AdminLogin() {
     setIsLoading(true);
     setError('');
     
-    // Firebase başlatma durumunu kontrol et
+  // Firebase başlatma durumunu kontrol et
     if (!firebaseInitialized) {
       try {
         console.log("Form gönderilmeden önce Firebase başlatılıyor...");
-        const { success } = initializeFirebaseClient();
+        
+        // Fonksiyon kontrolü
+        if (typeof initializeFirebaseClient !== 'function') {
+          console.error("initializeFirebaseClient fonksiyonu bulunamadı");
+          setError('Firebase modülü yüklenemedi. Lütfen sayfayı yenileyin.');
+          setIsLoading(false);
+          return;
+        }
+        
+        // Vercel çevre değişkenlerini kontrol et
+        const vercelUrl = process.env.NEXT_PUBLIC_VERCEL_URL || '';
+        console.log("Vercel URL:", vercelUrl);
+        
+        const result = initializeFirebaseClient();
+        const success = result?.success || false;
+        
         if (success) {
           console.log("Firebase başarıyla başlatıldı, forma devam edilebilir");
           setFirebaseInitialized(true);

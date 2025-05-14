@@ -14,16 +14,29 @@ import { getAuth, Auth } from "firebase/auth";
 import { getStorage } from "firebase/storage";
 import { getDatabase, Database } from "firebase/database";
 
-// Firebase yapılandırma bilgileri
-const firebaseConfig = {
-  apiKey: "AIzaSyAdAvS2I5ErlCcchaSzOP3225Qd0w1vayI",
-  authDomain: "passionis-travel.firebaseapp.com",
-  projectId: "passionis-travel",
-  storageBucket: "passionis-travel.appspot.com",
-  messagingSenderId: "1094253004348",
-  appId: "1:1094253004348:web:b1a0ec2ed6d8137a2e6539",
-  databaseURL: "https://passionis-travel-default-rtdb.europe-west1.firebasedatabase.app"
-};
+// Firebase yapılandırma bilgileri - Vercel çevre değişkenleri kullanılarak
+const firebaseConfig = (() => {
+  try {
+    return {
+      apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+      authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+      projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+      storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+      messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+      appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
+      databaseURL: process.env.NEXT_PUBLIC_FIREBASE_DATABASE_URL
+    };
+  } catch (error) {
+    console.error('❌ Firebase yapılandırma hatası:', error);
+    // Çevre değişkenleri ile ilgili sorun yaşandığında sabit değerleri kullan
+    return {
+      apiKey: "AIzaSyAdAvS2I5ErlCcchaSzOP3225Qd0w1vayI",
+      authDomain: "passionis-travel.firebaseapp.com",
+      projectId: "passionis-travel",
+      databaseURL: "https://passionis-travel-default-rtdb.europe-west1.firebasedatabase.app"
+    };
+  }
+})();
 
 // Firebase App instance
 let app: FirebaseApp | undefined;
@@ -37,6 +50,13 @@ let _initializationAttempts = 0;
  * Firebase'i istemci tarafında başlatmak için güvenli fonksiyon
  * Bu fonksiyon yalnızca tarayıcı ortamında çalışır ve Firebase'i başlatır
  */
+// Acil durum yedek Firebase yapılandırması - çevre değişkenleriyle uyumlu
+const emergencyConfig = {
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_FALLBACK_API_KEY || "AIzaSyAdAvS2I5ErlCcchaSzOP3225Qd0w1vayI",
+  projectId: process.env.NEXT_PUBLIC_FIREBASE_FALLBACK_PROJECT_ID || "passionis-travel",
+  databaseURL: process.env.NEXT_PUBLIC_FIREBASE_FALLBACK_DATABASE_URL || "https://passionis-travel-default-rtdb.europe-west1.firebasedatabase.app"
+};
+
 export function initializeFirebaseClient(): { success: boolean; app?: FirebaseApp; db?: Firestore } {
   try {
     // Tarayıcı ortamında olduğumuzu kontrol et
@@ -47,10 +67,14 @@ export function initializeFirebaseClient(): { success: boolean; app?: FirebaseAp
 
     console.log('🔄 Firebase başlatma işlemi başlıyor...');
     
-    // Eğer zaten başarıyla başlatılmışsa, önbelleğe alınan değerleri döndür
-    if (_initialized && app && db) {
-      console.log('✅ Firebase zaten başarıyla başlatılmış, önbelleğe alınmış instance kullanılıyor');
-      return { success: true, app, db };
+    try {
+      // Eğer zaten başarıyla başlatılmışsa, önbelleğe alınan değerleri döndür
+      if (_initialized && app && db) {
+        console.log('✅ Firebase zaten başarıyla başlatılmış, önbelleğe alınmış instance kullanılıyor');
+        return { success: true, app, db };
+      }
+    } catch (cacheError) {
+      console.warn('⚠️ Önbellek kontrolünde hata:', cacheError);
     }
 
     // Zaten başlatılmış uygulamayı kontrol et
@@ -84,27 +108,65 @@ export function initializeFirebaseClient(): { success: boolean; app?: FirebaseAp
         app = undefined;
         db = undefined;
       }
-    }
-    
-    // Yeni bir Firebase uygulaması başlat
+    }    // Yeni bir Firebase uygulaması başlat
     try {
+      // Mevcut tüm Firebase uygulamalarını temizle
+      try {
+        const existingApps = getApps();
+        console.log(`🔄 Firebase: ${existingApps.length} mevcut uygulama bulundu, sıfırlama kontrol ediliyor`);
+        
+        // Firebase app'nin zaten oluşturulup oluşturulmadığını kontrol et
+        if (existingApps.length === 0) {
+          console.log('🔄 Firebase: Yeni bir uygulama oluşturuluyor...');
+        }
+      } catch (cleanupError) {
+        console.warn('⚠️ Firebase: Mevcut uygulamaları kontrol etme hatası:', cleanupError);
+      }
+      
       _initializationAttempts++;
-      console.log(`🔄 Firebase: Yeni bir app başlatılıyor... (Deneme: ${_initializationAttempts})`);
+      console.log(`🔄 Firebase: App başlatılıyor... (Deneme: ${_initializationAttempts})`);
       
-      app = initializeApp(firebaseConfig);
-      console.log('🔄 Firebase: App başlatıldı:', app.name);
+      // Firebase yapılandırmasını kontrol et
+      if (!firebaseConfig || !firebaseConfig.apiKey) {
+        console.error('❌ Firebase: Geçersiz veya eksik yapılandırma');
+        return { success: false };
+      }
       
-      db = getFirestore(app);
-      console.log('🔄 Firebase: Firestore alındı');
-      
-      auth = getAuth(app);
-      console.log('🔄 Firebase: Auth alındı');
-      
-      rtdb = getDatabase(app);
-      console.log('🔄 Firebase: Database alındı');
+      try {
+        // Ana yapılandırma ile başlatmayı dene
+        app = initializeApp(firebaseConfig);
+        console.log('✅ Firebase: App başarıyla başlatıldı:', app.name);
+        
+        // Firestore'u başlat
+        db = getFirestore(app);
+        console.log('✅ Firebase: Firestore başarıyla alındı');
+        
+        // Auth'u başlat
+        auth = getAuth(app);
+        console.log('✅ Firebase: Auth başarıyla alındı');
+        
+        // Realtime Database'i başlat
+        rtdb = getDatabase(app);
+        console.log('✅ Firebase: Database başarıyla alındı');
+      } catch (mainError) {
+        console.error('❌ Ana yapılandırma ile başlatma başarısız oldu, acil durum yapılandırması deneniyor:', mainError);
+        
+        // Acil durum yapılandırması ile yeniden dene
+        try {
+          console.log('🚨 Acil durum yapılandırması ile başlatılıyor...');
+          app = initializeApp(emergencyConfig);
+          db = getFirestore(app);
+          auth = getAuth(app);
+          rtdb = getDatabase(app);
+          console.log('✅ Acil durum yapılandırması ile Firebase başarıyla başlatıldı');
+        } catch (emergencyError) {
+          console.error('❌ Acil durum yapılandırması ile başlatma da başarısız oldu:', emergencyError);
+          throw emergencyError; // Yeniden fırlat
+        }
+      }
       
       _initialized = true;
-      console.log('✅ Firebase başarıyla başlatıldı');
+      console.log('✅ Firebase tamamen başlatıldı');
       return { success: true, app, db };
     } catch (initError) {
       console.error('❌ Firebase başlatma hatası:', initError);

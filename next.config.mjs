@@ -64,8 +64,8 @@ const nextConfig = {
     '@firebase/storage-compat'
   ],
   
-  // Next.js 15 için optimizasyon seçenekleri
-  optimizeFonts: false,
+  // Next.js 15.2.4 ile optimizeFonts artık desteklenmez
+  // optimizeFonts: false,
 }
 
 if (userConfig) {
