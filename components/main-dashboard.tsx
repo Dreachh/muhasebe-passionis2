@@ -157,7 +157,7 @@ export function MainDashboard({ onNavigate, financialData = [], toursData = [], 
           id: `tourexp-${tourId}`,
           type: 'finance',
           date: tour.tourDate, // Tur başlangıç tarihini kullan
-          serialNumber: `F${tourSerialNumber}`, // F1501 gibi bir format
+          serialNumber: `${tourSerialNumber}TF`, // 1501TF gibi bir format (önce numara, sonra TF)
           name: 'Tur Gider Toplamı',
           customerName: `${tour.customerName || "Müşteri"} - Tur Satışı Toplam Gideri`,
           amount: 0,
@@ -253,7 +253,7 @@ export function MainDashboard({ onNavigate, financialData = [], toursData = [], 
           }
         } else {
           // Eğer tur bulunamadıysa normal gider olarak ekle
-          serialNumber = `F${expenseCounter++}`;
+          serialNumber = `${expenseCounter++}TF`;
           
           // Tutarı doğru şekilde al
           const amount = typeof finance.amount === "string" ? 
@@ -277,9 +277,9 @@ export function MainDashboard({ onNavigate, financialData = [], toursData = [], 
       } else {
         // Normal finans kaydı için gelir veya gidere göre sıralı numara ata
         if (finance.type === 'income') {
-          serialNumber = `F${incomeCounter++}`;
+          serialNumber = `${incomeCounter++}F`;
         } else {
-          serialNumber = `F${expenseCounter++}`;
+          serialNumber = `${expenseCounter++}F`;
         }
         
         // Tutarı doğru şekilde al
@@ -516,41 +516,90 @@ export function MainDashboard({ onNavigate, financialData = [], toursData = [], 
               </thead>
               <tbody>
                 {(() => {
-                  // Sadece tur kayıtları ve tur giderleri
-                  const combinedTourTransactions = combinedTransactions
-                    .filter(transaction => 
-                      transaction.type === 'tour' || // Tur satışları
-                      (transaction.type === 'finance' && transaction.originalData.relatedTourId) // Tur giderleri
-                    )
-                    // Tur tarihi filtreleme
-                    .filter(transaction => {
-                      if (!isTourDateFilterActive || !tourDateRange || !tourDateRange.from) return true;
-                      const transactionDate = new Date(transaction.date);
-                      // Bitiş tarihi undefined ise sadece başlangıç tarihiyle kontrol et
-                      if (!tourDateRange.to) {
-                        return transactionDate >= tourDateRange.from;
-                      }
-                      // Her ikisi de tanımlı ise aralığı kontrol et
-                      return transactionDate >= tourDateRange.from && transactionDate <= tourDateRange.to;
-                    })
-                    .sort((a, b) => {
-                      // Önce tarih sıralaması
-                      const dateCompare = new Date(b.date) - new Date(a.date);
-                      if (dateCompare !== 0) return dateCompare;
-                      
-                      // Aynı tarihli olanları satış numarası ve ilgili giderleri birlikte göstermek için sırala
-                      if (a.type === 'tour' && b.type === 'finance' && 
-                          b.originalData.relatedTourId === a.id) {
-                        return -1; // Tur satışı önce, gideri sonra
-                      }
-                      if (b.type === 'tour' && a.type === 'finance' && 
-                          a.originalData.relatedTourId === b.id) {
-                        return 1; // Tur satışı önce, gideri sonra
-                      }
-                      
-                      // Diğer durumlarda varsayılan sıralama
-                      return 0;
+                  // Sadece tur kayıtları ve tur giderleri - tur bazında organize et
+                  let tourTransactionMap = {};
+                  
+                  // Önce tüm turları ekle
+                  combinedTransactions
+                    .filter(transaction => transaction.type === 'tour')
+                    .forEach(tour => {
+                      tourTransactionMap[tour.id] = { 
+                        tour,
+                        expenses: []
+                      };
                     });
+                  
+                  // Sonra ilgili giderleri bu turların altına ekle
+                  combinedTransactions
+                    .filter(transaction => 
+                      transaction.type === 'finance' && 
+                      transaction.originalData.relatedTourId
+                    )
+                    .forEach(expense => {
+                      const relatedTourId = expense.originalData.relatedTourId;
+                      if (tourTransactionMap[relatedTourId]) {
+                        tourTransactionMap[relatedTourId].expenses.push(expense);
+                      }
+                    });
+                  
+                  // Tarih filtresini uygula
+                  Object.keys(tourTransactionMap).forEach(tourId => {
+                    if (isTourDateFilterActive && tourDateRange && tourDateRange.from) {
+                      const transactionDate = new Date(tourTransactionMap[tourId].tour.date);
+                      if (tourDateRange.to) {
+                        if (!(transactionDate >= tourDateRange.from && transactionDate <= tourDateRange.to)) {
+                          delete tourTransactionMap[tourId];
+                        }
+                      } else {
+                        if (!(transactionDate >= tourDateRange.from)) {
+                          delete tourTransactionMap[tourId];
+                        }
+                      }
+                    }
+                  });
+                  
+                  // Düzgün sıralanmış şekilde yeni transaction listesi oluştur
+                  const combinedTourTransactions = [];
+                  Object.values(tourTransactionMap).forEach((item: any) => {
+                    // Önce tur satışını ekle
+                    combinedTourTransactions.push(item.tour);
+                    
+                    // Sonra bu turun giderlerini ekle (eğer varsa)
+                    if (item.expenses.length > 0) {
+                      // Giderleri gruplayarak sadece bir gider satırı ekle
+                      combinedTourTransactions.push(item.expenses[0]);
+                    }
+                  });
+                  
+                  // Yeni gelişmiş sıralama algoritması
+                  combinedTourTransactions.sort((a, b) => {
+                    // Önce tarihe göre sırala
+                    const dateDiff = new Date(b.date) - new Date(a.date);
+                    if (dateDiff !== 0) return dateDiff;
+                    
+                    // Aynı tarihli kayıtlar için - tur satışları önce, giderleri sonra
+                    if (a.type === 'tour' && b.type === 'finance') return -1;
+                    if (a.type === 'finance' && b.type === 'tour') return 1;
+                    
+                    // Aynı türdeki işlemler için sayısal sıralama yap
+                    if (a.type === b.type) {
+                      // Sayısal kısmı çıkar
+                      const aNum = parseInt(a.serialNumber.replace(/[^\d]/g, '') || '0');
+                      const bNum = parseInt(b.serialNumber.replace(/[^\d]/g, '') || '0');
+                      
+                      if (aNum !== bNum) {
+                        return aNum - bNum; // Küçük numara önce
+                      }
+                      
+                      // Eğer sayısal kısım aynı ise harf kısmına göre sırala
+                      const aLetter = a.serialNumber.replace(/[\d]/g, '');
+                      const bLetter = b.serialNumber.replace(/[\d]/g, '');
+                      return aLetter.localeCompare(bLetter);
+                    }
+                    
+                    // Son çare olarak tam seri numarası karşılaştırması
+                    return a.serialNumber.localeCompare(b.serialNumber);
+                  });
 
                   const totalTourPages = Math.ceil(combinedTourTransactions.length / PAGE_SIZE);
                   const startTourIndex = (currentPage - 1) * PAGE_SIZE;
@@ -606,10 +655,10 @@ export function MainDashboard({ onNavigate, financialData = [], toursData = [], 
                               )}
                             </td>
                             <td className="py-2 px-3">
-                              {getTourTotalString(transaction.originalData)}
+                              <span dangerouslySetInnerHTML={{ __html: getTourTotalString(transaction.originalData) }}></span>
                             </td>
                             <td className="py-2 px-3">
-                              {formatCurrency(totalLeft, transaction.currency)}
+                              <span dangerouslySetInnerHTML={{ __html: formatCurrency(totalLeft, transaction.currency) }}></span>
                             </td>
                             <td className="py-2 px-3">
                               <Button 
@@ -653,9 +702,9 @@ export function MainDashboard({ onNavigate, financialData = [], toursData = [], 
                               <span className="bg-white border border-indigo-500 text-indigo-700 px-3 py-1 rounded-full text-xs font-semibold">Tur Gideri</span>
                             </td>
                             <td className="py-2 px-3">
-                              {transaction.expensesByCurrency ? 
+                              <span dangerouslySetInnerHTML={{ __html: transaction.expensesByCurrency ? 
                                 formatCurrencyGroups(transaction.expensesByCurrency) : 
-                                formatCurrency(transaction.amount || 0, transaction.currency)}
+                                formatCurrency(transaction.amount || 0, transaction.currency) }}></span>
                             </td>
                             <td className="py-2 px-3">-</td>
                             <td className="py-2 px-3">
@@ -843,7 +892,7 @@ export function MainDashboard({ onNavigate, financialData = [], toursData = [], 
                             </span>
                           </td>
                           <td className="py-2 px-3">
-                            {formatCurrency(transaction.amount, transaction.currency)}
+                            <span dangerouslySetInnerHTML={{ __html: formatCurrency(transaction.amount, transaction.currency) }}></span>
                           </td>
                           <td className="py-2 px-3">
                             <Button 

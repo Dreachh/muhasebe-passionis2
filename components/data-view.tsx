@@ -20,7 +20,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { Search, Edit, Trash2, Eye, Printer } from "lucide-react"
-import { formatCurrency, formatDate } from "@/lib/data-utils"
+import { formatCurrency, formatCurrencyGroups, formatDate } from "@/lib/data-utils"
 import { deleteData } from "@/lib/db"
 import { useToast } from "@/components/ui/use-toast"
 
@@ -323,24 +323,32 @@ export function DataView({
       let displayDate = item.date;
       let displayDescription = item.description || '-';
       let tourCustomerName = "";
+      let tourSerialNumber = ""; // Tur seri numarası - sıralama için
+      let sortPriority = 0; // Sıralama önceliği
       
       if (item.relatedTourId && item.category === "Tur Gideri") {
         const tourInfo = toursData.find(t => t.id === item.relatedTourId);
         if (tourInfo) {
-          serialNumber = `F${tourInfo.serialNumber || tourInfo.id?.slice(-4) || ""}`;
+          const numericPart = tourInfo.serialNumber || tourInfo.id?.slice(-4) || "";
+          serialNumber = `${numericPart}TF`; // Önce numara, sonra TF
           tourCustomerName = tourInfo.customerName || "";
+          tourSerialNumber = tourInfo.serialNumber || ""; // Sıralama için tur seri numarası sakla
+          // Tur tarihini kullanarak bir sıralama önceliği ata - aynı tur için birlikte göster
+          displayDate = tourInfo.tourDate; // Tur tarihini kullan
           
           const expenseType = item.description?.split(' - ')[1] || "Gider";
           displayDescription = `${tourInfo.customerName || "Müşteri"} - ${expenseType}`;
         } else {
-          serialNumber = `F${expenseCounter++}`;
+          serialNumber = `${expenseCounter++}TF`; // Önce numara, sonra TF
         }
       } else {
         // Normal finans kaydı için gelir veya gidere göre sıralı numara ata
         if (item.type === 'income') {
-          serialNumber = `F${incomeCounter++}`;
+          serialNumber = `${incomeCounter++}F`; // Önce numara, sonra F
+          sortPriority = 1; // Gelirler için öncelik
         } else {
-          serialNumber = `F${expenseCounter++}`;
+          serialNumber = `${expenseCounter++}F`; // Önce numara, sonra F
+          sortPriority = 2; // Normal giderler için öncelik
         }
       }
       
@@ -349,7 +357,9 @@ export function DataView({
         _serialNumber: serialNumber,  // Önceden hesaplanmış işlem numarası
         _displayDate: displayDate,
         _displayDescription: displayDescription,
-        _tourCustomerName: tourCustomerName
+        _tourCustomerName: tourCustomerName,
+        _tourSerialNumber: tourSerialNumber, // Tur seri numarası - sıralama için
+        _sortPriority: sortPriority // Sıralama önceliği
       };
     });
 
@@ -366,24 +376,28 @@ export function DataView({
     
     const searchLower = searchTerm.toLowerCase().trim();
     
-    return dateFiltered.filter(item => {
+    const filteredItems = dateFiltered.filter(item => {
       // Sabit numarayı kullan
       const serialNumber = item._serialNumber;
       
-      // Farklı formatlarda aranabilen işlem numarası kontrolü
-      // F3 veya 3 gibi aramalarda hem tam metin hem de sayı olarak kontrolü yap
-      const searchWithoutF = searchLower.startsWith("f") ? searchLower.substring(1) : searchLower;
-      const serialWithoutF = serialNumber.toLowerCase().substring(1);
+      // Farklı formatlarda aranabilen işlem numarası kontrolü - yeni formata göre (önce sayı sonra harf)
+      // 3F veya 3 gibi aramalarda hem tam metin hem de sayı olarak kontrolü yap
+      const serialNumberLC = serialNumber.toLowerCase();
       
-      // F olmadan doğrudan sayı karşılaştırması
-      const searchNumberOnly = searchLower.replace(/\D/g, ''); // Sadece sayılar
-      const serialNumberOnly = serialNumber.replace(/\D/g, ''); // Sadece sayılar
+      // Sadece sayılar
+      const searchNumberOnly = searchLower.replace(/\D/g, ''); 
+      const serialNumberOnly = serialNumberLC.replace(/\D/g, '');
+      
+      // Sadece harfler
+      const searchLettersOnly = searchLower.replace(/\d/g, '').trim();
+      const serialLettersOnly = serialNumberLC.replace(/\d/g, '').trim();
       
       const isSerialMatch = 
-        serialNumber.toLowerCase() === searchLower || // Tam eşleşme (F1)
-        serialWithoutF === searchWithoutF || // F hariç eşleşme (1)
-        serialNumber.toLowerCase().includes(searchLower) || // İşlem no içinde arama
-        serialWithoutF === searchNumberOnly || // Sayı olarak eşleşme
+        serialNumberLC === searchLower || // Tam eşleşme (123F)
+        serialNumberOnly === searchLower || // Kullanıcı sadece sayı kısmını arıyor (123)
+        serialLettersOnly === searchLower || // Kullanıcı sadece harf kısmını arıyor (F veya TF)
+        serialNumberLC.includes(searchLower) || // İşlem no içinde arama
+        searchLower.includes(serialNumberOnly) || // Aranan metin sayı içeriyor
         serialNumberOnly === searchNumberOnly; // Sadece sayı karşılaştırması
       
       // Tanımların ayrılması
@@ -401,6 +415,102 @@ export function DataView({
         (item._tourCustomerName.toLowerCase().includes(searchLower)) || // Müşteri adı eşleşmesi
         (expenseType.toLowerCase().includes(searchLower)) // Gider türü eşleşmesi
       );
+    });
+    
+    // Geliştirilmiş gruplama algoritması - Turlar ve Tur Giderleri için daha iyi organizasyon
+    const grouped = filteredItems.reduce((acc, item) => {
+      // Tur giderlerini ayır
+      if (item.category === "Tur Gideri" && item.relatedTourId) {
+        // Tarih tabanlı grupler oluştur (önce aynı tarihteki kayıtları bir araya getir)
+        const dateStr = new Date(item._displayDate || item.date).toISOString().split('T')[0];
+        const groupKey = `${dateStr}:${item.relatedTourId}`;
+        
+        // Her tarih+tur kombinasyonu için grup oluştur
+        if (!acc.tourGroups[groupKey]) {
+          acc.tourGroups[groupKey] = [];
+        }
+        acc.tourGroups[groupKey].push(item);
+      } else {
+        // Gelir ve giderleri ayrı listelere ayır (sıralama için)
+        if (item.type === 'income') {
+          acc.incomeItems.push(item);
+        } else {
+          acc.expenseItems.push(item);
+        }
+      }
+      return acc;
+    }, { tourGroups: {}, incomeItems: [], expenseItems: [] });
+    
+    // Her grup kendi içinde seri numarası ve tarihine göre sıralansın
+    Object.values(grouped.tourGroups).forEach(group => {
+      (group as any[]).sort((a, b) => {
+        // Önce sayısal kısımlarına göre sırala
+        const aNum = parseInt(a._serialNumber.replace(/[^\d]/g, '') || '0');
+        const bNum = parseInt(b._serialNumber.replace(/[^\d]/g, '') || '0');
+        if (aNum !== bNum) {
+          return aNum - bNum;
+        }
+        
+        // Aynı sayı ise tarihe göre sırala (artan sırada)
+        return new Date(a.date).getTime() - new Date(b.date).getTime();
+      });
+    });
+    
+    // Gelir ve giderler için kendi içinde sıralama yap
+    const sortBySerialNumber = (a: any, b: any) => {
+      const aNum = parseInt(a._serialNumber.replace(/[^\d]/g, '') || '0');
+      const bNum = parseInt(b._serialNumber.replace(/[^\d]/g, '') || '0');
+      return aNum - bNum;
+    };
+    
+    grouped.incomeItems.sort(sortBySerialNumber);
+    grouped.expenseItems.sort(sortBySerialNumber);
+    
+    // Düzenli gruplanmış sonuç listesini tarih ve seri numarası bazlı oluştur
+    const result = [
+      // Önce gelir kayıtları
+      ...grouped.incomeItems,
+      // Sonra normal gider kayıtları
+      ...grouped.expenseItems,
+      // En son gruplandırılmış tur giderleri (düzleştirilmiş)
+      ...Object.values(grouped.tourGroups).flat()
+    ];
+    
+    // Son global sıralama tamamen yeniden yazıldı
+    return result.sort((a, b) => {
+      // Öncelikle tur giderlerini kendi içinde gruplayalım
+      const aIsTourExpense = a.category === "Tur Gideri" && a.relatedTourId;
+      const bIsTourExpense = b.category === "Tur Gideri" && b.relatedTourId;
+      
+      // Eğer aynı tura ait iki kayıt varsa onları bir arada tutalım
+      if (aIsTourExpense && bIsTourExpense && a.relatedTourId === b.relatedTourId) {
+        // 1. Aynı tura aitse, seri numaralarının yalnızca sayısal kısmını karşılaştır
+        const aNumericPart = parseInt(a._serialNumber.replace(/[^\d]/g, '') || '0');
+        const bNumericPart = parseInt(b._serialNumber.replace(/[^\d]/g, '') || '0');
+        return aNumericPart - bNumericPart;
+      }
+      
+      // 2. Farklı tarihler varsa tarih öncelikli sırala (en yeniden en eskiye)
+      const dateA = new Date(a._displayDate || a.date);
+      const dateB = new Date(b._displayDate || b.date);
+      const dateDiff = dateB.getTime() - dateA.getTime();
+      
+      if (dateDiff !== 0) return dateDiff;
+      
+      // 3. Tur giderlerini önce göster
+      if (aIsTourExpense && !bIsTourExpense) return -1;
+      if (!aIsTourExpense && bIsTourExpense) return 1;
+      
+      // 4. Eğer her ikisi de aynı kategorideyse (gelir/gider) sayısal sıralama yap
+      if (a.type === b.type) {
+        // Sayısal sıralama için numara kısmını ayıkla 
+        const aNum = parseInt(a._serialNumber.replace(/[^\d]/g, '') || '0');
+        const bNum = parseInt(b._serialNumber.replace(/[^\d]/g, '') || '0');
+        return aNum - bNum;
+      }
+      
+      // 5. Gelirler giderlerden önce gelsin
+      return a.type === 'income' ? -1 : 1;
     });
   })();
 
@@ -711,10 +821,12 @@ export function DataView({
                           if (!activityTotals[cur]) activityTotals[cur] = 0;
                           activityTotals[cur] += toplam;
                         });
-                        return Object.entries(activityTotals)
+                        const formattedActivityTotals = Object.entries(activityTotals)
                           .filter(([_, val]) => val > 0)
-                          .map(([cur, val]) => `${val} ${cur}`)
-                          .join(' + ') || '-';
+                          .map(([cur, val]) => formatCurrency(val, cur))
+                          .join(' + ');
+                          
+                      return formattedActivityTotals ? <span dangerouslySetInnerHTML={{ __html: formattedActivityTotals }} /> : '-';
                       })()}
                     </TableCell>
                   </TableRow>
@@ -742,14 +854,20 @@ export function DataView({
                   for (const cur in activityTotals) {
                     allTotals[cur] = (allTotals[cur] || 0) + activityTotals[cur];
                   }
-                  return Object.entries(allTotals)
+                  const formattedTotals = Object.entries(allTotals)
                     .filter(([_, val]) => val > 0)
-                    .map(([cur, val]) => `${val} ${cur}`)
-                    .join(' + ') || '-';
+                    .map(([cur, val]) => formatCurrency(val, cur))
+                    .join(' + ');
+                  
+                  return formattedTotals ? <span dangerouslySetInnerHTML={{ __html: formattedTotals }} /> : '-';
                 })()}</TableCell></TableRow>
                 <TableRow><TableHead>Ödeme Durumu</TableHead><TableCell>{paymentStatusMap[paymentStatus] || paymentStatus || '-'}</TableCell></TableRow>
                 <TableRow><TableHead>Ödeme Yöntemi</TableHead><TableCell>{paymentMethodMap[paymentMethod] || paymentMethod || '-'}</TableCell></TableRow>
-                <TableRow><TableHead>Kısmi Ödeme</TableHead><TableCell>{partialPaymentAmount || '-'} {partialPaymentCurrency || ''}</TableCell></TableRow>
+                <TableRow><TableHead>Kısmi Ödeme</TableHead><TableCell>
+  {partialPaymentAmount ? (
+    <span dangerouslySetInnerHTML={{ __html: formatCurrency(partialPaymentAmount, partialPaymentCurrency || 'TRY') }} />
+  ) : '-'}
+</TableCell></TableRow>
               </TableBody>
             </Table>
             {notes && (
@@ -982,7 +1100,7 @@ export function DataView({
                         </TableCell>
                         <TableCell>{formatDate(tour.tourDate)}</TableCell>
                         <TableCell className="text-right">
-                          {tour.totalPrice ? formatCurrency(tour.totalPrice, tour.currency) : '-'}
+                          <span dangerouslySetInnerHTML={{ __html: tour.totalPrice ? formatCurrency(tour.totalPrice, tour.currency) : '-' }}></span>
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-2">
@@ -1033,7 +1151,7 @@ export function DataView({
                   <TableRow>
                     <TableHead className="w-[100px] font-bold whitespace-nowrap">İşlem No</TableHead>
                     <TableHead className="w-[100px] font-bold">Tarih</TableHead>
-                    <TableHead className="w-[100px] font-bold">İşlem Tipi</TableHead>
+                    <TableHead className="w-[120px] font-bold">İşlem Tipi</TableHead>
                     <TableHead className="w-[120px] font-bold">Kategori</TableHead>
                     <TableHead className="pl-4 font-bold">Açıklama</TableHead>
                     <TableHead className="w-[100px] text-right font-bold">Tutar</TableHead>
@@ -1067,36 +1185,37 @@ export function DataView({
                             // Tur gideri için tur başlangıç tarihini göster
                             displayDate = tourInfo.tourDate;
                             
-                            // Tur gideri için "F" + turun seri numarası
-                            serialNumber = `F${tourInfo.serialNumber || tourInfo.id?.slice(-4) || ""}`;
+                            // Tur gideri için önce numara sonra "TF" formatı
+                            const numericPart = tourInfo.serialNumber || tourInfo.id?.slice(-4) || "";
+                            serialNumber = `${numericPart}TF`;
                             
                             // Açıklama formatını "müşteri adı - gider türü" şeklinde düzenle
                             // Gider türünü description'dan çıkarmak için " - " sonrası kısmı al
                             const expenseType = financial.description?.split(' - ')[1] || "Gider";
                             displayDescription = `${tourInfo.customerName || "Müşteri"} - ${expenseType}`;
                             
-                            // Tur giderleri için mavi tonu (tur ile uyumlu)
-                            rowBgColor = "bg-indigo-50";
+                            // Tur giderleri için daha belirgin mavi tonu
+                            rowBgColor = "bg-indigo-100";
                           } else {
                             // İlgili tur bulunamadıysa gider sayacıyla numara ata
-                            serialNumber = `F${expenseCounter++}`;
+                            serialNumber = `${expenseCounter++}TF`;
                             // Tur bulunamadığında normal gider rengi
                             rowBgColor = "bg-red-50";
                           }
                         } else {
                           // Normal finans kaydı için gelir veya gidere göre sıralı numara ata
                           if (financial.type === 'income') {
-                            serialNumber = `F${incomeCounter++}`;
+                            serialNumber = `${incomeCounter++}F`;
                             rowBgColor = "bg-green-50"; // Gelir için yeşil arka plan
                           } else {
-                            serialNumber = `F${expenseCounter++}`;
+                            serialNumber = `${expenseCounter++}F`;
                             rowBgColor = "bg-red-50"; // Gider için kırmızı arka plan
                           }
                         }
                         
                         // İşlem numarasının rengini türüne göre değiştir
                         const serialNumberColor = financial.relatedTourId && financial.category === "Tur Gideri"
-                          ? "text-indigo-600"  // Tur gideri mavi
+                          ? "text-indigo-600 font-semibold"  // Tur gideri mavi ve kalın
                           : financial.type === "income"
                             ? "text-green-600"  // Gelir yeşil
                             : "text-red-600";   // Gider kırmızı
@@ -1129,7 +1248,7 @@ export function DataView({
                             </TableCell>
                             <TableCell className="py-2 px-3 text-sm">{displayDescription}</TableCell>
                             <TableCell className="py-2 px-3 text-sm text-right whitespace-nowrap">
-                              {formatCurrency(financial.amount || 0, financial.currency)}
+                              <span dangerouslySetInnerHTML={{ __html: formatCurrency(financial.amount || 0, financial.currency) }}></span>
                             </TableCell>
                             <TableCell className="py-2 px-1 text-right">
                               <div className="flex justify-end gap-1">

@@ -93,10 +93,11 @@ export const formatCurrency = (amount, currency = "TRY") => {
     numAmount = parseFloat(amount.replace(/[^\d.,]/g, '').replace(',', '.')) || 0;
   }
 
-  return `${symbol} ${numAmount.toLocaleString("tr-TR", {
+  // CSS sınıfını kullanan HTML kodu döndür - Para birimi sembolü ile sayı arasında daha iyi hizalama için
+  return `<span class="currency-amount"><span class="currency-symbol">${symbol}</span> ${numAmount.toLocaleString("tr-TR", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
-  })}`
+  })}</span>`
 }
 
 // Para birimi gruplandırma ve formatlama
@@ -104,14 +105,24 @@ export const formatCurrencyGroups = (currencyGroups) => {
   if (!currencyGroups || Object.keys(currencyGroups).length === 0) {
     return "-";
   }
-  // Her para birimini alt alta göstermek için <br /> ile birleştir
-  return Object.entries(currencyGroups)
+  
+  // Filtrelenmiş değerler
+  const filteredEntries = Object.entries(currencyGroups)
     .filter(([_, amount]) => {
       // Sayısal değere dönüştür
       const numAmount = typeof amount === "number" ? amount : 
                       (typeof amount === "string" ? parseFloat(amount.replace(/[^\d.,]/g, '').replace(',', '.')) : 0);
       return !isNaN(numAmount) && numAmount > 0;
-    })
+    });
+    
+  // Eğer tek para birimi varsa <br /> kullanmayız
+  if (filteredEntries.length === 1) {
+    const [currency, amount] = filteredEntries[0];
+    return formatCurrency(amount, currency);
+  }
+  
+  // Birden fazla para birimi varsa <br /> ile alt alta göster
+  return filteredEntries
     .map(([currency, amount]) => formatCurrency(amount, currency))
     .join("<br />");
 }

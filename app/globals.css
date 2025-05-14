@@ -92,3 +92,17 @@ body {
     @apply bg-background text-foreground;
   }
 }
+
+/* Para birimi formatı için stil */
+.currency-amount {
+  display: inline-flex;
+  align-items: baseline;
+  white-space: nowrap;
+  font-size: 0.9em; /* Biraz daha küçük yazı boyutu */
+}
+
+.currency-symbol {
+  display: inline-block;
+  margin-right: 1px;
+  font-size: 0.95em; /* Para birimi sembolü biraz daha küçük */
+}
