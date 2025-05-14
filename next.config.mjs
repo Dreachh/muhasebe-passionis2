@@ -22,11 +22,50 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
+  // Firebase istemci taraflı kullanımını desteklemek için Webpack yapılandırması
+  webpack: (config, { isServer }) => {
+    // İstemci tarafı derlemelerinde bu modülleri çalışmasına izin ver
+    if (!isServer) {
+      config.resolve.fallback = {
+        ...config.resolve.fallback,
+        fs: false,
+        net: false,
+        tls: false,
+      };
+    }
+    
+    // Next.js 15.2.4 için client-only kullanımını kaldırdık
+    // Firebase modülleri serverExternalPackages ile zaten işaretleniyor
+    
+    return config;
+  },
+  // Next.js 15 ile transpilePackages kullanımını tamamen kaldırıyoruz
+  // Bunun yerine serverExternalPackages kullanacağız
+  // Next.js 15.2.4 için güncellenmiş deneysel özellikler
   experimental: {
     webpackBuildWorker: true,
     parallelServerBuildTraces: true,
     parallelServerCompiles: true,
   },
+  // Server tarafında harici tutulacak paketler (serverComponentsExternalPackages yerine)
+  serverExternalPackages: [
+    'firebase', 
+    '@firebase/app',
+    '@firebase/app-compat',
+    '@firebase/auth',
+    '@firebase/auth-compat',
+    '@firebase/database',
+    '@firebase/database-compat',
+    '@firebase/firestore',
+    '@firebase/firestore-compat',
+    '@firebase/functions',
+    '@firebase/functions-compat',
+    '@firebase/storage',
+    '@firebase/storage-compat'
+  ],
+  
+  // Next.js 15.2.4 ile optimizeFonts artık desteklenmez
+  // optimizeFonts: false,
 }
 
 if (userConfig) {

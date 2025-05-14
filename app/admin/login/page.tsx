@@ -8,8 +8,122 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Eye, EyeOff } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { getAdminCredentials } from "@/lib/db-firebase";
+// Firebase başlatma fonksiyonu direkt import edilir
+import { initializeFirebaseClient } from '@/lib/firebase-client-module';
+// Yedek olarak firebase-direct'ten de import edelim
+// import { initializeFirebaseClient as initializeFirebaseClientFallback } from '@/lib/firebase-direct';
 
-export default function AdminLogin() {
+// Admin login bileşeni
+export default function AdminLogin() {  // Firebase durumu için state
+  const [firebaseInitialized, setFirebaseInitialized] = useState(false);
+  
+  // URL parametrelerini kontrol et  
+  useEffect(() => {
+    // URL'den mesaj parametresini al    
+    const urlParams = new URLSearchParams(window.location.search);
+    const message = urlParams.get('message');
+    const expired = urlParams.get('expired');
+    const fbError = urlParams.get('fberror');
+    
+    // Mesajları kontrol et
+    if (message === 'session_expired') {
+      setError('Oturum süresi doldu. Lütfen yeniden giriş yapın.');
+    } else if (expired === 'true') {
+      setError('Oturumunuz başka bir yerden sonlandırıldı. Lütfen yeniden giriş yapın.');
+    } else if (message === 'browser_closed') {
+      setError('Tarayıcı kapatıldığı için oturumunuz sonlandırıldı. Lütfen yeniden giriş yapın.');
+    } else if (fbError === 'true') {
+      setError('Firebase bağlantı hatası. Yeniden denenecek...');
+    }
+      // Firebase'i başlat - geliştirilmiş hata korumalı versiyon
+    const initFirebase = async () => {
+      try {
+        console.log("Admin login sayfasında Firebase başlatılıyor...");
+        // Firebase'i yalnızca tarayıcı ortamında başlatıyor muyuz kontrol edelim
+        if (typeof window !== 'undefined') {
+          // İlk önce Firebase'e erişime hazırız mesajını gösterelim
+          console.log("Tarayıcı ortamı hazır, Firebase başlatılabilir");
+          
+          // 3 deneme yapalım
+          let attempt = 0;
+          let success = false;
+          
+          while (attempt < 3 && !success) {
+            attempt++;
+            try {
+              console.log(`Firebase başlatma denemesi ${attempt}/3...`);
+              
+              // initializeFirebaseClient fonksiyonunun var olduğundan emin ol
+              if (typeof initializeFirebaseClient !== 'function') {
+                throw new Error('Firebase başlatma fonksiyonu bulunamadı!');
+              }
+              
+              const result = initializeFirebaseClient();
+              success = result?.success || false;
+              
+              if (success) {
+                console.log(`Firebase ${attempt}. denemede başarıyla başlatıldı!`);
+              } else {
+                console.warn(`Firebase başlatma denemesi ${attempt} başarısız.`);
+              }
+            } catch (innerError) {
+              console.error(`Firebase başlatma denemesi ${attempt} hatası:`, innerError);
+            }
+            
+            // Başarısız olursa kısa bir süre bekleyelim ve tekrar deneyelim
+            if (!success && attempt < 3) {
+              console.log("Yeniden denemeden önce 500ms bekleniyor...");
+              await new Promise(resolve => setTimeout(resolve, 500));
+            }
+          }
+          
+          // Son durumu ayarlayalım
+          setFirebaseInitialized(success);          if (!success) {
+            setError('Firebase bağlantısı kurulamadı. Lütfen daha sonra tekrar deneyin.');
+            // 3 denemeden sonra hata sayfasına yönlendir
+            if (attempt >= 3) {              console.log("Firebase 3 deneme sonrası başlatılamadı, otomatik yeniden deneme sayfasına yönlendiriliyor...");
+              // 1.5 saniye bekle ve yeniden deneme sayfasına yönlendir
+              setTimeout(() => {
+                window.location.href = '/admin/firebase-retry';
+              }, 1500);
+            }
+          }
+        } else {
+          console.error("Tarayıcı ortamında değiliz, Firebase başlatılamaz!");
+        }
+      } catch (error) {
+        console.error("Firebase başlatma işleminde beklenmeyen hata:", error);
+        // Hata durumunda durum güncellemesi
+        setFirebaseInitialized(false);
+        setError('Firebase bağlantısı kurulamadı. Lütfen daha sonra tekrar deneyin.');
+      }
+    };
+
+    // Yerel depolama temizliği
+    const clearStorageData = () => {
+      try {
+        localStorage.removeItem('adminLoggedIn');
+        sessionStorage.removeItem('adminLoggedIn');
+        document.cookie = "adminLoggedInClient=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";      } catch (storageError) {
+        console.error("Depolama temizleme hatası:", storageError);
+      }
+    };
+      // Fonksiyonları çalıştır
+    try {
+      console.log("Firebase başlatma ve depolama temizleme işlemi başlatılıyor");
+      initFirebase().then(() => {
+        console.log("Firebase başlatma işlemi tamamlandı");
+      }).catch(err => {
+        console.error("Firebase başlatma promise hatası:", err);
+        setError('Firebase bağlantı hatası. Lütfen sayfayı yenileyin.');
+      });
+      
+      clearStorageData();
+    } catch (err) {
+      console.error("useEffect içindeki işlemlerde hata:", err);
+    }
+  }, []);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -30,13 +144,15 @@ export default function AdminLogin() {
   const [successMessage, setSuccessMessage] = useState('');
   const [emailSent, setEmailSent] = useState(false);
   const [verificationCode, setVerificationCode] = useState('');
-  
-  // Gerçek kullanıcı bilgileri
-  const SECURITY_QUESTION = "İlk evcil hayvanınızın adı nedir?";
-  const SECURITY_ANSWER = "limon"; // Gerçek cevap
-  const ADMIN_EMAIL = "passionistravell@gmail.com"; // Gerçek email adresi
-  const DEFAULT_USERNAME = "arzum"; // Varsayılan kullanıcı adı
-  
+  const [usernameResetStep, setUsernameResetStep] = useState<'email-verification' | 'set-username'>('email-verification');
+  const [usernameEmail, setUsernameEmail] = useState('');
+  const [usernameEmailSent, setUsernameEmailSent] = useState(false);
+  const [usernameVerificationCode, setUsernameVerificationCode] = useState('');
+  const [usernameShowEmailCode, setUsernameShowEmailCode] = useState(false);
+  const [usernameSuccessMessage, setUsernameSuccessMessage] = useState('');
+  const [newUsernameForReset, setNewUsernameForReset] = useState('');
+  const [isUsernameResetting, setIsUsernameResetting] = useState(false);
+
   const router = useRouter();
 
   // Rastgele 6 haneli doğrulama kodu oluşturma
@@ -44,60 +160,153 @@ export default function AdminLogin() {
     const code = Math.floor(100000 + Math.random() * 900000).toString();
     setVerificationCode(code);
     return code;
-  };
-
-  useEffect(() => {
-    // localStorage'dan adminUsername varsa onu başlat
-    const savedUsername = typeof window !== 'undefined' ? localStorage.getItem('adminUsername') : null;
-    if (savedUsername) {
-      setUsername(savedUsername);
-    } else {
-      setUsername(DEFAULT_USERNAME);
-    }
-  }, []);
-
-  const handleSubmit = (e: React.FormEvent) => {
+  };  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     setError('');
     
-    try {
-      // Önce localStorage'dan özel şifreyi kontrol et
-      const customPassword = localStorage.getItem('adminPassword');
-      
-      // localStorage'dan özel kullanıcı adını kontrol et
-      const customUsername = localStorage.getItem('adminUsername');
-      
-      // Kullanıcı adını ve şifreyi kontrol et
-      let isCorrectUsername = false;
-      
-      // Özel kullanıcı adı varsa onu kontrol et, yoksa varsayılan kullanıcı adını kontrol et
-      if (customUsername) {
-        isCorrectUsername = username.toLowerCase() === customUsername.toLowerCase();
-      } else {
-        isCorrectUsername = username.toLowerCase() === DEFAULT_USERNAME.toLowerCase();
-      }
-      
-      let isCorrectPassword = false;
-      
-      // Özel şifre varsa onu kontrol et, yoksa varsayılan şifreyi kontrol et
-      if (customPassword) {
-        isCorrectPassword = password === customPassword;
-      } else {
-        isCorrectPassword = password === 'Arzumalan1965';
-      }
-      
-      if (isCorrectUsername && isCorrectPassword) {
-        // Başarılı giriş
-        localStorage.setItem('adminLoggedIn', 'true');
-        // doğrudan window.location ile yönlendirme yap
-        window.location.href = '/admin/dashboard';
-      } else {
-        setError('Kullanıcı adı veya şifre hatalı!');
+  // Firebase başlatma durumunu kontrol et
+    if (!firebaseInitialized) {
+      try {
+        console.log("Form gönderilmeden önce Firebase başlatılıyor...");
+        
+        // Fonksiyon kontrolü
+        if (typeof initializeFirebaseClient !== 'function') {
+          console.error("initializeFirebaseClient fonksiyonu bulunamadı");
+          setError('Firebase modülü yüklenemedi. Lütfen sayfayı yenileyin.');
+          setIsLoading(false);
+          return;
+        }
+        
+        // Vercel çevre değişkenlerini kontrol et
+        const vercelUrl = process.env.NEXT_PUBLIC_VERCEL_URL || '';
+        console.log("Vercel URL:", vercelUrl);
+        
+        const result = initializeFirebaseClient();
+        const success = result?.success || false;
+        
+        if (success) {
+          console.log("Firebase başarıyla başlatıldı, forma devam edilebilir");
+          setFirebaseInitialized(true);
+        } else {
+          setError('Firebase bağlantısı kurulamadı. Lütfen sayfayı yenileyin ve tekrar deneyin.');
+          setIsLoading(false);
+          return;
+        }
+      } catch (initError) {
+        console.error("Form gönderimi öncesi Firebase başlatma hatası:", initError);
+        setError('Sistem bağlantısı kurulamadı. Lütfen sayfayı yenileyin ve tekrar deneyin.');
         setIsLoading(false);
+        return;
+      }
+    }
+    
+    try {
+      // Kullanıcı adı ve şifre kontrolü
+      if (username.trim().length < 3) {
+        setError('Kullanıcı adı en az 3 karakter olmalı.');
+        setIsLoading(false);
+        return;
+      }
+      if (password.trim().length < 6) {
+        setError('Şifre en az 6 karakter olmalı.');
+        setIsLoading(false);
+        return;
+      }
+      
+      // API'den admin kimlik bilgileri kontrolü yapalım
+      try {
+        console.log("API'ye admin giriş isteği gönderiliyor...");        const response = await fetch('/api/admin-login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, password })
+        });
+          const result = await response.json();
+        if (response.ok && result.success) {
+          // Giriş başarılı
+          console.log("Admin girişi başarılı");
+          
+          // Hem localStorage hem de sessionStorage'a kaydet
+          // sessionStorage tarayıcı kapatıldığında silinir, localStorage kalıcıdır
+          try {
+            // Client tarafı oturum takibi
+            localStorage.setItem('adminLoggedIn', 'true'); // Kalıcı - tarayıcı kapatılınca silinmez
+            sessionStorage.setItem('adminLoggedIn', 'true'); // Geçici - tarayıcı kapatılınca silinir
+            document.cookie = "adminLoggedInClient=true; path=/; max-age=86400"; // 24 saat
+            
+            // Session versiyon numarası - hem localStorage hem de sessionStorage'a kaydet
+            localStorage.setItem('admin_session_version', result.sessionVersion.toString());
+            sessionStorage.setItem('admin_session_version', result.sessionVersion.toString());
+            
+            // En son giriş zamanı - hem localStorage hem de sessionStorage'a kaydet
+            localStorage.setItem('admin_last_login', Date.now().toString());
+            sessionStorage.setItem('admin_last_login', Date.now().toString());
+            
+            console.log("Oturum bilgileri kaydedildi. Versiyon:", result.sessionVersion);
+          } catch (storageError) {
+            console.warn("Storage erişim hatası:", storageError);
+            // Hata olursa alternatif bir yol dene
+          }
+          
+          // Sayfayı dashboard'a yönlendir
+          window.location.href = '/admin/dashboard';
+          return;
+        }
+        
+        // Giriş başarısız olduysa hata mesajını göster
+        setError(result.error || 'Giriş başarısız. Lütfen bilgilerinizi kontrol edin.');
+        setIsLoading(false);
+        return;      } catch (apiError) {
+        // API hatası durumunda manuel olarak kimlik doğrulama yapalım
+        console.warn("API hatası, doğrudan Firebase'den kimlik doğrulama deneniyor:", apiError);
+        try {
+          const adminCreds = await getAdminCredentials();
+                // Admin kimlik bilgileri var mı kontrol et
+          if (!adminCreds || !adminCreds.username) {
+            console.error("Admin kimlik bilgileri bulunamadı");
+            setError('Admin kimlik bilgileri bulunamadı. Lütfen yetkili ile iletişime geçin.');
+            setIsLoading(false);
+            return;
+          }
+            // Kullanıcı adı ve şifre kontrolü
+          if (adminCreds.username === username && adminCreds.password === password) {
+            // Giriş başarılı
+            console.log("Admin girişi başarılı");
+              // Hem localStorage hem de sessionStorage'a kaydet
+            try {
+              localStorage.setItem('adminLoggedIn', 'true');
+              sessionStorage.setItem('adminLoggedIn', 'true');
+              document.cookie = "adminLoggedInClient=true; path=/; max-age=86400"; // 24 saat
+              
+              // Varsayılan oturum versiyonunu da kaydet
+              const defaultVersion = "1";
+              localStorage.setItem('admin_session_version', defaultVersion);
+              sessionStorage.setItem('admin_session_version', defaultVersion);
+              
+              // Giriş zamanını kaydet
+              const loginTime = Date.now().toString();
+              localStorage.setItem('admin_last_login', loginTime);
+              sessionStorage.setItem('admin_last_login', loginTime);
+            } catch (storageError) {
+              console.warn("Storage erişim hatası:", storageError);
+              // Hata olursa alternatif bir yol dene
+            }
+            
+            // Sayfayı dashboard'a yönlendir
+            window.location.href = '/admin/dashboard';
+          } else {
+            // Giriş başarısız
+            setError('Kullanıcı adı veya şifre hatalı!');
+            setIsLoading(false);
+          }
+        } catch (dbError) {
+          console.error("Firebase'den admin bilgileri alma hatası:", dbError);
+          setError('Veritabanı bağlantı hatası. Lütfen tekrar deneyin.');
+          setIsLoading(false);
+        }
       }
     } catch (err) {
-      console.error('Login error:', err);
+      console.error("Giriş işlemi sırasında hata:", err);
       setError('Bir hata oluştu. Lütfen tekrar deneyin.');
       setIsLoading(false);
     }
@@ -106,7 +315,7 @@ export default function AdminLogin() {
   const handleResetPassword = () => {
     setIsResetting(true);
     setResetStep('security-question');
-    setSecurityQuestion(SECURITY_QUESTION);
+    setSecurityQuestion('');
     setError('');
     setSuccessMessage('');
   };
@@ -130,7 +339,7 @@ export default function AdminLogin() {
     setError('');
     
     // Güvenlik sorusu kontrolü
-    if (securityAnswer.toLowerCase() === SECURITY_ANSWER.toLowerCase()) {
+    if (securityAnswer.toLowerCase() === '') {
       // Güvenlik sorusu doğru ise, şifre sıfırlama adımına geç
       setResetStep('set-password');
     } else {
@@ -149,7 +358,7 @@ export default function AdminLogin() {
     setIsLoading(true);
     
     // E-posta kontrolü
-    if (email.toLowerCase() === ADMIN_EMAIL.toLowerCase()) {
+    if (email.toLowerCase() === '') {
       try {
         // Doğrulama kodu oluştur
         const code = generateVerificationCode();
@@ -205,42 +414,258 @@ export default function AdminLogin() {
     }
   };
 
-  const handlePasswordReset = (e: React.FormEvent) => {
+  const handlePasswordReset = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    
-    // Yeni şifre kontrolü
     if (newPassword.length < 6) {
       setError('Yeni şifre en az 6 karakter olmalıdır.');
       return;
     }
-    
-    // Şifre eşleşme kontrolü
     if (newPassword !== confirmPassword) {
       setError('Yeni şifreler eşleşmiyor.');
       return;
     }
-    
-    // Şifre sıfırlama işlemi
     try {
-      // Şifre değişikliğini localStorage'a kaydet
-      localStorage.setItem('adminPassword', newPassword);
-      setSuccessMessage('Şifre başarıyla sıfırlandı! Yeni şifrenizle giriş yapabilirsiniz.');
-      
-      // Form alanlarını temizle
-      setResetCode('');
-      setNewPassword('');
-      setConfirmPassword('');
-      
-      // 3 saniye sonra login ekranına dön
-      setTimeout(() => {
-        setIsResetting(false);
-        setSuccessMessage('');
-      }, 3000);
+      // Şifre sıfırlama API'sine gönder
+      const response = await fetch('/api/set-admin-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ newPassword, email })
+      });
+      const result = await response.json();
+      if (response.ok && result.success) {
+        setSuccessMessage('Şifre başarıyla sıfırlandı! Yeni şifrenizle giriş yapabilirsiniz.');
+        setResetCode('');
+        setNewPassword('');
+        setConfirmPassword('');
+        setTimeout(() => {
+          setIsResetting(false);
+          setSuccessMessage('');
+        }, 3000);
+      } else {
+        setError(result.error || 'Şifre sıfırlama işlemi başarısız oldu.');
+      }
     } catch (error) {
       setError('Şifre sıfırlama işlemi başarısız oldu.');
     }
   };
+
+  const handleUsernameReset = () => {
+    setIsUsernameResetting(true);
+    setUsernameResetStep('email-verification');
+    setUsernameEmail('');
+    setUsernameEmailSent(false);
+    setUsernameVerificationCode('');
+    setUsernameShowEmailCode(false);
+    setUsernameSuccessMessage('');
+    setNewUsernameForReset('');
+    setError('');
+  };
+
+  const handleSendUsernameEmailVerification = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setIsLoading(true);
+    const { username, password } = await getAdminCredentials();
+    const adminEmail = 'passionistravell@gmail.com'; // Gerekirse Firestore'dan alın
+    if (usernameEmail.toLowerCase() === adminEmail.toLowerCase()) {
+      try {
+        const code = generateVerificationCode();
+        const response = await fetch('/api/send-verification-email', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: usernameEmail, code })
+        });
+        const result = await response.json();
+        if (response.ok) {
+          setUsernameEmailSent(true);
+          setIsLoading(false);
+          setUsernameSuccessMessage(`Doğrulama kodu ${usernameEmail} adresine gönderildi. Gelen kutunuzu ve spam klasörünü kontrol edin.`);
+        } else {
+          setError(`E-posta gönderilirken bir hata oluştu: ${result.error || 'Bilinmeyen hata'}`);
+          setIsLoading(false);
+        }
+      } catch (error) {
+        setError('E-posta gönderilirken bir hata oluştu.');
+        setIsLoading(false);
+      }
+    } else {
+      setError('Girilen e-posta adresi kayıtlı değil.');
+      setIsLoading(false);
+    }
+  };
+
+  const handleVerifyUsernameEmail = (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    if (usernameVerificationCode === verificationCode) {
+      setUsernameResetStep('set-username');
+      setUsernameSuccessMessage('');
+    } else {
+      setError('Doğrulama kodu hatalı.');
+    }
+  };
+
+  const handleUsernameResetSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    if (newUsernameForReset.trim().length < 3) {
+      setError('Kullanıcı adı en az 3 karakter olmalı.');
+      return;
+    }
+    try {
+      // Kullanıcı adı sıfırlama API'sine gönder
+      const response = await fetch('/api/set-admin-username', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ newUsername: newUsernameForReset, verificationCode: usernameVerificationCode, email: usernameEmail })
+      });
+      const result = await response.json();
+      if (response.ok && result.success) {
+        setUsernameSuccessMessage('Kullanıcı adı başarıyla güncellendi!');
+        setTimeout(() => {
+          setIsUsernameResetting(false);
+          setUsernameSuccessMessage('');
+        }, 3000);
+      } else {
+        setError(result.error || 'Kullanıcı adı güncellenemedi.');
+      }
+    } catch (error) {
+      setError('Kullanıcı adı güncellenemedi.');
+    }
+  };
+
+  if (isUsernameResetting) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-100">
+        <Card className="w-[450px]">
+          <CardHeader>
+            <CardTitle>Kullanıcı Adı Sıfırlama</CardTitle>
+            <CardDescription>Kullanıcı adınızı yenilemek için aşağıdaki adımları izleyin</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {usernameResetStep === 'email-verification' && (
+              <>
+                {!usernameEmailSent ? (
+                  <form onSubmit={handleSendUsernameEmailVerification} className="space-y-4">
+                    <div className="space-y-2">
+                      <label htmlFor="usernameEmail" className="text-sm font-medium">
+                        E-posta Adresi
+                      </label>
+                      <Input
+                        id="usernameEmail"
+                        type="email"
+                        value={usernameEmail}
+                        onChange={(e) => setUsernameEmail(e.target.value)}
+                        required
+                        placeholder="Kayıtlı e-posta adresinizi girin"
+                      />
+                    </div>
+                    {error && (
+                      <Alert variant="destructive">
+                        <AlertDescription>{error}</AlertDescription>
+                      </Alert>
+                    )}
+                    {usernameSuccessMessage && (
+                      <Alert className="bg-green-50 text-green-800 border-green-200">
+                        <AlertDescription>{usernameSuccessMessage}</AlertDescription>
+                      </Alert>
+                    )}
+                    <div className="flex space-x-2 pt-4">
+                      <Button variant="outline" onClick={() => setIsUsernameResetting(false)} type="button">
+                        İptal
+                      </Button>
+                      <Button type="submit" disabled={isLoading}>
+                        {isLoading ? 'Gönderiliyor...' : 'Doğrulama Kodu Gönder'}
+                      </Button>
+                    </div>
+                  </form>
+                ) : (
+                  <form onSubmit={handleVerifyUsernameEmail} className="space-y-4">
+                    <div className="space-y-2">
+                      <label htmlFor="usernameEmailCode" className="text-sm font-medium">
+                        E-posta Doğrulama Kodu
+                      </label>
+                      <div className="relative">
+                        <Input
+                          id="usernameEmailCode"
+                          type={usernameShowEmailCode ? "text" : "password"}
+                          value={usernameVerificationCode}
+                          onChange={(e) => setUsernameVerificationCode(e.target.value)}
+                          required
+                          placeholder="Doğrulama kodunu girin"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setUsernameShowEmailCode(!usernameShowEmailCode)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                        >
+                          {usernameShowEmailCode ? <EyeOff size={20} /> : <Eye size={20} />}
+                        </button>
+                      </div>
+                    </div>
+                    {error && (
+                      <Alert variant="destructive">
+                        <AlertDescription>{error}</AlertDescription>
+                      </Alert>
+                    )}
+                    {usernameSuccessMessage && (
+                      <Alert className="bg-green-50 text-green-800 border-green-200">
+                        <AlertDescription>{usernameSuccessMessage}</AlertDescription>
+                      </Alert>
+                    )}
+                    <div className="flex space-x-2 pt-4">
+                      <Button variant="outline" onClick={() => setIsUsernameResetting(false)} type="button">
+                        İptal
+                      </Button>
+                      <Button type="submit">
+                        Doğrula ve Devam Et
+                      </Button>
+                    </div>
+                  </form>
+                )}
+              </>
+            )}
+            {usernameResetStep === 'set-username' && (
+              <form onSubmit={handleUsernameResetSubmit} className="space-y-4">
+                <div className="space-y-2">
+                  <label htmlFor="newUsernameForReset" className="text-sm font-medium">
+                    Yeni Kullanıcı Adı
+                  </label>
+                  <Input
+                    id="newUsernameForReset"
+                    type="text"
+                    value={newUsernameForReset}
+                    onChange={(e) => setNewUsernameForReset(e.target.value)}
+                    required
+                    placeholder="Yeni kullanıcı adınızı girin"
+                  />
+                </div>
+                {error && (
+                  <Alert variant="destructive">
+                    <AlertDescription>{error}</AlertDescription>
+                  </Alert>
+                )}
+                {usernameSuccessMessage && (
+                  <Alert className="bg-green-50 text-green-800 border-green-200">
+                    <AlertDescription>{usernameSuccessMessage}</AlertDescription>
+                  </Alert>
+                )}
+                <div className="flex space-x-2 pt-4">
+                  <Button variant="outline" onClick={() => setIsUsernameResetting(false)} type="button">
+                    İptal
+                  </Button>
+                  <Button type="submit">
+                    Kullanıcı Adını Güncelle
+                  </Button>
+                </div>
+              </form>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   if (isResetting) {
     return (
@@ -358,7 +783,7 @@ export default function AdminLogin() {
                           value={emailVerificationCode}
                           onChange={(e) => setEmailVerificationCode(e.target.value)}
                           required
-                          placeholder="E-postanıza gönderilen kodu girin"
+                          placeholder="Doğrulama kodunu girin"
                         />
                         <button
                           type="button"
@@ -529,10 +954,12 @@ export default function AdminLogin() {
               <Button variant="link" onClick={handleResetPassword} type="button">
                 Şifremi Sıfırla
               </Button>
-            </div>
-          </form>
+              <span className="mx-2">|</span>
+              <Button variant="link" onClick={handleUsernameReset} type="button">
+                Kullanıcı Adını Unuttum
+              </Button>
+            </div>          </form>
         </CardContent>
-      </Card>
-    </div>
+      </Card>    </div>
   );
 }

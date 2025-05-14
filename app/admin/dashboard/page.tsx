@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Eye, EyeOff } from 'lucide-react';
+import { isFirebaseInitialized } from '@/lib/firebase-client-module';
 
 export default function AdminDashboard() {
   const router = useRouter();
@@ -29,24 +30,44 @@ export default function AdminDashboard() {
   const [showNewPassword, setShowNewPassword] = useState(false);
 
   // Sabit şifre sıfırlama kodu: 123456
-  const RESET_CODE = '123456';
-
-  useEffect(() => {
-    try {
-      // Giriş kontrolü
-      const isLoggedIn = localStorage.getItem('adminLoggedIn');
-      if (!isLoggedIn) {
-        window.location.href = '/admin/login';
-      } else {
-        setIsLoading(false);
-        // Mevcut kullanıcı adını yükle
-        const savedUsername = localStorage.getItem('adminUsername') || 'arzum';
-        setCurrentUsername(savedUsername);
+  const RESET_CODE = '123456';  useEffect(() => {
+    const initApp = async () => {
+      try {
+        // Firebase'i başlat - yeni güvenli başlatıcı ile
+        console.log("Dashboard'da Firebase başlatılıyor...");
+        if (typeof window !== 'undefined') {
+          const success = isFirebaseInitialized();
+          console.log("Firebase başlatma sonucu:", success ? "Başarılı" : "Başarısız");
+          
+          // Giriş kontrolü - localStorage ve sessionStorage ikisini birden kontrol et
+          const isLoggedInLocal = localStorage.getItem('adminLoggedIn') === 'true';
+          const isLoggedInSession = sessionStorage.getItem('adminLoggedIn') === 'true';
+          
+          if (!isLoggedInLocal || !isLoggedInSession) {
+            console.log('Oturum bilgisi bulunamadı, login sayfasına yönlendiriliyor');
+            window.location.href = '/admin/login';
+            return;
+          } else {
+            setIsLoading(false);
+            // Mevcut kullanıcı adını yükle
+            const savedUsername = localStorage.getItem('adminUsername') || 'arzum';
+            setCurrentUsername(savedUsername);
+          }
+        } else {
+          console.error('Tarayıcı ortamında değiliz, sayfa yüklenemez');
+        }
+      } catch (err) {
+        console.error('Dashboard access error:', err);
+        if (typeof window !== 'undefined') {
+          // Hata durumunda oturum bilgisini temizle ve login sayfasına yönlendir
+          localStorage.removeItem('adminLoggedIn');
+          sessionStorage.removeItem('adminLoggedIn');
+          window.location.href = '/admin/login?error=dashboard_error';
+        }
       }
-    } catch (err) {
-      console.error('Dashboard access error:', err);
-      window.location.href = '/admin/login';
-    }
+    };
+    
+    initApp();
   }, []);
 
   const handleLogout = () => {

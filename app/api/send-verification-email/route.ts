@@ -6,9 +6,13 @@ export async function POST(request: Request) {
   try {
     const { email, code } = await request.json();
     
-    // E-postanın gerçekten passionistravell@gmail.com adresine gönderildiğinden emin oluyoruz
+    // Admin e-posta adresini al ve karşılaştır
+    // Firestore'dan kontrolü varsayılan olarak kaldırıyoruz çünkü
+    // şu an için sabit e-posta adresini kullanıyoruz
+    // İlerisi için: getAdminCredentials() fonksiyonunu kullanarak
+    // Firestore'dan e-posta adresini alabilirsiniz
     if (email !== 'passionistravell@gmail.com') {
-      return NextResponse.json({ error: 'Unauthorized email' }, { status: 403 });
+      return NextResponse.json({ error: 'Unauthorized email', success: false }, { status: 403 });
     }
     
     // Gerçek SMTP bilgilerini .env.local dosyasından alıyoruz

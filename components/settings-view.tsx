@@ -134,11 +134,16 @@ type InputChangeEvent = React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement
 type FileChangeEvent = React.ChangeEvent<HTMLInputElement>;
 
 // Tur şablonlarını doğrudan Firebase Firestore'a kaydet
-const saveTourTemplatesDirectly = async (tours: Tour[]) => {
-  try {
+const saveTourTemplatesDirectly = async (tours: Tour[]) => {  try {
     // Firebase modüllerini doğrudan import et
     const { collection, doc, setDoc, writeBatch } = await import("firebase/firestore");
-    const { db } = await import("@/lib/firebase");
+    const { getDb } = await import("@/lib/firebase-direct");
+    
+    // Firestore instance'ını güvenli bir şekilde al
+    const db = getDb();
+    if (!db) {
+      throw new Error("Firestore instance'ına erişilemedi");
+    }
     
     // Önce local storage'a yedek olarak kaydet
     localStorage.setItem('tourTemplates', JSON.stringify(tours));
