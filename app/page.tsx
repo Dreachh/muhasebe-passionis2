@@ -24,6 +24,7 @@ import { Sidebar } from "../components/sidebar"
 import { useRouter } from 'next/navigation'
 import { generateUUID } from "../lib/utils";
 import loadInitialData from "../data/reload-data"
+import { setupAutoLogin } from "../lib/auto-login" // Otomatik giriş fonksiyonu eklendi
 
 // Uygulama verilerini tamamen sıfırlamak için fonksiyon
 const resetAllData = async () => {
@@ -177,14 +178,15 @@ export default function Home() {
   const [tempTourFormData, setTempTourFormData] = useState<any>(null)
   const [previousView, setPreviousView] = useState<string | null>(null)
 
+  // Otomatik admin girişi yapılacak şekilde değiştirildi
   useEffect(() => {
-    // Eğer admin paneline erişiliyorsa ve giriş yapılmamışsa, login ekranına yönlendir
     if (typeof window !== 'undefined') {
-      const isLoggedIn = localStorage.getItem('adminLoggedIn');
-      const isAdminPath = window.location.pathname.startsWith('/admin');
-      if (isAdminPath && !isLoggedIn) {
-        window.location.href = '/admin/login';
-      }
+      // Otomatik giriş fonksiyonu çağrılıyor
+      setupAutoLogin();
+      
+      // Admin girişi yapıldı olarak işaretleniyor
+      localStorage.setItem('adminLoggedIn', 'true');
+      console.log('Otomatik giriş yapıldı, admin oturumu kuruldu.');
     }
   }, []);
 

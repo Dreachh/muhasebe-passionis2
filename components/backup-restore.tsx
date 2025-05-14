@@ -161,19 +161,46 @@ export function BackupRestore({ onComplete }: BackupRestoreProps) {
 }
 
 // Ana sayfa için BackupRestoreView bileşeni
-export function BackupRestoreView({ handleExportData, handleImportData }: {
-  handleExportData: () => void;
-  handleImportData: () => void;
+export function BackupRestoreView({ 
+  onClose, 
+  onExport, 
+  onImport 
+}: {
+  onClose: () => void;
+  onExport: () => Promise<void>;
+  onImport: () => Promise<void>;
 }) {
   return (
     <div className="p-6 max-w-4xl mx-auto">
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-3xl font-bold">Veri Yedekleme ve Geri Yükleme</h2>
+        <Button variant="ghost" onClick={onClose}>Kapat</Button>
       </div>
       
-      <BackupRestore onComplete={() => {
-        // Yedekleme veya geri yükleme tamamlandığında yapılacak işlemler
-      }} />
+      <Card className="mb-8">
+        <CardHeader>
+          <CardTitle>Veri Yedekleme ve Geri Yükleme</CardTitle>
+          <CardDescription>Verilerinizi yedekleyebilir ve geri yükleyebilirsiniz.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex flex-col md:flex-row gap-4">
+            <Button 
+              className="flex-1" 
+              onClick={onExport} 
+              variant="outline"
+            >
+              <ArrowDownToLine className="mr-2 h-4 w-4" /> Verileri Dışa Aktar
+            </Button>
+            <Button 
+              className="flex-1" 
+              onClick={onImport}
+              variant="outline"
+            >
+              <ArrowUpFromLine className="mr-2 h-4 w-4" /> Verileri İçe Aktar
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }
