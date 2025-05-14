@@ -31,9 +31,6 @@ const nextConfig = {
         fs: false,
         net: false,
         tls: false,
-        crypto: require.resolve('crypto-browserify'),
-        stream: require.resolve('stream-browserify'),
-        buffer: require.resolve('buffer'),
       };
     }
     
@@ -49,15 +46,15 @@ const nextConfig = {
     
     return config;
   },
-  // Firebase ve diğer istemci taraflı modüllerin sunucu bileşenlerinde yüklenmeye çalışıldığında transpile edilmesini sağla
+  // Firebase ve diğer istemci taraflı modüllerin sadece alt modüllerini transpile et
+  // Ana firebase ve @firebase/app modüllerini çıkarıyoruz çünkü serverExternalPackages'ta belirtildi
   transpilePackages: [
-    'firebase', 
-    'firebase/app', 
+    // Ana Firebase paketlerini çıkardık (serverExternalPackages ile çakışıyordu)
     'firebase/firestore', 
     'firebase/auth', 
     'firebase/storage', 
     'firebase/database',
-    '@firebase/app',
+    // Firebase alt modüllerinden de ana modülü çıkardık
     '@firebase/app-compat',
     '@firebase/auth',
     '@firebase/auth-compat',
@@ -70,13 +67,14 @@ const nextConfig = {
     '@firebase/storage',
     '@firebase/storage-compat'
   ],
-  // Kritik hatanın ele alınması için eklenen ayarlar
+  // Next.js 15.2.4 için güncellenmiş deneysel özellikler
   experimental: {
     webpackBuildWorker: true,
     parallelServerBuildTraces: true,
     parallelServerCompiles: true,
-    serverComponentsExternalPackages: ['firebase', '@firebase/app']
   },
+  // Server tarafında harici tutulacak paketler (serverComponentsExternalPackages yerine)
+  serverExternalPackages: ['firebase', '@firebase/app'],
 }
 
 if (userConfig) {
