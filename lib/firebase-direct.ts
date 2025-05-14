@@ -94,5 +94,5 @@ export function ensureFirestore(): boolean {
   return success;
 }
 
-// Doğrudan Firestore bağlantısını al
-export { db };
+// Doğrudan Firestore bağlantısını al - bu sunucu tarafında hataya neden olabileceği için kaldırıldı
+// export { db };
