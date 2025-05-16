@@ -270,7 +270,6 @@ export function TourSummary({ formData, calculateTotalExpensesByCurrency }: Tour
                   <TableRow className="h-8">
                     <TableHead className="py-1 px-2">Gider Tipi</TableHead>
                     <TableHead className="py-1 px-2">Açıklama</TableHead>
-                    <TableHead className="py-1 px-2">Şirket</TableHead>
                     <TableHead className="py-1 px-2">Tutar</TableHead>
                     <TableHead className="py-1 px-2">Para Birimi</TableHead>
                   </TableRow>
@@ -280,7 +279,6 @@ export function TourSummary({ formData, calculateTotalExpensesByCurrency }: Tour
                     <TableRow key={idx} className="h-8">
                       <TableCell className="py-1 px-2">{expenseTypeMap[expense.type] || expense.type}</TableCell>
                       <TableCell className="py-1 px-2">{expense.name}</TableCell>
-                      <TableCell className="py-1 px-2">{expense.companyName || '-'}</TableCell>
                       <TableCell className="py-1 px-2">{expense.amount}</TableCell>
                       <TableCell className="py-1 px-2">{expense.currency}</TableCell>
                     </TableRow>

@@ -11,7 +11,113 @@ import { DateRange } from "react-day-picker"
 import { format } from "date-fns"
 import { tr } from "date-fns/locale"
 
-import type { FinancialData, CustomerData, TourData } from "../app/page"; // Doğru tip importu
+// --- Tipler (app/page.tsx'den kopyalandı) ---
+interface TourActivity {
+  id: string;
+  activityId: string;
+  name: string;
+  date: string;
+  duration?: string;
+  price: number | string;
+  currency: string;
+  participants: string | number;
+  participantsType: string;
+  companyId: string;
+  details?: string;
+  partialPaymentAmount?: string | number;
+  partialPaymentCurrency?: string;
+}
+
+interface TourAdditionalCustomer {
+  id: string;
+  name?: string;
+  phone?: string;
+  email?: string;
+  idNumber?: string;
+  address?: string;
+}
+
+interface TourExpense {
+  id: string;
+  type: string;
+  name: string;
+  amount: string | number;
+  currency: string;
+  details?: string;
+  isIncludedInPrice: boolean;
+  rehberInfo?: string;
+  transferType?: string;
+  transferPerson?: string;
+  acentaName?: string;
+  provider?: string;
+  description?: string;
+  date?: string | Date;
+  category?: string;
+  companyId?: string;
+  companyName?: string;
+}
+
+interface TourData {
+  id: string;
+  serialNumber?: string;
+  tourName?: string;
+  tourDate: string | Date;
+  tourEndDate?: string | Date;
+  numberOfPeople: number;
+  numberOfChildren: number;
+  customerName?: string;
+  customerPhone?: string;
+  customerEmail?: string;
+  customerIdNumber?: string;
+  customerTC?: string;
+  customerPassport?: string;
+  customerDrivingLicense?: string;
+  customerAddress?: string;
+  pricePerPerson: string | number;
+  totalPrice: string | number;
+  currency?: string;
+  paymentStatus?: string;
+  paymentMethod?: string;
+  partialPaymentAmount?: string | number;
+  partialPaymentCurrency?: string;
+  notes?: string;
+  activities?: TourActivity[];
+  companyName?: string;
+  additionalCustomers?: TourAdditionalCustomer[];
+  expenses?: TourExpense[];
+  nationality?: string;
+  destination?: string;
+  destinationId?: string;
+  destinationName?: string;
+  referralSource?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  selectedTourName?: string; // Seçilen tur şablonunun adını kaydetmek için
+}
+
+interface FinancialData {
+  id: string;
+  date: string | Date;
+  type: string;
+  category?: string;
+  description?: string;
+  amount?: number;
+  currency?: string;
+  paymentMethod?: string;
+  relatedTourId?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+interface CustomerData {
+  id: string;
+  name?: string;
+  phone?: string;
+  email?: string;
+  idNumber?: string;
+  citizenship?: string;
+  address?: string;
+}
 
 interface MainDashboardProps {
   onNavigate: (view: string) => void;
@@ -20,13 +126,23 @@ interface MainDashboardProps {
   customersData?: CustomerData[];
 }
 
+// finance.amount'ın string olup olmadığını kontrol et, değilse 0 döndür
+const getFinanceAmount = (amount: unknown): number => {
+  if (typeof amount === "string") {
+    return parseFloat(amount.replace(/[^\d.-]/g, ""));
+  } else if (typeof amount === "number") {
+    return amount;
+  }
+  return 0;
+};
+
 export function MainDashboard({ onNavigate, financialData = [], toursData = [], customersData = [] }: MainDashboardProps) {
   // Tüm tur satışlarını dahil et (tarih filtresi yok)
 
   // Finansal Gelir (sadece finansal kayıtlar)
   const incomeByCurrency = financialData
-    .filter((item) => item.type === "income")
-    .reduce<Record<string, number>>((acc, item) => {
+    .filter((item: FinancialData) => item.type === "income")
+    .reduce<Record<string, number>>((acc, item: FinancialData) => {
       const currency = item.currency || "TRY";
       const amount = Number.parseFloat(item.amount?.toString() || "0") || 0;
       acc[currency] = (acc[currency] || 0) + amount;
@@ -35,8 +151,8 @@ export function MainDashboard({ onNavigate, financialData = [], toursData = [], 
 
   // Finansal Gider (sadece finansal kayıtlar, Tur Gideri hariç)
   const expenseByCurrency = financialData
-    .filter((item) => item.type === "expense" && item.category !== "Tur Gideri")
-    .reduce<Record<string, number>>((acc, item) => {
+    .filter((item: FinancialData) => item.type === "expense" && item.category !== "Tur Gideri")
+    .reduce<Record<string, number>>((acc, item: FinancialData) => {
       const currency = item.currency || "TRY";
       const amount = Number.parseFloat(item.amount?.toString() || "0") || 0;
       acc[currency] = (acc[currency] || 0) + amount;
@@ -44,14 +160,14 @@ export function MainDashboard({ onNavigate, financialData = [], toursData = [], 
     }, {});
 
   // Tur Geliri: Sadece totalPrice veya ödenen kısım, completed ise aktiviteler ayrıca eklenmez!
-  const tourIncomeByCurrency = toursData.reduce((acc, tour) => {
+  const tourIncomeByCurrency = toursData.reduce<Record<string, number>>((acc, tour: TourData) => {
     if (tour.paymentStatus === 'partial') {
       const paidCur = tour.partialPaymentCurrency || tour.currency || 'TRY';
       const paidAmount = Number(tour.partialPaymentAmount) || 0;
       acc[paidCur] = (acc[paidCur] || 0) + paidAmount;
       // Sadece kısmi ödenen aktiviteler eklenir
       if (Array.isArray(tour.activities)) {
-        tour.activities.forEach(act => {
+        tour.activities.forEach((act: TourActivity) => {
           if (act.partialPaymentAmount) {
             const cur = act.partialPaymentCurrency || act.currency || tour.currency || 'TRY';
             acc[cur] = (acc[cur] || 0) + Number(act.partialPaymentAmount);
@@ -65,13 +181,13 @@ export function MainDashboard({ onNavigate, financialData = [], toursData = [], 
     }
     // Diğer durumlarda gelir eklenmez
     return acc;
-  }, {} as Record<string, number>);
+  }, {});
 
   // Tur Gideri: Her döviz için ayrı ayrı topla - tamamen yeniden yazıldı
-  const tourExpenseByCurrency = toursData.reduce((acc, tour) => {
+  const tourExpenseByCurrency = toursData.reduce<Record<string, number>>((acc, tour: TourData) => {
     // Her turun giderleri üzerinde döngü kur
     if (Array.isArray(tour.expenses)) {
-      tour.expenses.forEach((expense) => {
+      tour.expenses.forEach((expense: TourExpense) => {
         if (!expense) return; // Geçersiz giderler için atla
         
         // Giderin para birimini belirle
@@ -94,14 +210,14 @@ export function MainDashboard({ onNavigate, financialData = [], toursData = [], 
       });
     }
     return acc;
-  }, {} as Record<string, number>);
+  }, {});
 
   // Toplam müşteri sayısı
   const totalCustomers = customersData.length
 
   // Yaklaşan turlar (bugünden sonraki turlar, eksik veri varsa fallback)
   const today = new Date();
-  const upcomingTours = toursData.filter((item) => {
+  const upcomingTours = toursData.filter((item: TourData) => {
     if (!item || !item.tourDate) return false;
     const tourDate = new Date(item.tourDate);
     return tourDate > today;
@@ -123,7 +239,7 @@ export function MainDashboard({ onNavigate, financialData = [], toursData = [], 
   // Tur ve finans verilerini birleştir ve tarihe göre sırala
   const combinedTransactions = (() => {
     // Tur satışları
-    const tourTransactions = toursData.map(tour => ({
+    const tourTransactions = toursData.map((tour: TourData) => ({
       id: tour.id,
       type: 'tour',
       date: tour.tourDate,
@@ -139,15 +255,15 @@ export function MainDashboard({ onNavigate, financialData = [], toursData = [], 
     }));
     
     // Tur giderlerini tur bazında grupla
-    const tourExpenseGroups = {};
-    const regularFinancialTransactions = [];
+    const tourExpenseGroups: Record<string, any> = {};
+    const regularFinancialTransactions: any[] = [];
     
     // Gelir ve giderler için ayrı sayaçlar oluştur ve 1'den başlat
     let incomeCounter = 1;
     let expenseCounter = 1;
     
     // Tüm tur satışları için boş gruplar oluştur (hiç gideri olmayanları bile göstermek için)
-    toursData.forEach(tour => {
+    toursData.forEach((tour: TourData) => {
       const tourId = tour.id;
       const tourSerialNumber = tour.serialNumber || "";
       
@@ -157,7 +273,7 @@ export function MainDashboard({ onNavigate, financialData = [], toursData = [], 
           id: `tourexp-${tourId}`,
           type: 'finance',
           date: tour.tourDate, // Tur başlangıç tarihini kullan
-          serialNumber: `${tourSerialNumber}TF`, // 1501TF gibi bir format (önce numara, sonra TF)
+          serialNumber: `${tourSerialNumber}TF`, // 1501TF gibi bir format
           name: 'Tur Gider Toplamı',
           customerName: `${tour.customerName || "Müşteri"} - Tur Satışı Toplam Gideri`,
           amount: 0,
@@ -177,17 +293,17 @@ export function MainDashboard({ onNavigate, financialData = [], toursData = [], 
     });
     
     // Önce tur içindeki giderleri ekleyelim (tour.expenses)
-    toursData.forEach(tour => {
+    toursData.forEach((tour: TourData) => {
       if (tour && tour.expenses && Array.isArray(tour.expenses) && tour.expenses.length > 0) {
         const tourId = tour.id;
         
         // Eğer bu tur için bir gider grubu varsa
         if (tourExpenseGroups[tourId]) {
           // Giderleri para birimlerine göre topla
-          const expensesByCurrency = {};
+          const expensesByCurrency: Record<string, number> = {};
           
           // Tüm giderleri topla
-          tour.expenses.forEach(expense => {
+          tour.expenses.forEach((expense: TourExpense) => {
             if (expense) {
               // Para birimi belirleme
               const currency = expense.currency || tour.currency || "TRY";
@@ -227,14 +343,14 @@ export function MainDashboard({ onNavigate, financialData = [], toursData = [], 
     });
     
     // Finansal işlemleri grupla
-    financialData.forEach((finance) => {
+    financialData.forEach((finance: FinancialData) => {
       // Tur giderleri için ilgili turun seri numarasını kullan
       let serialNumber;
       let displayDate = finance.date; // Varsayılan olarak işlem tarihi
       
       // Eğer tur ile ilişkili bir gider ise grupla
       if (finance.relatedTourId && finance.type === "expense") {
-        const relatedTour = toursData.find(t => t.id === finance.relatedTourId);
+        const relatedTour = toursData.find((t: TourData) => t.id === finance.relatedTourId);
         
         if (relatedTour) {
           const tourId = relatedTour.id;
@@ -242,9 +358,7 @@ export function MainDashboard({ onNavigate, financialData = [], toursData = [], 
           // İlgili tura ait gider grubunu güncelle
           if (tourExpenseGroups[tourId]) {
             // Tutarı doğru şekilde al - düzeltildi
-            const amount = typeof finance.amount === "string" ? 
-              parseFloat(finance.amount.replace(/[^\d.-]/g, '')) : 
-              (typeof finance.amount === "number" ? finance.amount : 0);
+            const amount = getFinanceAmount(finance.amount);
             
             if (!isNaN(amount) && amount > 0) {
               tourExpenseGroups[tourId].amount += amount;
@@ -253,19 +367,17 @@ export function MainDashboard({ onNavigate, financialData = [], toursData = [], 
           }
         } else {
           // Eğer tur bulunamadıysa normal gider olarak ekle
-          serialNumber = `${expenseCounter++}TF`;
+          serialNumber = `${expenseCounter++}F`;
           
           // Tutarı doğru şekilde al
-          const amount = typeof finance.amount === "string" ? 
-            parseFloat(finance.amount.replace(/[^\d.-]/g, '')) : 
-            (typeof finance.amount === "number" ? finance.amount : 0);
+          const amount = getFinanceAmount(finance.amount);
           
           regularFinancialTransactions.push({
             id: finance.id,
             type: 'finance',
             date: displayDate,
             serialNumber: serialNumber,
-            name: finance.type === 'income' ? 'Gelir Kaydı' : 'Gider Kaydı',
+            name: (finance.type as string) === "income" ? "Gelir Kaydı" : "Gider Kaydı",
             customerName: finance.description || '-',
             amount: amount,
             currency: finance.currency,
@@ -276,23 +388,21 @@ export function MainDashboard({ onNavigate, financialData = [], toursData = [], 
         }
       } else {
         // Normal finans kaydı için gelir veya gidere göre sıralı numara ata
-        if (finance.type === 'income') {
+        if (finance.type === "income") {
           serialNumber = `${incomeCounter++}F`;
         } else {
-          serialNumber = `${expenseCounter++}F`;
+          serialNumber = `F${expenseCounter++}`;
         }
         
         // Tutarı doğru şekilde al
-        const amount = typeof finance.amount === "string" ? 
-          parseFloat(finance.amount.replace(/[^\d.-]/g, '')) : 
-          (typeof finance.amount === "number" ? finance.amount : 0);
+        const amount = getFinanceAmount(finance.amount);
         
         regularFinancialTransactions.push({
           id: finance.id,
           type: 'finance',
           date: displayDate,
           serialNumber: serialNumber,
-          name: finance.type === 'income' ? 'Gelir Kaydı' : 'Gider Kaydı',
+          name: (finance.type as string) === "income" ? "Gelir Kaydı" : "Gider Kaydı",
           customerName: finance.description || '-',
           amount: amount,
           currency: finance.currency,
@@ -311,13 +421,17 @@ export function MainDashboard({ onNavigate, financialData = [], toursData = [], 
     // Tüm işlemleri birleştir - tarih filtresi yok
     return [...tourTransactions, ...tourExpenseTransactions, ...regularFinancialTransactions];
   })()
-  .sort((a, b) => new Date(b.date) - new Date(a.date));
+  .sort((a: { date: string | Date }, b: { date: string | Date }) => {
+    const dateA = new Date(a.date).getTime();
+    const dateB = new Date(b.date).getTime();
+    return dateB - dateA;
+  });
   
   const totalPages = Math.ceil(combinedTransactions.length / PAGE_SIZE);
 
   // Her para birimi için toplamı göster, completed'da sadece totalPrice, partial'da ödenen kısımlar ve ödenen aktiviteler
-  const getTourTotalString = (tour) => {
-    const totals = {};
+  const getTourTotalString = (tour: TourData) => {
+    const totals: Record<string, number> = {};
     
     // Tur ödeme durumuna göre toplamları hesapla
     if (tour.paymentStatus === 'completed') {
@@ -340,7 +454,7 @@ export function MainDashboard({ onNavigate, financialData = [], toursData = [], 
       
       // Varsa aktivitelerden ödenen kısımları da ekle
       if (Array.isArray(tour.activities)) {
-        tour.activities.forEach(act => {
+        tour.activities.forEach((act: TourActivity) => {
           if (act.partialPaymentAmount) {
             const cur = act.partialPaymentCurrency || act.currency || tour.currency || 'TRY';
             const amount = Number(act.partialPaymentAmount) || 0;
@@ -484,7 +598,7 @@ export function MainDashboard({ onNavigate, financialData = [], toursData = [], 
                 <Checkbox
                   id="date-filter-tours"
                   checked={isTourDateFilterActive}
-                  onCheckedChange={(checked) => setIsTourDateFilterActive(checked)}
+                  onCheckedChange={(checked) => setIsTourDateFilterActive(checked === true)}
                 />
                 <label htmlFor="date-filter-tours" className="text-sm font-medium text-muted-foreground">
                   Tarih filtresini etkinleştir
@@ -516,90 +630,41 @@ export function MainDashboard({ onNavigate, financialData = [], toursData = [], 
               </thead>
               <tbody>
                 {(() => {
-                  // Sadece tur kayıtları ve tur giderleri - tur bazında organize et
-                  let tourTransactionMap = {};
-                  
-                  // Önce tüm turları ekle
-                  combinedTransactions
-                    .filter(transaction => transaction.type === 'tour')
-                    .forEach(tour => {
-                      tourTransactionMap[tour.id] = { 
-                        tour,
-                        expenses: []
-                      };
-                    });
-                  
-                  // Sonra ilgili giderleri bu turların altına ekle
-                  combinedTransactions
+                  // Sadece tur kayıtları ve tur giderleri
+                  const combinedTourTransactions = combinedTransactions
                     .filter(transaction => 
-                      transaction.type === 'finance' && 
-                      transaction.originalData.relatedTourId
+                      transaction.type === 'tour' || // Tur satışları
+                      (transaction.type === 'finance' && transaction.originalData.relatedTourId) // Tur giderleri
                     )
-                    .forEach(expense => {
-                      const relatedTourId = expense.originalData.relatedTourId;
-                      if (tourTransactionMap[relatedTourId]) {
-                        tourTransactionMap[relatedTourId].expenses.push(expense);
+                    // Tur tarihi filtreleme
+                    .filter(transaction => {
+                      if (!isTourDateFilterActive || !tourDateRange || !tourDateRange.from) return true;
+                      const transactionDate = new Date(transaction.date);
+                      // Bitiş tarihi undefined ise sadece başlangıç tarihiyle kontrol et
+                      if (!tourDateRange.to) {
+                        return transactionDate >= tourDateRange.from;
                       }
+                      // Her ikisi de tanımlı ise aralığı kontrol et
+                      return transactionDate >= tourDateRange.from && transactionDate <= tourDateRange.to;
+                    })
+                    .sort((a, b) => {
+                      // Önce tarih sıralaması
+                      const dateCompare = new Date(b.date).getTime() - new Date(a.date).getTime();
+                      if (dateCompare !== 0) return dateCompare;
+                      
+                      // Aynı tarihli olanları satış numarası ve ilgili giderleri birlikte göstermek için sırala
+                      if (a.type === 'tour' && b.type === 'finance' && 
+                          b.originalData.relatedTourId === a.id) {
+                        return -1; // Tur satışı önce, gideri sonra
+                      }
+                      if (b.type === 'tour' && a.type === 'finance' && 
+                          a.originalData.relatedTourId === b.id) {
+                        return 1; // Tur satışı önce, gideri sonra
+                      }
+                      
+                      // Diğer durumlarda varsayılan sıralama
+                      return 0;
                     });
-                  
-                  // Tarih filtresini uygula
-                  Object.keys(tourTransactionMap).forEach(tourId => {
-                    if (isTourDateFilterActive && tourDateRange && tourDateRange.from) {
-                      const transactionDate = new Date(tourTransactionMap[tourId].tour.date);
-                      if (tourDateRange.to) {
-                        if (!(transactionDate >= tourDateRange.from && transactionDate <= tourDateRange.to)) {
-                          delete tourTransactionMap[tourId];
-                        }
-                      } else {
-                        if (!(transactionDate >= tourDateRange.from)) {
-                          delete tourTransactionMap[tourId];
-                        }
-                      }
-                    }
-                  });
-                  
-                  // Düzgün sıralanmış şekilde yeni transaction listesi oluştur
-                  const combinedTourTransactions = [];
-                  Object.values(tourTransactionMap).forEach((item: any) => {
-                    // Önce tur satışını ekle
-                    combinedTourTransactions.push(item.tour);
-                    
-                    // Sonra bu turun giderlerini ekle (eğer varsa)
-                    if (item.expenses.length > 0) {
-                      // Giderleri gruplayarak sadece bir gider satırı ekle
-                      combinedTourTransactions.push(item.expenses[0]);
-                    }
-                  });
-                  
-                  // Yeni gelişmiş sıralama algoritması
-                  combinedTourTransactions.sort((a, b) => {
-                    // Önce tarihe göre sırala
-                    const dateDiff = new Date(b.date) - new Date(a.date);
-                    if (dateDiff !== 0) return dateDiff;
-                    
-                    // Aynı tarihli kayıtlar için - tur satışları önce, giderleri sonra
-                    if (a.type === 'tour' && b.type === 'finance') return -1;
-                    if (a.type === 'finance' && b.type === 'tour') return 1;
-                    
-                    // Aynı türdeki işlemler için sayısal sıralama yap
-                    if (a.type === b.type) {
-                      // Sayısal kısmı çıkar
-                      const aNum = parseInt(a.serialNumber.replace(/[^\d]/g, '') || '0');
-                      const bNum = parseInt(b.serialNumber.replace(/[^\d]/g, '') || '0');
-                      
-                      if (aNum !== bNum) {
-                        return aNum - bNum; // Küçük numara önce
-                      }
-                      
-                      // Eğer sayısal kısım aynı ise harf kısmına göre sırala
-                      const aLetter = a.serialNumber.replace(/[\d]/g, '');
-                      const bLetter = b.serialNumber.replace(/[\d]/g, '');
-                      return aLetter.localeCompare(bLetter);
-                    }
-                    
-                    // Son çare olarak tam seri numarası karşılaştırması
-                    return a.serialNumber.localeCompare(b.serialNumber);
-                  });
 
                   const totalTourPages = Math.ceil(combinedTourTransactions.length / PAGE_SIZE);
                   const startTourIndex = (currentPage - 1) * PAGE_SIZE;
@@ -654,7 +719,7 @@ export function MainDashboard({ onNavigate, financialData = [], toursData = [], 
                                 <span className="bg-white border border-gray-500 text-gray-700 px-3 py-1 rounded-full text-xs font-semibold">Bilinmiyor</span>
                               )}
                             </td>
-                            <td className="py-2 px-3">
+                            <td className="py-2 px-3 whitespace-nowrap">
                               <span dangerouslySetInnerHTML={{ __html: getTourTotalString(transaction.originalData) }}></span>
                             </td>
                             <td className="py-2 px-3">
@@ -673,7 +738,7 @@ export function MainDashboard({ onNavigate, financialData = [], toursData = [], 
                         );
                       } else {
                         // Tur ile ilişkili gider kaydı
-                        const relatedTour = toursData.find(t => t.id === transaction.originalData.relatedTourId);
+                        const relatedTour = toursData.find((t: TourData) => t.id === transaction.originalData.relatedTourId);
                         
                         // Her bir gider satırı için benzersiz key oluştur
                         const rowKey = `expense-${transaction.id}-${transaction.serialNumber}`;
@@ -701,7 +766,7 @@ export function MainDashboard({ onNavigate, financialData = [], toursData = [], 
                             <td className="py-2 px-3">
                               <span className="bg-white border border-indigo-500 text-indigo-700 px-3 py-1 rounded-full text-xs font-semibold">Tur Gideri</span>
                             </td>
-                            <td className="py-2 px-3">
+                            <td className="py-2 px-3 whitespace-nowrap">
                               <span dangerouslySetInnerHTML={{ __html: transaction.expensesByCurrency ? 
                                 formatCurrencyGroups(transaction.expensesByCurrency) : 
                                 formatCurrency(transaction.amount || 0, transaction.currency) }}></span>
@@ -804,7 +869,7 @@ export function MainDashboard({ onNavigate, financialData = [], toursData = [], 
                 <Checkbox
                   id="date-filter-financial"
                   checked={isFinancialDateFilterActive}
-                  onCheckedChange={(checked) => setIsFinancialDateFilterActive(checked)}
+                  onCheckedChange={(checked) => setIsFinancialDateFilterActive(checked === true)}
                 />
                 <label htmlFor="date-filter-financial" className="text-sm font-medium text-muted-foreground">
                   Tarih filtresini etkinleştir
@@ -852,7 +917,11 @@ export function MainDashboard({ onNavigate, financialData = [], toursData = [], 
                       // Her ikisi de tanımlı ise aralığı kontrol et
                       return transactionDate >= financialDateRange.from && transactionDate <= financialDateRange.to;
                     })
-                    .sort((a, b) => new Date(b.date) - new Date(a.date));
+                    .sort((a: { date: string | Date }, b: { date: string | Date }) => {
+                      const dateA = new Date(a.date).getTime();
+                      const dateB = new Date(b.date).getTime();
+                      return dateB - dateA;
+                    });
 
                   const totalFinancialPages = Math.ceil(financialOnlyTransactions.length / PAGE_SIZE);
                   const startFinancialIndex = (currentFinancialPage - 1) * PAGE_SIZE;

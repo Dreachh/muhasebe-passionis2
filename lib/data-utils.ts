@@ -93,11 +93,10 @@ export const formatCurrency = (amount, currency = "TRY") => {
     numAmount = parseFloat(amount.replace(/[^\d.,]/g, '').replace(',', '.')) || 0;
   }
 
-  // CSS sınıfını kullanan HTML kodu döndür - Para birimi sembolü ile sayı arasında daha iyi hizalama için
-  return `<span class="currency-amount"><span class="currency-symbol">${symbol}</span> ${numAmount.toLocaleString("tr-TR", {
+  return `${symbol} ${numAmount.toLocaleString("tr-TR", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
-  })}</span>`
+  })}`
 }
 
 // Para birimi gruplandırma ve formatlama

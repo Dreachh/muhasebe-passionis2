@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
+import CompanyManagement from "@/components/company-management"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -79,6 +80,7 @@ interface Provider {
   address: string;
   notes: string;
   category: string;
+  taxId?: string;
 }
 
 interface Activity {
@@ -207,23 +209,7 @@ export function SettingsView({
   const [expenseToDelete, setExpenseToDelete] = useState<ExpenseType | null>(null)
   const [customExpenseType, setCustomExpenseType] = useState("")
   const [showCustomTypeInput, setShowCustomTypeInput] = useState(false)
-
-  // Sağlayıcılar için state
-  const [providers, setProviders] = useState<Provider[]>([])
-  const [newProvider, setNewProvider] = useState<Provider>({
-    id: "",
-    name: "",
-    contactPerson: "",
-    phone: "",
-    email: "",
-    address: "",
-    notes: "",
-    category: "", // Sağlayıcı kategorisi ekledik (konaklama, ulaşım, rehber vb.)
-  })
-  const [isProviderDialogOpen, setIsProviderDialogOpen] = useState(false)
-  const [isEditingProvider, setIsEditingProvider] = useState(false)
-  const [isDeleteProviderDialogOpen, setIsDeleteProviderDialogOpen] = useState(false)
-  const [providerToDelete, setProviderToDelete] = useState<Provider | null>(null)
+  // Sağlayıcılar için state tanımlamaları kaldırıldı - Firmalar yönetimi artık CompanyManagement bileşeninde
 
   // Aktiviteler için state
   const [activities, setActivities] = useState<Activity[]>([])
@@ -864,102 +850,7 @@ export function SettingsView({
       })
     }
   }
-
-  // Sağlayıcı ekleme/düzenleme dialog'unu aç
-  const openProviderDialog = (provider: Provider | null = null) => {
-    if (provider) {
-      setNewProvider(provider)
-      setIsEditingProvider(true)
-    } else {
-      setNewProvider({
-        id: generateUUID(),
-        name: "",
-        contactPerson: "",
-        phone: "",
-        email: "",
-        address: "",
-        notes: "",
-        category: "",
-      })
-      setIsEditingProvider(false)
-    }
-    setIsProviderDialogOpen(true)
-  }
-
-  // Sağlayıcı değişikliklerini işle
-  const handleProviderChange = (e: InputChangeEvent) => {
-    const { name, value } = e.target
-    setNewProvider((prev) => ({ ...prev, [name]: value }))
-  }
-
-  // Sağlayıcı kaydet
-  const handleSaveProvider = async () => {
-    if (!newProvider.name) {
-      toast({
-        title: "Hata",
-        description: "Firma adı alanı zorunludur.",
-        variant: "destructive",
-      })
-      return
-    }
-
-    let updatedProviders
-    if (isEditingProvider) {
-      // Mevcut sağlayıcıyı güncelle
-      updatedProviders = providers.map((item) => (item.id === newProvider.id ? newProvider : item))
-    } else {
-      // Yeni sağlayıcı ekle
-      updatedProviders = [...providers, newProvider]
-    }
-
-    setProviders(updatedProviders)
-    setIsProviderDialogOpen(false)
-
-    // Değişiklikleri hemen kaydet
-    try {
-      await saveProviders(updatedProviders)
-      toast({
-        title: "Başarılı",
-        description: isEditingProvider ? "Sağlayıcı güncellendi." : "Yeni sağlayıcı eklendi.",
-      })
-    } catch (error) {
-      console.error("Sağlayıcılar kaydedilirken hata:", error)
-      toast({
-        title: "Hata",
-        description: "Sağlayıcılar kaydedilirken bir hata oluştu.",
-        variant: "destructive",
-      })
-    }
-  }
-
-  // Sağlayıcı silme dialog'unu aç
-  const openDeleteProviderDialog = (provider: Provider) => {
-    setProviderToDelete(provider)
-    setIsDeleteProviderDialogOpen(true)
-  }
-
-  // Sağlayıcı sil
-  const handleDeleteProvider = async () => {
-    const updatedProviders = providers.filter((item) => item.id !== providerToDelete?.id)
-    setProviders(updatedProviders)
-    setIsDeleteProviderDialogOpen(false)
-
-    // Değişiklikleri hemen kaydet
-    try {
-      await saveProviders(updatedProviders)
-      toast({
-        title: "Başarılı",
-        description: "Sağlayıcı silindi.",
-      })
-    } catch (error) {
-      console.error("Sağlayıcılar kaydedilirken hata:", error)
-      toast({
-        title: "Hata",
-        description: "Sağlayıcılar kaydedilirken bir hata oluştu.",
-        variant: "destructive",
-      })
-    }
-  }
+  // Sağlayıcılar ile ilgili fonksiyonlar kaldırıldı - Firmalar yönetimi artık CompanyManagement bileşeninde
 
   // Aktivite ekleme/düzenleme dialog'unu aç
   const openActivityDialog = (activity: Activity | null = null) => {
@@ -1335,7 +1226,7 @@ export function SettingsView({
         <Tabs defaultValue="company" className="w-full">
           <TabsList className="grid w-full md:w-auto md:inline-flex grid-cols-6">
             <TabsTrigger value="company">Şirket</TabsTrigger>
-            <TabsTrigger value="providers">Sağlayıcılar</TabsTrigger>
+            <TabsTrigger value="providers">Firmalar</TabsTrigger>
             <TabsTrigger value="expense-types">Gider Türleri</TabsTrigger>
             <TabsTrigger value="activities">Aktiviteler</TabsTrigger>
             <TabsTrigger value="destinations">Destinasyonlar</TabsTrigger>
@@ -1419,65 +1310,9 @@ export function SettingsView({
                 Şirket Bilgilerini Kaydet
               </Button>
             </div>
-          </TabsContent>
-
-          {/* Sağlayıcılar */}
-          <TabsContent value="providers" className="space-y-4">
-            <div className="flex justify-between items-center">
-              <h3 className="text-lg font-medium">Sağlayıcı Firmalar</h3>
-              <Button type="button" variant="outline" size="sm" onClick={() => openProviderDialog()}>
-                <Plus className="h-4 w-4 mr-2" />
-                Yeni Sağlayıcı Ekle
-              </Button>
-            </div>
-
-            <div className="rounded-md border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Firma Adı</TableHead>
-                    <TableHead>Kategori</TableHead>
-                    <TableHead>İletişim Kişisi</TableHead>
-                    <TableHead>Telefon</TableHead>
-                    <TableHead>E-posta</TableHead>
-                    <TableHead>İşlemler</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {providers.length > 0 ? (
-                    providers.map((provider) => (
-                      <TableRow key={provider.id}>
-                        <TableCell className="font-medium">{provider.name}</TableCell>
-                        <TableCell>
-                          {expenseCategories.find((cat) => cat.value === provider.category)?.label ||
-                            provider.category ||
-                            "Genel"}
-                        </TableCell>
-                        <TableCell>{provider.contactPerson}</TableCell>
-                        <TableCell>{provider.phone}</TableCell>
-                        <TableCell>{provider.email}</TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-1">
-                            <Button variant="ghost" size="icon" onClick={() => openProviderDialog(provider)}>
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                            <Button variant="ghost" size="icon" onClick={() => openDeleteProviderDialog(provider)}>
-                              <Trash2 className="h-4 w-4 text-red-500" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  ) : (
-                    <TableRow>
-                      <TableCell colSpan={6} className="text-center py-4">
-                        Henüz sağlayıcı eklenmemiş
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            </div>
+          </TabsContent>          {/* Firmalar */}
+          <TabsContent value="providers">
+            <CompanyManagement />
           </TabsContent>
 
           {/* Gider Türleri Tab */}
@@ -1912,132 +1747,7 @@ export function SettingsView({
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
-      </AlertDialog>
-
-      {/* Sağlayıcı Ekleme/Düzenleme Dialog */}
-      <Dialog open={isProviderDialogOpen} onOpenChange={setIsProviderDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{isEditingProvider ? "Sağlayıcıyı Düzenle" : "Yeni Sağlayıcı Ekle"}</DialogTitle>
-          </DialogHeader>
-
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="providerName">Firma Adı</Label>
-              <Input
-                id="providerName"
-                name="name"
-                value={newProvider.name}
-                onChange={handleProviderChange}
-                placeholder="Firma adı"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="providerCategory">Kategori</Label>
-              <select
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                value={newProvider.category}
-                name="category"
-                onChange={handleProviderChange}
-              >
-                <option value="">Kategori Seçin</option>
-                {expenseCategories.map((category) => (
-                  <option key={category.value} value={category.value}>
-                    {category.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="contactPerson">İletişim Kişisi</Label>
-              <Input
-                id="contactPerson"
-                name="contactPerson"
-                value={newProvider.contactPerson}
-                onChange={handleProviderChange}
-                placeholder="İletişim kişisi"
-              />
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="phone">Telefon</Label>
-                <Input
-                  id="phone"
-                  name="phone"
-                  value={newProvider.phone}
-                  onChange={handleProviderChange}
-                  placeholder="Telefon numarası"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="email">E-posta</Label>
-                <Input
-                  id="email"
-                  name="email"
-                  value={newProvider.email}
-                  onChange={handleProviderChange}
-                  placeholder="E-pposta adresi"
-                />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="address">Adres</Label>
-              <Textarea
-                id="address"
-                name="address"
-                value={newProvider.address}
-                onChange={handleProviderChange}
-                placeholder="Adres"
-                rows={3}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="notes">Notlar</Label>
-              <Textarea
-                id="notes"
-                name="notes"
-                value={newProvider.notes}
-                onChange={handleProviderChange}
-                placeholder="Ek notlar"
-                rows={2}
-              />
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsProviderDialogOpen(false)}>
-              İptal
-            </Button>
-            <Button className="bg-[#00a1c6] hover:bg-[#00a1c6]" onClick={handleSaveProvider}>
-              {isEditingProvider ? "Güncelle" : "Ekle"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Sağlayıcı Silme Dialog */}
-      <AlertDialog open={isDeleteProviderDialogOpen} onOpenChange={setIsDeleteProviderDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Sağlayıcıyı Sil</AlertDialogTitle>
-            <AlertDialogDescription>
-              Bu sağlayıcıyı silmek istediğinize emin misiniz? Bu işlem geri alınamaz.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>İptal</AlertDialogCancel>
-            <AlertDialogAction className="bg-red-600 hover:bg-red-700" onClick={handleDeleteProvider}>
-              Sil
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      </AlertDialog>      {/* Sağlayıcı diyalogları kaldırıldı - Firmalar yönetimi artık CompanyManagement bileşeninde */}
 
       {/* Aktivite Ekleme/Düzenleme Dialog */}
       <Dialog open={isActivityDialogOpen} onOpenChange={setIsActivityDialogOpen}>

@@ -58,8 +58,7 @@ const resetAllData = async () => {
 };
 
 interface TourActivity {
-  id: string;
-  activityId: string;
+  id: string;  activityId: string;
   name: string;
   date: string;
   duration?: string;
@@ -67,7 +66,7 @@ interface TourActivity {
   currency: string;
   participants: string | number;
   participantsType: string;
-  providerId: string;
+  companyId: string;
   details?: string;
 }
 
@@ -392,6 +391,14 @@ export default function Home() {
     // Sidebar'dan Döviz butonuna tıklanınca yönlendirme
     if (view === "currency") {
       setCurrentView("currency");
+      return;
+    }
+
+    // Tur Satışı (yeni kayıt) butonuna tıklandığında editingRecord ve tempTourFormData sıfırlanır
+    if (view === "tour-sales") {
+      setEditingRecord(null);
+      setTempTourFormData(null);
+      setCurrentView("tour-sales");
       return;
     }
 

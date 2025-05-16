@@ -25,7 +25,7 @@ export function MainHeader({ currentView, onNavigate }: MainHeaderProps) {
     { id: "calendar", label: "Takvim", icon: null },
     { id: "financial-entry", label: "Finansal Giriş", icon: null },
     { id: "tour-sales", label: "Tur Satışı", icon: null },
-    { id: "customers", label: "Müşteriler", icon: null },
+    { id: "customers", label: "Tur Müşterileri", icon: null },
     { id: "data-view", label: "Kayıtlar", icon: null },
     { id: "analytics", label: "Raporlar", icon: null },
     { id: "currency", label: "Döviz Kurları", icon: null },

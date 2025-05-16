@@ -43,7 +43,7 @@ export function Sidebar({ currentView, onNavigate }: SidebarProps) {
     { id: "financial-entry", label: "Finansal Giriş", icon: <DollarSign className="h-5 w-5" /> },
     { id: "tour-sales", label: "Tur Satışı", icon: <Globe className="h-5 w-5" /> },
     { id: "calendar", label: "Takvim", icon: <Calendar className="h-5 w-5" /> },
-    { id: "customers", label: "Müşteriler", icon: <Users className="h-5 w-5" /> },
+    { id: "customers", label: "Tur Müşterileri", icon: <Users className="h-5 w-5" /> },
     { id: "data-view", label: "Kayıtlar", icon: <Database className="h-5 w-5" /> },
     { id: "currency", label: "Döviz", icon: <DollarSign className="h-5 w-5" /> }, // Döviz butonu eklendi
     { id: "companies", label: "Firmalar", icon: <Building className="h-5 w-5" /> }, // Firmalar butonu eklendi
@@ -107,7 +107,7 @@ export function Sidebar({ currentView, onNavigate }: SidebarProps) {
               </Button>
               <Button variant="ghost" className={`w-full justify-start ${currentView === "customers" ? "bg-[#00a1c6] text-white" : "text-gray-700 hover:bg-gray-100"}`} onClick={() => onNavigate("customers")}>
                 <div className="pl-4 flex items-center w-full">
-                  <Users className="h-5 w-5 mr-3" />Müşteriler
+                  <Users className="h-5 w-5 mr-3" />Tur Müşterileri
                 </div>
               </Button>
               <Button variant="ghost" className={`w-full justify-start ${currentView === "data-view" ? "bg-[#00a1c6] text-white" : "text-gray-700 hover:bg-gray-100"}`} onClick={() => onNavigate("data-view")}>

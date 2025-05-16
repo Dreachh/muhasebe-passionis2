@@ -33,12 +33,6 @@ export function MainMenu({ onNavigate }: { onNavigate: (id: string) => void }) {
       color: "bg-indigo-100 text-indigo-700",
     },
     {
-      id: "companies",
-      label: "Firmalar",
-      icon: <Building className="h-6 w-6" />,
-      color: "bg-orange-100 text-orange-700",
-    },
-    {
       id: "debts",
       label: "Borçlar",
       icon: <Receipt className="h-6 w-6" />,
