@@ -46,9 +46,7 @@ export function Sidebar({ currentView, onNavigate }: SidebarProps) {
     { id: "customers", label: "Tur Müşterileri", icon: <Users className="h-5 w-5" /> },
     { id: "data-view", label: "Kayıtlar", icon: <Database className="h-5 w-5" /> },
     { id: "currency", label: "Döviz", icon: <DollarSign className="h-5 w-5" /> }, // Döviz butonu eklendi
-    { id: "companies", label: "Firmalar", icon: <Building className="h-5 w-5" /> }, // Firmalar butonu eklendi
     { id: "debts", label: "Borçlar", icon: <Receipt className="h-5 w-5" /> }, // Borçlar butonu eklendi
-    { id: "payments", label: "Ödemeler", icon: <CreditCard className="h-5 w-5" /> }, // Ödemeler butonu eklendi
     { type: "divider" },
     { type: "title", label: "Analiz ve Ayarlar" },
     { id: "analytics", label: "Gelişmiş Analiz", icon: <BarChart2 className="h-5 w-5" /> },
@@ -121,20 +119,10 @@ export function Sidebar({ currentView, onNavigate }: SidebarProps) {
                 </div>
               </Button>
               
-              {/* Yeni eklenen butonlar: Firma, Borç ve Ödeme yönetimi */}
-              <Button variant="ghost" className={`w-full justify-start ${currentView === "companies" ? "bg-[#00a1c6] text-white" : "text-gray-700 hover:bg-gray-100"}`} onClick={() => onNavigate("companies")}>
-                <div className="pl-4 flex items-center w-full">
-                  <Building className="h-5 w-5 mr-3" />Firmalar
-                </div>
-              </Button>
+
               <Button variant="ghost" className={`w-full justify-start ${currentView === "debts" ? "bg-[#00a1c6] text-white" : "text-gray-700 hover:bg-gray-100"}`} onClick={() => onNavigate("debts")}>
                 <div className="pl-4 flex items-center w-full">
                   <Receipt className="h-5 w-5 mr-3" />Borçlar
-                </div>
-              </Button>
-              <Button variant="ghost" className={`w-full justify-start ${currentView === "payments" ? "bg-[#00a1c6] text-white" : "text-gray-700 hover:bg-gray-100"}`} onClick={() => onNavigate("payments")}>
-                <div className="pl-4 flex items-center w-full">
-                  <CreditCard className="h-5 w-5 mr-3" />Ödemeler
                 </div>
               </Button>
             </div>

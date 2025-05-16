@@ -16,6 +16,7 @@ import { Toaster } from "../components/ui/toaster"
 import { useToast } from "../components/ui/use-toast"
 import dynamic from "next/dynamic";
 const CurrencyPage = dynamic(() => import("./currency/page"), { ssr: false });
+const BorclarPage = dynamic(() => import("./borclar/page"), { ssr: false });
 import { exportData, importData } from "../lib/export-import"
 import { getAllData, addData, updateData, initializeDB, clearStore, deleteData } from "../lib/db"
 import { CustomerView } from "../components/customer-view"
@@ -26,7 +27,7 @@ import { generateUUID } from "../lib/utils";
 import loadInitialData from "../data/reload-data"
 import { useAuth } from "../lib/firebase-auth" // Firebase Authentication hook
 import CompanyManagement from "../components/company-management" // Yeni: Firma yönetimi
-import DebtManagement from "../components/debt-management" // Yeni: Borç yönetimi
+import DebtManagement from "../components/debt-management" // Yeni: Borç yönetimi 
 import PaymentManagement from "../components/payment-management" // Yeni: Ödeme yönetimi
 
 // Uygulama verilerini tamamen sıfırlamak için fonksiyon
@@ -770,9 +771,8 @@ export default function Home() {
           {/* Yeni eklenen bileşenler */}
           {currentView === "companies" && (
             <CompanyManagement />
-          )}
-          {currentView === "debts" && (
-            <DebtManagement />
+          )}          {currentView === "debts" && (
+            <BorclarPage />
           )}
           {currentView === "payments" && (
             <PaymentManagement />

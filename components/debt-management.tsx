@@ -55,6 +55,7 @@ import { COLLECTIONS } from "../lib/db-firebase"
 import { Badge } from "@/components/ui/badge"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { Progress } from "@/components/ui/progress"
+import { SupplierDebtDashboard } from "@/components/supplier-debt-dashboard"
 
 // Borç için tip tanımı
 interface Debt {
@@ -87,6 +88,21 @@ interface Tour {
 }
 
 export default function DebtManagement() {
+  // Artık gelişmiş borç yönetimi bileşeni kullanıyoruz
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-2xl font-bold">Tedarikçi Borç Yönetimi</h2>
+      </div>
+      
+      {/* Yeni borç yönetimi bileşenini çağır */}
+      <SupplierDebtDashboard />
+    </div>
+  );
+}
+
+// Eski borç yönetimi işlevselliği (Artık kullanılmıyor)
+function LegacyDebtManagement() {
   const { toast } = useToast();
   const [debts, setDebts] = useState<Debt[]>([]);
   const [companies, setCompanies] = useState<Company[]>([]);
@@ -114,7 +130,7 @@ export default function DebtManagement() {
       const db = getDb();
       
       // Firmaları yükle (firma adlarını borçlar ile birleştirmek için)
-      const companiesRef = collection(db, COLLECTIONS.companies);
+      const companiesRef = collection(db, COLLECTIONS.COMPANIES);
       const companiesSnapshot = await getDocs(companiesRef);
       const companiesList: Company[] = [];
       
@@ -143,7 +159,7 @@ export default function DebtManagement() {
       
       setTours(toursList);
         // Borçları yükle
-      const debtsRef = collection(db, COLLECTIONS.debts);
+      const debtsRef = collection(db, COLLECTIONS.DEBTS);
       let debtsQuery;
       
       // Filtre uygula - Bileşik sorgu için dizin gerekiyor, geçici çözüm için:
@@ -298,7 +314,7 @@ export default function DebtManagement() {
           newDebtData.dueDate = Timestamp.fromDate(newDebtData.dueDate);
         }
         
-        await addDoc(collection(db, COLLECTIONS.debts), newDebtData);
+        await addDoc(collection(db, COLLECTIONS.DEBTS), newDebtData);
         
         toast({
           title: "Başarılı!",
@@ -306,7 +322,7 @@ export default function DebtManagement() {
         });
       } else if (formMode === 'edit' && currentDebt) {
         // Mevcut borç kaydını güncelle
-        const debtRef = doc(db, COLLECTIONS.debts, currentDebt.id);
+        const debtRef = doc(db, COLLECTIONS.DEBTS, currentDebt.id);
         
         const updateData = {
           ...sanitizedData,  // formData yerine sanitizedData kullan
@@ -348,7 +364,7 @@ export default function DebtManagement() {
     
     try {
       const db = getDb();
-      await deleteDoc(doc(db, COLLECTIONS.debts, debtId));
+      await deleteDoc(doc(db, COLLECTIONS.DEBTS, debtId));
       
       toast({
         title: "Başarılı!",
