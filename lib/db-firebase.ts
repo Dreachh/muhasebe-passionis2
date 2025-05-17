@@ -29,6 +29,10 @@ import { getDatabase, ref, set, get } from "firebase/database";
 export const COLLECTIONS = {
   tours: "tours", 
   financials: "financials",
+  DEBTS: "debts", // Borçlar - Büyük harfli anahtar, küçük harfli değer
+  PAYMENTS: "payments", // Ödemeler - Büyük harfli anahtar, küçük harfli değer
+  COMPANIES: "companies", // Tedarikçi firmalar - Büyük harfli anahtar, küçük harfli değer
+  CUSTOMER_DEBTS: "customer_debts", // Müşteri borçları
   customers: "customers",
   settings: "settings",
   expenses: "expenses",
@@ -39,10 +43,6 @@ export const COLLECTIONS = {
   customer_notes: "customer_notes",
   referral_sources: "referral_sources", 
   tourTemplates: "tourTemplates",
-  // Yeni eklenen koleksiyonlar
-  companies: "companies", // Tedarikçi firmalar
-  debts: "debts", // Borçlar
-  payments: "payments", // Ödemeler
 };
 
 // UUID oluşturma fonksiyonu (IndexedDB'den aynısını kullanıyoruz)
@@ -539,7 +539,7 @@ export const getTours = async (): Promise<any[]> => {
 
 // Firmaları getir
 export const getCompanies = async (): Promise<any[]> => {
-  return getAllData(COLLECTIONS.companies);
+  return getAllData(COLLECTIONS.COMPANIES);
 };
 
 // Admin kimlik bilgilerini alma

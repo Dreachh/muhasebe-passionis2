@@ -263,8 +263,8 @@ export function DataView({
     }
   }
   
-  // İşlevsiz yazdır butonlarını kaldırıyoruz
-  // PrintButton fonksiyonları silindi
+  // Print fonksiyonu aktif olarak çalışmakta
+  // Yazdır butonu TourPreview bileşeni içine eklendi
   
   // Tarih kontrolü yardımcı fonksiyonu - tarih, belirtilen aralıkta mı?
   const isDateInRange = (date: string | Date | undefined, range: DateRange | undefined): boolean => {
@@ -535,6 +535,19 @@ export function DataView({
 
     return (
       <div className="space-y-4 max-h-[80vh] overflow-y-auto p-2 min-w-[700px]">
+        {/* Print Butonu */}
+        <div className="flex justify-end mb-2">
+          <Button 
+            onClick={() => handlePrint(tour)} 
+            variant="outline" 
+            size="sm" 
+            className="flex items-center gap-1"
+          >
+            <Printer className="h-4 w-4" />
+            Yazdır
+          </Button>
+        </div>
+        
         {/* 1. Müşteri Bilgileri */}
         <Card>
           <CardHeader className="pb-2 pt-2 mb-0 mt-0"><CardTitle>Müşteri Bilgileri</CardTitle></CardHeader>
@@ -1067,7 +1080,7 @@ export function DataView({
                             // Tur gideri için tur başlangıç tarihini göster
                             displayDate = tourInfo.tourDate;
                             
-                            // Tur gideri için "F" + turun seri numarası
+                            // Tur gideri için turun seri numarası + "TF"
                             serialNumber = `${tourInfo.serialNumber || tourInfo.id?.slice(-4) || ""}TF`;
                             
                             // Açıklama formatını "müşteri adı - gider türü" şeklinde düzenle

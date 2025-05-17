@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { 
   Card, 
   CardContent, 
@@ -8,85 +8,41 @@ import {
   CardHeader, 
   CardTitle 
 } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
-import { useToast } from "@/components/ui/use-toast"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
-import {
-  Table,
-  TableBody,
-  TableCaption,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogClose,
-} from "@/components/ui/dialog"
-import { 
-  Receipt, 
-  Plus, 
-  PenSquare, 
-  Trash2, 
-  Building, 
-  Calendar, 
-  CreditCard,
-  AlertCircle,
-  Clock
-} from "lucide-react"
-import { collection, addDoc, getDocs, doc, updateDoc, deleteDoc, query, where, Timestamp, orderBy } from "firebase/firestore"
-import { getDb } from "../lib/firebase-client-module"
-import { COLLECTIONS } from "../lib/db-firebase"
-import { Badge } from "@/components/ui/badge"
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
-import { Progress } from "@/components/ui/progress"
-
-// Borç için tip tanımı
-interface Debt {
-  id: string;
-  companyId: string;
-  companyName?: string; // Gösterim için eklenecek
-  amount: number;
-  currency: string;
-  description: string;
-  dueDate: Date | null;
-  status: 'unpaid' | 'partially_paid' | 'paid';
-  paidAmount: number;
-  relatedTourId?: string;
-  relatedTourName?: string; // Gösterim için eklenecek
-  notes?: string;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-// Şirket tipi (Firmalar listesi için)
-interface Company {
-  id: string;
-  name: string;
-}
-
-// Turlar için tip tanımı
-interface Tour {
-  id: string;
-  tourName: string;
-}
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { SupplierDebtDashboard } from "@/components/supplier-debt-dashboard"
+import { CustomerDebtDashboard } from "@/components/customer-debt-dashboard"
 
 export default function DebtManagement() {
+  // Aktif sekmeyi izle
+  const [activeTab, setActiveTab] = useState<"supplier" | "customer">("supplier");
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-2xl font-bold">Borç Yönetimi</h2>
+      </div>
+      
+      <Tabs defaultValue="supplier" value={activeTab} onValueChange={(value) => setActiveTab(value as "supplier" | "customer")}>
+        <TabsList className="w-full grid grid-cols-2">
+          <TabsTrigger value="supplier">Tedarikçi Borçları</TabsTrigger>
+          <TabsTrigger value="customer">Müşteri Borçları</TabsTrigger>
+        </TabsList>
+        
+        <TabsContent value="supplier">
+          <SupplierDebtDashboard />
+        </TabsContent>
+        
+        <TabsContent value="customer">
+          <CustomerDebtDashboard />
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+}
+}
+
+// Eski borç yönetimi işlevselliği (Artık kullanılmıyor)
+function LegacyDebtManagement() {
   const { toast } = useToast();
   const [debts, setDebts] = useState<Debt[]>([]);
   const [companies, setCompanies] = useState<Company[]>([]);
@@ -114,7 +70,7 @@ export default function DebtManagement() {
       const db = getDb();
       
       // Firmaları yükle (firma adlarını borçlar ile birleştirmek için)
-      const companiesRef = collection(db, COLLECTIONS.companies);
+      const companiesRef = collection(db, COLLECTIONS.COMPANIES);
       const companiesSnapshot = await getDocs(companiesRef);
       const companiesList: Company[] = [];
       
@@ -143,7 +99,7 @@ export default function DebtManagement() {
       
       setTours(toursList);
         // Borçları yükle
-      const debtsRef = collection(db, COLLECTIONS.debts);
+      const debtsRef = collection(db, COLLECTIONS.DEBTS);
       let debtsQuery;
       
       // Filtre uygula - Bileşik sorgu için dizin gerekiyor, geçici çözüm için:
@@ -298,7 +254,7 @@ export default function DebtManagement() {
           newDebtData.dueDate = Timestamp.fromDate(newDebtData.dueDate);
         }
         
-        await addDoc(collection(db, COLLECTIONS.debts), newDebtData);
+        await addDoc(collection(db, COLLECTIONS.DEBTS), newDebtData);
         
         toast({
           title: "Başarılı!",
@@ -306,7 +262,7 @@ export default function DebtManagement() {
         });
       } else if (formMode === 'edit' && currentDebt) {
         // Mevcut borç kaydını güncelle
-        const debtRef = doc(db, COLLECTIONS.debts, currentDebt.id);
+        const debtRef = doc(db, COLLECTIONS.DEBTS, currentDebt.id);
         
         const updateData = {
           ...sanitizedData,  // formData yerine sanitizedData kullan
@@ -348,7 +304,7 @@ export default function DebtManagement() {
     
     try {
       const db = getDb();
-      await deleteDoc(doc(db, COLLECTIONS.debts, debtId));
+      await deleteDoc(doc(db, COLLECTIONS.DEBTS, debtId));
       
       toast({
         title: "Başarılı!",

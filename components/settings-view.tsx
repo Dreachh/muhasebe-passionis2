@@ -208,8 +208,8 @@ export function SettingsView({
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [expenseToDelete, setExpenseToDelete] = useState<ExpenseType | null>(null)
   const [customExpenseType, setCustomExpenseType] = useState("")
-  const [showCustomTypeInput, setShowCustomTypeInput] = useState(false)
-  // Sağlayıcılar için state tanımlamaları kaldırıldı - Firmalar yönetimi artık CompanyManagement bileşeninde
+  const [showCustomTypeInput, setShowCustomTypeInput] = useState(false)  // Sağlayıcılar için state tanımı - CompanyManagement bileşeni kullanılmasına rağmen örnek verilerin yüklenmesi için gerekli
+  const [providers, setProviders] = useState<Provider[]>([])
 
   // Aktiviteler için state
   const [activities, setActivities] = useState<Activity[]>([])
@@ -324,13 +324,13 @@ export function SettingsView({
               category: "activity"
             },
             {
-              id: generateUUID(),
-              type: "genel",
+              id: generateUUID(),              type: "genel",
               name: "Park Ücreti",
               description: "Araç park ücreti",
               category: "general"
             }
           ];
+          
           setExpenseTypes(exampleExpenseTypes);
           await saveExpenseTypes(exampleExpenseTypes);
         }
@@ -338,11 +338,12 @@ export function SettingsView({
         console.error("Gider türleri yüklenirken hata:", error)
       }
     }
-
+    
     const loadProviders = async () => {
       try {
         const providersData = await getProviders()
         if (providersData && providersData.length > 0) {
+          // Firma bilgilerini state'e kaydet
           setProviders(providersData)
         } else {
           // Örnek sağlayıcılar ekle
@@ -398,7 +399,9 @@ export function SettingsView({
               category: "yemek"
             }
           ];
+          // Örnek verileri state'e kaydet
           setProviders(exampleProviders);
+          // Veritabanına kaydet
           await saveProviders(exampleProviders);
         }
       } catch (error) {

@@ -16,6 +16,7 @@ import { Toaster } from "../components/ui/toaster"
 import { useToast } from "../components/ui/use-toast"
 import dynamic from "next/dynamic";
 const CurrencyPage = dynamic(() => import("./currency/page"), { ssr: false });
+const BorclarPage = dynamic(() => import("./borclar/page"), { ssr: false });
 import { exportData, importData } from "../lib/export-import"
 import { getAllData, addData, updateData, initializeDB, clearStore, deleteData } from "../lib/db"
 import { CustomerView } from "../components/customer-view"
@@ -26,8 +27,9 @@ import { generateUUID } from "../lib/utils";
 import loadInitialData from "../data/reload-data"
 import { useAuth } from "../lib/firebase-auth" // Firebase Authentication hook
 import CompanyManagement from "../components/company-management" // Yeni: Firma yönetimi
-import DebtManagement from "../components/debt-management" // Yeni: Borç yönetimi
+import DebtManagement from "../components/debt-management" // Yeni: Borç yönetimi 
 import PaymentManagement from "../components/payment-management" // Yeni: Ödeme yönetimi
+import { createCustomerDebtsFromTour } from "@/lib/debt-service";
 
 // Uygulama verilerini tamamen sıfırlamak için fonksiyon
 const resetAllData = async () => {
@@ -646,9 +648,40 @@ export default function Home() {
                   
                   // Yeni giderleri ekle
                   const updatedFinancials = [...filteredFinancials, ...newFinancialEntries];
-                  
-                  // Finansal verileri güncelle
+                    // Finansal verileri güncelle
                   handleDataUpdate("financial", updatedFinancials);
+                }
+                
+                // 3. Tur verilerinden müşteri borçlarını oluştur
+                // Borç olarak işaretlenmiş giderler ve aktiviteler için borç kayıtları oluştur
+                try {
+                  const hasDebts = (
+                    (tourData.expenses && tourData.expenses.some((e: any) => e.addToDebt)) || 
+                    (tourData.activities && tourData.activities.some((a: any) => a.addToDebt))
+                  );
+                  
+                  if (hasDebts) {
+                    console.log("Borç olarak işaretlenmiş gider veya aktiviteler mevcut. Borçlar oluşturuluyor...");
+                    createCustomerDebtsFromTour(tourData)
+                      .then((results) => {
+                        console.log("Müşteri borçları başarıyla oluşturuldu:", results);
+                        toast({
+                          title: "Borçlar Oluşturuldu",
+                          description: `${results.length} adet borç kaydı müşteri için oluşturuldu.`,
+                          variant: "success",
+                        });
+                      })
+                      .catch((error) => {
+                        console.error("Müşteri borçları oluşturulurken hata:", error);
+                        toast({
+                          title: "Borç Kaydı Oluşturulamadı",
+                          description: "Müşteri borçları oluşturulurken bir hata oluştu.",
+                          variant: "destructive",
+                        });
+                      });
+                  }
+                } catch (error) {
+                  console.error("Borç oluşturma işlemi sırasında hata:", error);
                 }
                 
                 setEditingRecord(null);
@@ -674,12 +707,27 @@ export default function Home() {
               financialData={financialData}
               toursData={toursData}
               customersData={customersData}
-              onDataUpdate={handleDataUpdate}
-              onEdit={(type, item) => {
-                setEditingRecord(item);
-                if (type === "financial") navigateTo("financial-entry");
-                else if (type === "tours") navigateTo("tour-sales");
-                else if (type === "customers") navigateTo("customers");
+              onDataUpdate={handleDataUpdate}              onEdit={(type, item) => {
+                console.log(`[TUR DÜZENLEME] ${type} kaydı düzenleniyor:`, item);
+                
+                // Kayıt geçerliliğini kontrol et
+                const isValidRecord = item && item.id;
+                
+                if (!isValidRecord) {
+                  console.error(`[TUR DÜZENLEME HATASI] Geçersiz ${type} kaydı:`, item);
+                  alert("Düzenlenecek kayıt bulunamadı veya geçersiz!");
+                  return;
+                }
+                
+                // Koşullu gecikme ile state'i güncelle
+                setTimeout(() => {
+                  setEditingRecord(item);
+                  console.log(`[TUR DÜZENLEME] editingRecord güncellendi:`, item);
+                  
+                  if (type === "financial") navigateTo("financial-entry");
+                  else if (type === "tours") navigateTo("tour-sales");
+                  else if (type === "customers") navigateTo("customers");
+                }, 100);
               }}
               onClose={() => navigateTo("main-dashboard")}
             />
@@ -770,9 +818,8 @@ export default function Home() {
           {/* Yeni eklenen bileşenler */}
           {currentView === "companies" && (
             <CompanyManagement />
-          )}
-          {currentView === "debts" && (
-            <DebtManagement />
+          )}          {currentView === "debts" && (
+            <BorclarPage />
           )}
           {currentView === "payments" && (
             <PaymentManagement />

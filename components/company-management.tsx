@@ -69,13 +69,12 @@ export default function CompanyManagement() {
     notes: "",
     taxId: ""
   });
-
   // Firmaları Firebase'den yükle
   const loadCompanies = async () => {
     try {
       setLoading(true);
       const db = getDb();
-      const companiesRef = collection(db, COLLECTIONS.companies);
+      const companiesRef = collection(db, COLLECTIONS.COMPANIES); // "companies" yerine "COMPANIES" kullanıyoruz
       const querySnapshot = await getDocs(companiesRef);
       
       const companiesList: Company[] = [];
@@ -146,7 +145,7 @@ export default function CompanyManagement() {
           updatedAt: now
         };
         
-        await addDoc(collection(db, COLLECTIONS.companies), newCompanyData);
+        await addDoc(collection(db, COLLECTIONS.COMPANIES), newCompanyData);
         
         toast({
           title: "Başarılı!",
@@ -154,7 +153,7 @@ export default function CompanyManagement() {
         });
       } else if (formMode === 'edit' && currentCompany) {
         // Mevcut firmayı güncelle
-        const companyRef = doc(db, COLLECTIONS.companies, currentCompany.id);
+        const companyRef = doc(db, COLLECTIONS.COMPANIES, currentCompany.id);
         await updateDoc(companyRef, {
           ...formData,
           updatedAt: now
@@ -203,7 +202,7 @@ export default function CompanyManagement() {
     
     try {
       const db = getDb();
-      await deleteDoc(doc(db, COLLECTIONS.companies, companyId));
+      await deleteDoc(doc(db, COLLECTIONS.COMPANIES, companyId));
       
       toast({
         title: "Başarılı!",

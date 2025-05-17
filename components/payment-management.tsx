@@ -107,7 +107,7 @@ export default function PaymentManagement() {
       const db = getDb();
       
       // Firmaları yükle
-      const companiesRef = collection(db, COLLECTIONS.companies);
+      const companiesRef = collection(db, COLLECTIONS.COMPANIES);
       const companiesSnapshot = await getDocs(companiesRef);
       const companiesList: Company[] = [];
       
@@ -122,7 +122,7 @@ export default function PaymentManagement() {
       setCompanies(companiesList);
       
       // Borçları yükle
-      const debtsRef = collection(db, COLLECTIONS.debts);
+      const debtsRef = collection(db, COLLECTIONS.DEBTS);
       const debtsQuery = query(debtsRef, orderBy("createdAt", "desc"));
       const debtsSnapshot = await getDocs(debtsQuery);
       const debtsList: Debt[] = [];
@@ -143,7 +143,7 @@ export default function PaymentManagement() {
       setDebts(debtsList);
       
       // Ödemeleri yükle
-      const paymentsRef = collection(db, COLLECTIONS.payments);
+      const paymentsRef = collection(db, COLLECTIONS.PAYMENTS);
       const paymentsQuery = query(paymentsRef, orderBy("paymentDate", "desc"));
       const paymentsSnapshot = await getDocs(paymentsQuery);
       const paymentsList: Payment[] = [];
@@ -300,11 +300,11 @@ export default function PaymentManagement() {
           newPaymentData.paymentDate = Timestamp.fromDate(newPaymentData.paymentDate);
         }
         
-        await addDoc(collection(db, COLLECTIONS.payments), newPaymentData);
+        await addDoc(collection(db, COLLECTIONS.PAYMENTS), newPaymentData);
         
         // Eğer ilgili bir borç varsa, borç kaydını da güncelle
         if (formData.relatedDebtId) {
-          const debtRef = doc(db, COLLECTIONS.debts, formData.relatedDebtId);
+          const debtRef = doc(db, COLLECTIONS.DEBTS, formData.relatedDebtId);
           const debtToUpdate = debts.find(d => d.id === formData.relatedDebtId);
           
           if (debtToUpdate) {
@@ -329,7 +329,7 @@ export default function PaymentManagement() {
         const amountDiff = (formData.amount || 0) - (currentPayment.amount || 0);
         
         // Mevcut ödeme kaydını güncelle
-        const paymentRef = doc(db, COLLECTIONS.payments, currentPayment.id);
+        const paymentRef = doc(db, COLLECTIONS.PAYMENTS, currentPayment.id);
         
         const updateData = {
           ...sanitizedData, // formData yerine sanitizedData kullan
@@ -349,10 +349,9 @@ export default function PaymentManagement() {
           (formData.relatedDebtId && formData.relatedDebtId !== currentPayment.relatedDebtId) || 
           (currentPayment.relatedDebtId && formData.relatedDebtId !== currentPayment.relatedDebtId) ||
           amountDiff !== 0
-        ) {
-          // Eski borç ilişkisini güncelle
+        ) {          // Eski borç ilişkisini güncelle
           if (currentPayment.relatedDebtId) {
-            const oldDebtRef = doc(db, COLLECTIONS.debts, currentPayment.relatedDebtId);
+            const oldDebtRef = doc(db, COLLECTIONS.DEBTS, currentPayment.relatedDebtId);
             const oldDebt = debts.find(d => d.id === currentPayment.relatedDebtId);
             
             if (oldDebt) {
@@ -367,10 +366,9 @@ export default function PaymentManagement() {
               });
             }
           }
-          
-          // Yeni borç ilişkisini güncelle
+            // Yeni borç ilişkisini güncelle
           if (formData.relatedDebtId) {
-            const newDebtRef = doc(db, COLLECTIONS.debts, formData.relatedDebtId);
+            const newDebtRef = doc(db, COLLECTIONS.DEBTS, formData.relatedDebtId);
             const newDebt = debts.find(d => d.id === formData.relatedDebtId);
             
             if (newDebt) {
@@ -385,9 +383,8 @@ export default function PaymentManagement() {
               });
             }
           }
-        } else if (formData.relatedDebtId && amountDiff !== 0) {
-          // Aynı borç ama miktar değişti
-          const debtRef = doc(db, COLLECTIONS.debts, formData.relatedDebtId);
+        } else if (formData.relatedDebtId && amountDiff !== 0) {          // Aynı borç ama miktar değişti
+          const debtRef = doc(db, COLLECTIONS.DEBTS, formData.relatedDebtId);
           const debtToUpdate = debts.find(d => d.id === formData.relatedDebtId);
           
           if (debtToUpdate) {
@@ -444,11 +441,11 @@ export default function PaymentManagement() {
       }
       
       // Önce ödemeyi sil
-      await deleteDoc(doc(db, COLLECTIONS.payments, paymentId));
+      await deleteDoc(doc(db, COLLECTIONS.PAYMENTS, paymentId));
       
       // Eğer ilişkili bir borç varsa, borç kaydını güncelle
       if (paymentToDelete.relatedDebtId) {
-        const debtRef = doc(db, COLLECTIONS.debts, paymentToDelete.relatedDebtId);
+        const debtRef = doc(db, COLLECTIONS.DEBTS, paymentToDelete.relatedDebtId);
         const debtToUpdate = debts.find(d => d.id === paymentToDelete.relatedDebtId);
         
         if (debtToUpdate) {

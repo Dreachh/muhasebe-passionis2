@@ -1,0 +1,3 @@
+// Providers state tanımı ve açıklama
+  // Sağlayıcılar için state tanımı - CompanyManagement bileşeni kullanılmasına rağmen örnek verilerin yüklenmesi için gerekli
+  const [providers, setProviders] = useState<Provider[]>([])

@@ -391,7 +391,7 @@ export function MainDashboard({ onNavigate, financialData = [], toursData = [], 
         if (finance.type === "income") {
           serialNumber = `${incomeCounter++}F`;
         } else {
-          serialNumber = `F${expenseCounter++}`;
+          serialNumber = `${expenseCounter++}F`;
         }
         
         // Tutarı doğru şekilde al

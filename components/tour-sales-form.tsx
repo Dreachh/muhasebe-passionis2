@@ -51,6 +51,7 @@ interface Expense {
   currency: string;
   details?: string;
   isIncludedInPrice: boolean;
+  addToDebt?: boolean; // Müşteri borcuna eklenip eklenmeyeceğini belirten özellik
   rehberInfo?: string; // Opsiyonel alanlar eklendi
   transferType?: string;
   transferPerson?: string;
@@ -71,6 +72,7 @@ interface Activity {
   participants: string | number; // HATA: string | number olarak düzeltildi
   participantsType: string;
   companyId: string;
+  addToDebt?: boolean; // Müşteri borcuna eklenip eklenmeyeceğini belirten özellik
   details?: string;
 }
 
@@ -162,20 +164,41 @@ export function TourSalesForm({
   // Adım göstergesi için referans
   const stepsRef = useRef<HTMLDivElement | null>(null)
 
-  // Initialize form data from initialData, tempData, or default values
+  // Initialize form data from tempTourFormData, editingRecord, initialData or use empty form
   const [formData, setFormData] = useState<FormData>(() => {
-    if (tempTourFormData) return tempTourFormData as FormData
-    if (initialData) {
-      // initialData varsa (tur düzenleme modundaysa), selectedTourName'in 
-      // kaybolmamasını sağlamak için kontrol ediyoruz
-      const data = initialData as FormData;
-      if (!data.selectedTourName && data.selectedTourId) {
-        // selectedTourId var ama selectedTourName yoksa, destinasyon turlarını 
-        // yüklendikten sonra dolduracağız. Bu durumda alanı şimdilik boş bırak.
-        console.log("Düzenleme modunda. SelectedTourId var ama SelectedTourName yok:", data.selectedTourId);
-      }
-      return data;
+    // Öncelik sırası: tempTourFormData > editingRecord > initialData > boş form
+    if (tempTourFormData) {
+      console.log("Form localStorage'dan yükleniyor");
+      return tempTourFormData as FormData;
     }
+    
+    // Düzenleme kaydı varsa, doğrudan onu kullan
+    if (editingRecord) {
+      console.log("Form editingRecord'dan yükleniyor:", editingRecord);
+      
+      // Eğer kimlik ve tarih gibi temel bilgiler varsa 
+      if (editingRecord.id && editingRecord.tourDate) {
+        // Düzenleme modunda olduğumuzda direk ikinci adıma geçiş yapabilir
+        // Böylece kullanıcı tüm bilgileri görebilir
+        setTimeout(() => {
+          if (currentStep === 0) {
+            setCurrentStep(1);
+            console.log("useState callback: Adım 1'e geçildi");
+          }
+        }, 100);
+        
+        return editingRecord as FormData;
+      }
+    }
+    
+    // initialData varsa, onu kullan
+    if (initialData) {
+      console.log("Form initialData'dan yükleniyor:", initialData);
+      return initialData as FormData;
+    }
+    
+    console.log("Boş form oluşturuluyor");
+    // Başlangıçta boş form ile başla
 
     return {
       id: generateUUID(),
@@ -365,56 +388,101 @@ export function TourSalesForm({
     loadRates();
   }, []);
 
-  // initialData değişikliklerini izle
+  // editingRecord veya initialData değişikliklerini izle
   useEffect(() => {
-    if (initialData) {
-      console.log("Tour edit data received:", initialData);
-      // Düzenlenecek tur verilerini forma yükle
-      const formData = {
-        ...initialData,
-        id: initialData.id || generateUUID(),
-        tourDate: initialData.tourDate || new Date().toISOString().split("T")[0],
-        tourEndDate: initialData.tourEndDate || "",
-        serialNumber: initialData.serialNumber || "",
-        tourName: initialData.tourName || "",
-        customerName: initialData.customerName || "",
-        customerPhone: initialData.customerPhone || "",
-        customerEmail: initialData.customerEmail || "",
-        customerIdNumber: initialData.customerIdNumber || "",
-        customerAddress: initialData.customerAddress || "",
-        nationality: initialData.nationality || "", // Vatandaşlık/ülke bilgisi
-        numberOfPeople: initialData.numberOfPeople || 1,
-        numberOfChildren: initialData.numberOfChildren || 0,
-        pricePerPerson: initialData.pricePerPerson || "",
-        totalPrice: initialData.totalPrice || "",
-        currency: initialData.currency || "TRY",
-        paymentStatus: initialData.paymentStatus || "pending",
-        paymentMethod: initialData.paymentMethod || "cash",
-        partialPaymentAmount: initialData.partialPaymentAmount || "",
-        partialPaymentCurrency: initialData.partialPaymentCurrency || "TRY",
-        notes: initialData.notes || "",
-        expenses: initialData.expenses || [],
-        activities: initialData.activities || [],
-        destinationId: initialData.destinationId || "",
-        destinationName: initialData.destinationName || ""
+    // Düzenleme modunda mı kontrol et (editingRecord veya initialData)
+    const editData = editingRecord || initialData;
+    
+    console.log("TUR DÜZENLEME KONTROLÜ:", { 
+      editingRecordVar: editingRecord ? "VAR" : "YOK", 
+      initialDataVar: initialData ? "VAR" : "YOK",
+      step: currentStep 
+    });
+    
+    if (editData) {
+      console.log("Tour edit data received:", editData);
+      console.log("Düzenlenecek tur ID:", editData.id);
+      
+      // Düzenlenecek tur verilerini forma yükle - bu referansını değiştirerek
+      // effect'in her seferinde çalışmasını önlüyoruz
+      let updatedFormData = {
+        // Önce varsayılan boş değerleri belirle
+        id: generateUUID(),
+        tourDate: new Date().toISOString().split("T")[0],
+        tourEndDate: "",
+        serialNumber: "",
+        tourName: "",
+        customerName: "",
+        customerPhone: "",
+        customerEmail: "",
+        customerAddress: "",
+        customerIdNumber: "",
+        nationality: "", // Vatandaşlık/ülke bilgisi
+        referralSource: "", 
+        additionalCustomers: [],
+        numberOfPeople: 1,
+        numberOfChildren: 0,
+        pricePerPerson: "",
+        totalPrice: "",
+        currency: "TRY",
+        paymentStatus: "pending",
+        paymentMethod: "cash",
+        partialPaymentAmount: "",
+        partialPaymentCurrency: "TRY",
+        notes: "",
+        expenses: [],
+        activities: [],
+        destinationId: "",
+        destinationName: "",
+        selectedTourId: "",
+        selectedTourName: "",
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        
+        // Sonra editData içindeki tüm değerleri üzerine yaz
+        ...editData
       };
       
-      // Eğer destinationId var ama destinationName yoksa, destinasyonlar yüklendiyse adını bul ve ekle
-      if (formData.destinationId && !formData.destinationName && destinations && destinations.length > 0) {
-        const selectedDestination = destinations.find((d: any) => d.id === formData.destinationId);
+      // Eğer destinationId var ama destinationName yoksa ve destinasyonlar yüklendiyse adını bul ve ekle
+      if (updatedFormData.destinationId && !updatedFormData.destinationName && destinations && destinations.length > 0) {
+        const selectedDestination = destinations.find((d: any) => d.id === updatedFormData.destinationId);
         if (selectedDestination) {
-          formData.destinationName = selectedDestination.name;
+          updatedFormData.destinationName = selectedDestination.name;
         }
       }
-
-      // Eğer ilk yüklemede selectedTour değerleri yoksa, desteklemek için boş değerler atayalım
-      formData.selectedTourId = initialData.selectedTourId || "";
-      formData.selectedTourName = initialData.selectedTourName || "";
+      
+      console.log("Form loaded with edit data:", updatedFormData);
       
       // Form verilerini güncelle
-      setFormData(formData);
+      console.log("Form verileri güncelleniyor. Eski veriler:", formData);
+      console.log("Yeni veriler:", updatedFormData);
+      
+      // Tüm gerekli alanlar dolu mu kontrol et
+      const hasRequiredFields = updatedFormData.customerName && 
+                                updatedFormData.tourName && 
+                                updatedFormData.tourDate;
+      
+      console.log("Gerekli alanlar dolu mu:", hasRequiredFields);
+      
+      // Eğer tüm gerekli alanlar doluysa formu güncelle
+      if (hasRequiredFields) {
+        console.log("Tüm gerekli alanlar dolu, form güncelleniyor");
+        setFormData(updatedFormData);
+        
+        // Düzenleme modunda olduğumuzda direk ikinci adıma geçiş yapabilir
+        // Böylece kullanıcı tüm bilgileri görebilir
+        if (currentStep === 0) {
+          console.log("Adım 0'dan 1'e geçiliyor");
+          setTimeout(() => {
+            setCurrentStep(1);
+            console.log("Moved to step 1 (editing mode)");
+          }, 100); // Kısa bir gecikme ekleyerek state güncellemelerinin doğru sırayla işlenmesini sağlayalım
+        }
+      } else {
+        console.log("UYARI: Gerekli alanlar dolu değil!");
+      }
     }
-  }, [initialData, destinations]);
+  }, [initialData, editingRecord, destinations]);
 
   // Gider türlerini, firmaları, aktiviteleri ve destinasyonları yükle
   useEffect(() => {
@@ -1793,6 +1861,22 @@ export function TourSalesForm({
                             Tur fiyatına dahil
                           </label>
                         </div>
+
+                        <div className="flex items-center space-x-2 mt-2">
+                          <Checkbox
+                            id={`addToDebt-${expense.id}`}
+                            checked={expense.addToDebt || false}
+                            onCheckedChange={(checked) =>
+                              updateExpense(expense.id, "addToDebt", checked === true)
+                            }
+                          />
+                          <label
+                            htmlFor={`addToDebt-${expense.id}`}
+                            className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                          >
+                            Müşteri borcuna ekle
+                          </label>
+                        </div>
                       </div>
                     </Card>
                   ))}
@@ -2017,6 +2101,22 @@ export function TourSalesForm({
                             placeholder="Ek bilgiler"
                           />
                         </div>
+                      </div>
+
+                      <div className="flex items-center space-x-2 mt-4">
+                        <Checkbox
+                          id={`addToDebt-${activity.id}`}
+                          checked={activity.addToDebt || false}
+                          onCheckedChange={(checked) =>
+                            updateTourActivity(activity.id, "addToDebt", checked === true)
+                          }
+                        />
+                        <label
+                          htmlFor={`addToDebt-${activity.id}`}
+                          className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                        >
+                          Müşteri borcuna ekle
+                        </label>
                       </div>
                     </Card>
                   ))}
